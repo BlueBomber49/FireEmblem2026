@@ -1,0 +1,2 @@
+# Normalize line endings so Windows and macOS/Linux teammates produce the same diffs.
+* text=auto eol=lf

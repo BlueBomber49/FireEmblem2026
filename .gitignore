@@ -1,0 +1,11 @@
+# Godot 4 editor cache and imports
+.godot/
+
+# Export output
+/build/
+/android/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.tmp
