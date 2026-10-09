@@ -1,0 +1,19 @@
+# Godot 4 editor cache and imports
+.godot/
+
+# Export output
+/build/
+/android/
+
+# Generated from translation CSVs
+*.translation
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# External code editors
+.vscode/
+.idea/
