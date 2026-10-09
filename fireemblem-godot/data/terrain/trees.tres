@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TerrainType" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://cnfn5ymp0f61w" path="res://core/maps/terrain_type.gd" id="1_terrain"]
+
+[resource]
+script = ExtResource("1_terrain")
+id = "trees"
+texture_path = "res://assets/art/trees.png"
+tile_size = Vector2i(16, 16)
+atlas_origin = Vector2i(0, 0)
+single_tile = Vector2i(-1, -1)
+overrides = {}
