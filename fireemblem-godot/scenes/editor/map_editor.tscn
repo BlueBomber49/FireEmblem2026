@@ -1,0 +1,285 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/editor/map_editor.gd" id="1_editor"]
+[ext_resource type="Script" path="res://scenes/maps/level.gd" id="2_level"]
+
+[node name="MapEditor" type="Node2D"]
+script = ExtResource("1_editor")
+
+[node name="Level" type="Node2D" parent="."]
+script = ExtResource("2_level")
+create_camera = false
+interactive = false
+
+[node name="Overlay" type="Node2D" parent="."]
+z_index = 100
+
+[node name="Camera" type="Camera2D" parent="."]
+zoom = Vector2(2, 2)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="UI"]
+unique_name_in_owner = true
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 300.0
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="UI/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Scroll" type="ScrollContainer" parent="UI/Panel/Margin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="VBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="FileLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+text = "File"
+
+[node name="PathEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "res://data/maps/level.json"
+
+[node name="FileButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+
+[node name="LoadButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Load"
+
+[node name="SaveButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Save"
+
+[node name="NewButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "New"
+
+[node name="EditButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+
+[node name="UndoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Undo"
+
+[node name="RedoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Redo"
+
+[node name="Sep1" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+
+[node name="ModeRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+
+[node name="ModeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/ModeRow"]
+layout_mode = 2
+text = "Mode"
+
+[node name="ModeOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/ModeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 2
+popup/item_0/text = "Terrain"
+popup/item_0/id = 0
+popup/item_1/text = "Units"
+popup/item_1/id = 1
+
+[node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LayersLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+text = "Layers"
+
+[node name="LayerList" type="ItemList" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+
+[node name="NewLayer" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+
+[node name="NameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "name"
+
+[node name="TerrainOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ZSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = -10.0
+max_value = 100.0
+prefix = "z"
+
+[node name="LayerButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+
+[node name="AddLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Add layer"
+
+[node name="RemoveLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Remove layer"
+
+[node name="Sep2" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+
+[node name="BrushLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+text = "Brush"
+
+[node name="BrushRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+
+[node name="BrushOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 2
+popup/item_0/text = "Paint"
+popup/item_0/id = 0
+popup/item_1/text = "Erase"
+popup/item_1/id = 1
+
+[node name="SizeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+layout_mode = 2
+text = "Size"
+
+[node name="SizeSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 12.0
+value = 1.0
+
+[node name="TerrainHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+layout_mode = 2
+text = "Left: paint   Right: erase"
+autowrap_mode = 3
+
+[node name="UnitsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="UnitHeader" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "New unit template"
+
+[node name="ClassRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+
+[node name="ClassOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FactionOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Fields" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+columns = 2
+
+[node name="IdLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+layout_mode = 2
+text = "id"
+
+[node name="IdEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+layout_mode = 2
+text = "name"
+
+[node name="UnitNameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LevelLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+layout_mode = 2
+text = "level"
+
+[node name="LevelSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 40.0
+value = 1.0
+
+[node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 4
+
+[node name="DeleteUnitButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Delete unit"
+
+[node name="UnitsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+text = "Left: place / click to select / drag to move
+Right: delete"
+autowrap_mode = 3
+
+[node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+
+[node name="Help" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+layout_mode = 2
+text = "Middle-drag / arrows: pan   Wheel: zoom
+Ctrl+Z: undo   Ctrl+Shift+Z: redo"
+autowrap_mode = 3
+
+[node name="Status" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
