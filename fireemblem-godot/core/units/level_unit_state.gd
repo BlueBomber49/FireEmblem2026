@@ -2,8 +2,9 @@ class_name LevelUnitState
 extends RefCounted
 ## The mutable, saveable half of a unit on the field (the model behind LevelUnit).
 
-## Key in Level.level_units and MapData.units.
-var unit_id: String
+## The authored half of this unit. Always set, so a state can't exist without
+## one; its `id` is the key in LevelState.level_units and MapData.units.
+var unit_ref: UnitReference
 var cell := Vector2i.ZERO
 var current_hp: int = 0
 var has_moved := false
@@ -23,7 +24,7 @@ func reset_turn() -> void:
 ## State for a unit that has not been touched yet (starting a level fresh).
 static func from_reference(ref: UnitReference) -> LevelUnitState:
 	var state := LevelUnitState.new()
-	state.unit_id = ref.id
+	state.unit_ref = ref
 	state.cell = ref.start_cell
 	state.current_hp = ref.stat(&"hp")
 	state.facing = ref.facing
@@ -36,15 +37,16 @@ static func build_all(units: Dictionary, saved: Dictionary) -> Dictionary:
 	var states := {}
 	for id in units:
 		if saved.has(id):
-			states[id] = fromJson(id, saved[id])
+			states[id] = fromJson(units[id], saved[id])
 		else:
 			states[id] = from_reference(units[id])
 	return states
 
 
-static func fromJson(p_unit_id: String, d: Dictionary) -> LevelUnitState:
+## `ref` isn't in the JSON: a save stores only what changes during play.
+static func fromJson(ref: UnitReference, d: Dictionary) -> LevelUnitState:
 	var state := LevelUnitState.new()
-	state.unit_id = p_unit_id
+	state.unit_ref = ref
 	state.cell = JsonUtil.vec2i_from_json(d.get("cell"))
 	state.current_hp = JsonUtil.to_int(d.get("current_hp"))
 	state.has_moved = bool(d.get("has_moved", false))

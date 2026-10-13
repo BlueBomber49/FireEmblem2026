@@ -43,3 +43,20 @@ func test_unknown_faction_defaults_to_player() -> void:
 	assert_eq(UnitReference.faction_from_string("enemy"), UnitReference.Faction.ENEMY)
 	assert_eq(UnitReference.faction_from_string("nope"), UnitReference.Faction.PLAYER)
 	assert_engine_error("Unknown faction 'nope'")
+
+
+func test_are_hostile_only_across_the_enemy_line() -> void:
+	var by_faction := {}
+	for faction in UnitReference.Faction.values():
+		var ref := UnitReference.new()
+		ref.faction = faction
+		by_faction[faction] = ref
+	var player: UnitReference = by_faction[UnitReference.Faction.PLAYER]
+	var enemy: UnitReference = by_faction[UnitReference.Faction.ENEMY]
+	var ally: UnitReference = by_faction[UnitReference.Faction.ALLY]
+	assert_true(UnitReference.are_hostile(player, enemy))
+	assert_true(UnitReference.are_hostile(enemy, player), "order doesn't matter")
+	assert_true(UnitReference.are_hostile(ally, enemy))
+	assert_false(UnitReference.are_hostile(player, ally), "green units are on the player's side")
+	assert_false(UnitReference.are_hostile(player, player))
+	assert_false(UnitReference.are_hostile(enemy, enemy))
