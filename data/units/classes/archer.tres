@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=6 format=3 uid="uid://dysm5pr0cqt3l"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://core/units/stats.gd" id="1_wusqm"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://core/units/class_data.gd" id="2_3rmp3"]
+
+[sub_resource type="Resource" id="Resource_j5d22"]
+script = ExtResource("1_wusqm")
+hp = 18
+strength = 4
+skill = 3
+speed = 3
+defense = 3
+constitution = 7
+movement = 5
+
+[sub_resource type="Resource" id="Resource_yfsrs"]
+script = ExtResource("1_wusqm")
+hp = 60
+strength = 20
+magic = 20
+skill = 20
+speed = 20
+luck = 30
+defense = 20
+resistance = 20
+constitution = 20
+movement = 15
+
+[sub_resource type="Resource" id="Resource_cwsyp"]
+script = ExtResource("1_wusqm")
+hp = 70
+strength = 35
+skill = 40
+speed = 32
+luck = 35
+defense = 15
+resistance = 15
+
+[resource]
+script = ExtResource("2_3rmp3")
+id = &"archer"
+display_name = "Archer"
+base_stats = SubResource("Resource_j5d22")
+growths = SubResource("Resource_cwsyp")
+caps = SubResource("Resource_yfsrs")
+usable_weapon_types = Array[int]([3])

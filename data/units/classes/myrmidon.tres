@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=6 format=3 uid="uid://c357rv44ieu0a"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://core/units/stats.gd" id="1_cjvvg"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://core/units/class_data.gd" id="2_1mbfd"]
+
+[sub_resource type="Resource" id="Resource_wguf1"]
+script = ExtResource("1_cjvvg")
+hp = 16
+strength = 4
+skill = 9
+speed = 9
+defense = 2
+constitution = 8
+movement = 5
+
+[sub_resource type="Resource" id="Resource_p7nn6"]
+script = ExtResource("1_cjvvg")
+hp = 60
+strength = 20
+magic = 20
+skill = 20
+speed = 20
+luck = 30
+defense = 20
+resistance = 20
+constitution = 20
+movement = 15
+
+[sub_resource type="Resource" id="Resource_incxp"]
+script = ExtResource("1_cjvvg")
+hp = 70
+strength = 35
+skill = 40
+speed = 40
+luck = 30
+defense = 15
+resistance = 20
+
+[resource]
+script = ExtResource("2_1mbfd")
+id = &"myrmidon"
+display_name = "Myrmidon"
+base_stats = SubResource("Resource_wguf1")
+growths = SubResource("Resource_incxp")
+caps = SubResource("Resource_p7nn6")
+usable_weapon_types = Array[int]([0])

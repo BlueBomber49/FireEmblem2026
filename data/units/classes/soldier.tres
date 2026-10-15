@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=6 format=3 uid="uid://dacvyaitg5jt2"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://core/units/stats.gd" id="1_f2s7t"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://core/units/class_data.gd" id="2_rujqh"]
+
+[sub_resource type="Resource" id="Resource_aaj3t"]
+script = ExtResource("1_f2s7t")
+hp = 20
+strength = 3
+speed = 1
+constitution = 6
+movement = 5
+
+[sub_resource type="Resource" id="Resource_ojb4g"]
+script = ExtResource("1_f2s7t")
+hp = 60
+strength = 20
+magic = 20
+skill = 20
+speed = 20
+luck = 30
+defense = 20
+resistance = 20
+constitution = 20
+movement = 15
+
+[sub_resource type="Resource" id="Resource_yihco"]
+script = ExtResource("1_f2s7t")
+hp = 80
+strength = 50
+skill = 30
+speed = 20
+luck = 25
+defense = 12
+resistance = 15
+
+[resource]
+script = ExtResource("2_rujqh")
+id = &"soldier"
+display_name = "Soldier"
+base_stats = SubResource("Resource_aaj3t")
+growths = SubResource("Resource_yihco")
+caps = SubResource("Resource_ojb4g")
+usable_weapon_types = Array[int]([1])
+class_power = 2
