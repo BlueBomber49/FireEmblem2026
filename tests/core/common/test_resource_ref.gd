@@ -20,19 +20,19 @@ func test_to_dict_records_uid_and_path() -> void:
 func test_to_dict_refuses_resource_created_in_code() -> void:
 	var ref := ResourceRef.to_dict(WeaponData.new())
 	assert_eq(ref, {})
-	assert_push_error(1)
+	assert_push_error_count(1)
 
 
 func test_to_dict_refuses_embedded_resource() -> void:
 	var w := WeaponData.new()
 	w.resource_path = "res://tests/not_a_real_unit.tres::WeaponData_1"
 	assert_eq(ResourceRef.to_dict(w), {})
-	assert_push_error(1)
+	assert_push_error_count(1)
 
 
 func test_to_dict_refuses_null() -> void:
 	assert_eq(ResourceRef.to_dict(null), {})
-	assert_push_error(1)
+	assert_push_error_count(1)
 
 
 # --- load_from --------------------------------------------------------------
