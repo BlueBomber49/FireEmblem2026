@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="Stats" load_steps=2 format=3 uid="uid://dvjhdxmaoiao1"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://core/units/stats.gd" id="1_5hgkp"]
+
+[resource]
+script = ExtResource("1_5hgkp")
+hp = 1

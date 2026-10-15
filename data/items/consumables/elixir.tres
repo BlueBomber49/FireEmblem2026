@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ConsumableData" load_steps=2 format=3 uid="uid://c776pk62880d1"]
+
+[ext_resource type="Script" uid="uid://dugdqysmhspgh" path="res://core/items/consumable_data.gd" id="1_d0bpi"]
+
+[resource]
+script = ExtResource("1_d0bpi")
+max_uses = 3
+heal_amount = -1
+id = &"elixir"
+display_name = "Elixir"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://qbug1ec20fsp"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://core/items/weapon_data.gd" id="1_eb6q2"]
+
+[resource]
+script = ExtResource("1_eb6q2")
+might = 5
+hit = 90
+weight = 5
+id = &"iron_sword"
+display_name = "Iron Sword"
