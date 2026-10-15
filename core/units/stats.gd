@@ -55,6 +55,26 @@ func copy() -> Stats:
 	return result
 
 
+## {"hp": 17, "strength": 5, ...} for saving.
+func to_dict() -> Dictionary:
+	var d := {}
+	for field in FIELDS:
+		d[String(field)] = get(field)
+	return d
+
+
+## Stats read from save data. Each missing or non-numeric stat, or the whole block
+## when `d` isn't a Dictionary, uses `fallback`'s value. Unknown keys are ignored.
+static func from_dict(d: Variant, fallback: Stats) -> Stats:
+	var result := fallback.copy()
+	if not d is Dictionary:
+		push_warning("Save data: stats aren't a dictionary; using defaults.")
+		return result
+	for field in FIELDS:
+		result.set(field, SaveUtil.read_int(d, String(field), int(fallback.get(field))))
+	return result
+
+
 func equals(other: Stats) -> bool:
 	if other == null:
 		return false

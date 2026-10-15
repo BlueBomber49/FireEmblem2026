@@ -56,6 +56,49 @@ func move_to_front(index: int) -> void:
 	_items.insert(0, entry)
 
 
+## The inventory as save data: [{"item": <reference>, "uses_left": n}, ...].
+## Only consumables save uses_left. Returns an empty Array for an empty inventory
+## and null (not an Array) if any item can't be referenced, so callers can tell
+## "no items" from "saving failed".
+func to_array() -> Variant:
+	var entries := []
+	for entry in _items:
+		var ref := ResourceRef.to_dict(entry.data)
+		if ref.is_empty():
+			return null
+		var saved := {"item": ref}
+		if entry.is_consumable():
+			saved["uses_left"] = entry.uses_left
+		entries.append(saved)
+	return entries
+
+
+## An inventory read from save data. Skips (with a warning) entries that aren't
+## dictionaries or whose item can't load, and drops entries beyond capacity.
+## A consumable's missing or bad uses_left becomes its max uses; others are clamped
+## to 1 through max uses.
+static func from_array(a: Variant, p_capacity: int = DEFAULT_CAPACITY) -> Inventory:
+	var inventory := Inventory.new(p_capacity)
+	if not a is Array:
+		push_warning("Save data: inventory isn't a list; loading it empty.")
+		return inventory
+	for saved in a:
+		if not saved is Dictionary:
+			push_warning("Save data: skipping an inventory entry that isn't a dictionary.")
+			continue
+		var item := ResourceRef.load_from(saved.get("item"), ItemData) as ItemData
+		if item == null:
+			push_warning("Save data: skipping an inventory item that can't load.")
+			continue
+		var uses := -1
+		if item is ConsumableData:
+			var max_uses := (item as ConsumableData).max_uses
+			uses = clampi(SaveUtil.read_int(saved, "uses_left", max_uses), 1, max_uses)
+		if not inventory.add_entry(InventoryItem.new(item, uses)):
+			push_warning("Save data: inventory is full; dropping '%s'." % item.id)
+	return inventory
+
+
 ## Index of the first weapon `class_data` can wield, or -1.
 func first_usable_weapon_index(class_data: ClassData) -> int:
 	for i in _items.size():

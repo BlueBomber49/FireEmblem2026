@@ -135,3 +135,8 @@ func test_consumables() -> void:
 	assert_eq(e.max_uses, 3)
 	assert_eq(e.heal_amount, ConsumableData.FULL_HEAL)
 
+
+func test_fixture_unit_is_valid() -> void:
+	var u: UnitData = load("res://tests/fixtures/fixture_knight.tres")
+	assert_eq(u.validate(), PackedStringArray())
+	assert_eq(u.class_data, load("res://data/units/classes/knight.tres"))
