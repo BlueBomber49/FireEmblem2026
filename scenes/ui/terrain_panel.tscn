@@ -1,0 +1,79 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/terrain_panel.gd" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/ui_theme.tres" id="2_theme"]
+
+[node name="TerrainPanel" type="PanelContainer"]
+theme = ExtResource("2_theme")
+theme_type_variation = &"TerrainPanel"
+script = ExtResource("1_script")
+
+[node name="Rows" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TerrainName" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TerrainLabel"
+text = "Fort"
+horizontal_alignment = 1
+
+[node name="Stats" type="GridContainer" parent="Rows"]
+layout_mode = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 0
+columns = 2
+
+[node name="DefLabel" type="Label" parent="Rows/Stats"]
+layout_mode = 2
+theme_type_variation = &"TerrainLabel"
+text = "Def"
+
+[node name="Defense" type="Label" parent="Rows/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TerrainLabel"
+text = "2"
+horizontal_alignment = 2
+
+[node name="AvoLabel" type="Label" parent="Rows/Stats"]
+layout_mode = 2
+theme_type_variation = &"TerrainLabel"
+text = "Avo"
+
+[node name="Avoid" type="Label" parent="Rows/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TerrainLabel"
+text = "20"
+horizontal_alignment = 2
+
+[node name="MoveLabel" type="Label" parent="Rows/Stats"]
+layout_mode = 2
+theme_type_variation = &"TerrainLabel"
+text = "Move"
+
+[node name="Move" type="Label" parent="Rows/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TerrainLabel"
+text = "2"
+horizontal_alignment = 2
+
+[node name="HealLabel" type="Label" parent="Rows/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TerrainLabel"
+text = "Heal"
+
+[node name="Heal" type="Label" parent="Rows/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TerrainLabel"
+text = "20%"
+horizontal_alignment = 2
