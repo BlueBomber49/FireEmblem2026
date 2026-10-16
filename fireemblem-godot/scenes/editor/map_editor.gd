@@ -208,7 +208,7 @@ func selected_layer() -> MapLayer:
 	var items := layer_list.get_selected_items()
 	if items.is_empty():
 		return null
-	return level.map_data.layerData.layers.get(layer_list.get_item_metadata(items[0]))
+	return level.level_state.map_data.layerData.layers.get(layer_list.get_item_metadata(items[0]))
 
 
 ## Vertices the brush covers around `hover_vert`.
@@ -255,7 +255,7 @@ func _refresh_layer_list(select_name := "") -> void:
 	if previous.is_empty() and selected_layer() != null:
 		previous = selected_layer().name
 	layer_list.clear()
-	for layer in level.map_data.layerData.sorted_layers():
+	for layer in level.level_state.map_data.layerData.sorted_layers():
 		var i := layer_list.add_item("%s   (%s, z=%d)" % [layer.name, layer.terrain, layer.z])
 		layer_list.set_item_metadata(i, layer.name)
 		if layer.name == previous:
@@ -275,14 +275,14 @@ func _add_layer() -> void:
 	if layer_name.is_empty() or terrain.is_empty():
 		status.text = "Pick a terrain and a layer name first."
 		return
-	if level.map_data.layerData.layers.has(layer_name):
+	if level.level_state.map_data.layerData.layers.has(layer_name):
 		status.text = "A layer named '%s' already exists." % layer_name
 		return
 	var before := _snapshot()
-	level.map_data.layerData.layers[layer_name] = MapLayer.new(layer_name, int(z_spin.value), terrain)
+	level.level_state.map_data.layerData.layers[layer_name] = MapLayer.new(layer_name, int(z_spin.value), terrain)
 	_commit(before)
 	name_edit.text = ""
-	level.toTscn()
+	level.rebuild()
 	_refresh_layer_list(layer_name)
 
 
@@ -291,15 +291,15 @@ func _remove_layer() -> void:
 	if layer == null:
 		return
 	var before := _snapshot()
-	level.map_data.layerData.layers.erase(layer.name)
+	level.level_state.map_data.layerData.layers.erase(layer.name)
 	_commit(before)
-	level.toTscn()
+	level.rebuild()
 	_refresh_layer_list()
 
 
 func _next_z() -> int:
 	var z := 0
-	for layer in level.map_data.layerData.layers.values():
+	for layer in level.level_state.map_data.layerData.layers.values():
 		z = maxi(z, layer.z + 1)
 	return z
 
@@ -337,7 +337,7 @@ func _unit_click(click: InputEventMouseButton) -> void:
 	else:
 		# Dropping a dragged unit on a free cell moves it there.
 		if not dragging_unit_id.is_empty() and unit_here.is_empty():
-			var ref: UnitReference = level.map_data.units.get(dragging_unit_id)
+			var ref: UnitReference = level.level_state.map_data.units.get(dragging_unit_id)
 			if ref != null and ref.start_cell != hover_cell:
 				var before := _snapshot()
 				ref.start_cell = hover_cell
@@ -347,8 +347,8 @@ func _unit_click(click: InputEventMouseButton) -> void:
 
 
 func _unit_id_at(cell: Vector2i) -> String:
-	for id in level.map_data.units:
-		if level.map_data.units[id].start_cell == cell:
+	for id in level.level_state.map_data.units:
+		if level.level_state.map_data.units[id].start_cell == cell:
 			return id
 	return ""
 
@@ -367,7 +367,7 @@ func _place_unit(cell: Vector2i) -> void:
 	ref.sprite_sheet = sheet_for(ref.unit_class, ref.faction)
 	ref.start_cell = cell
 	var before := _snapshot()
-	level.map_data.units[ref.id] = ref
+	level.level_state.map_data.units[ref.id] = ref
 	_commit(before)
 	_rebuild_units()
 	_select_unit(ref.id)
@@ -375,7 +375,7 @@ func _place_unit(cell: Vector2i) -> void:
 
 func _delete_unit(id: String) -> void:
 	var before := _snapshot()
-	level.map_data.units.erase(id)
+	level.level_state.map_data.units.erase(id)
 	_commit(before)
 	if selected_unit_id == id:
 		selected_unit_id = ""
@@ -389,7 +389,7 @@ func _delete_selected_unit() -> void:
 
 
 func _select_unit(id: String) -> void:
-	selected_unit_id = id if level.map_data.units.has(id) else ""
+	selected_unit_id = id if level.level_state.map_data.units.has(id) else ""
 	for node_id in level.unit_nodes:
 		level.unit_nodes[node_id].modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
 	_fill_inspector()
@@ -399,7 +399,7 @@ func _select_unit(id: String) -> void:
 
 ## Units in the editor always show their authored start cells.
 func _rebuild_units() -> void:
-	level.level_units = LevelUnitState.build_all(level.map_data.units, {})
+	level.level_state.level_units = LevelUnitState.build_all(level.level_state.map_data.units, {})
 	level.respawn_units()
 	for node_id in level.unit_nodes:
 		level.unit_nodes[node_id].modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
@@ -408,14 +408,14 @@ func _rebuild_units() -> void:
 func _free_unit_id(unit_class: String) -> String:
 	var base := unit_class.to_snake_case()
 	var n := 1
-	while level.map_data.units.has("%s_%d" % [base, n]):
+	while level.level_state.map_data.units.has("%s_%d" % [base, n]):
 		n += 1
 	return "%s_%d" % [base, n]
 
 
 func _fill_inspector() -> void:
 	_syncing = true
-	var ref: UnitReference = level.map_data.units.get(selected_unit_id)
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
 	var editing := ref != null
 	unit_header.text = "Editing '%s'" % selected_unit_id if editing else "New unit template"
 	id_edit.editable = editing
@@ -445,20 +445,20 @@ func _fill_inspector() -> void:
 func _apply_inspector(respawn := false) -> void:
 	if _syncing:
 		return
-	var ref: UnitReference = level.map_data.units.get(selected_unit_id)
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
 	if ref == null:
 		return
 	var before := _snapshot()
 	var tag := "inspector:" + ref.id
 	var new_id := id_edit.text.strip_edges()
 	if not new_id.is_empty() and new_id != ref.id:
-		if level.map_data.units.has(new_id):
+		if level.level_state.map_data.units.has(new_id):
 			status.text = "A unit with id '%s' already exists." % new_id
 			id_edit.text = ref.id
 		else:
-			level.map_data.units.erase(ref.id)
+			level.level_state.map_data.units.erase(ref.id)
 			ref.id = new_id
-			level.map_data.units[new_id] = ref
+			level.level_state.map_data.units[new_id] = ref
 			selected_unit_id = new_id
 			respawn = true
 	ref.name = unit_name_edit.text
@@ -525,10 +525,12 @@ func _build_stats_grid() -> void:
 
 func _load() -> void:
 	level_path = path_edit.text
-	if level.load_file(level_path) != OK:
+	var loaded := LevelState.load_file(level_path)
+	if loaded == null:
 		status.text = "Could not load %s" % level_path
 		return
-	level.toTscn()
+	level.level_state = loaded
+	level.rebuild()
 	_frame_camera()
 	_refresh_layer_list()
 	_select_unit("")
@@ -538,15 +540,15 @@ func _load() -> void:
 
 func _save() -> void:
 	level_path = path_edit.text
-	if level.save_file(level_path, false) == OK:
+	if level.level_state.save_file(level_path, false) == OK:
 		status.text = "Saved %s" % level_path
 	else:
 		status.text = "Could not save %s" % level_path
 
 
 func _new() -> void:
-	level.fromJson({})
-	level.toTscn()
+	level.level_state = LevelState.fromJson({})
+	level.rebuild()
 	_refresh_layer_list()
 	_select_unit("")
 	_clear_history()
@@ -557,7 +559,7 @@ func _new() -> void:
 
 
 func _snapshot() -> Dictionary:
-	return level.toJson(false)
+	return level.level_state.toJson(false)
 
 
 ## Records `before` as an undo step if the level differs from it now. Changes
@@ -592,8 +594,8 @@ func redo() -> void:
 
 func _restore(snapshot: Dictionary) -> void:
 	_last_change_tag = ""
-	level.fromJson(snapshot)
-	level.toTscn()
+	level.level_state = LevelState.fromJson(snapshot)
+	level.rebuild()
 	_refresh_layer_list()
 	_select_unit(selected_unit_id)
 	_update_history_buttons()
@@ -623,7 +625,7 @@ func _zoom(factor: float) -> void:
 
 
 func _frame_camera() -> void:
-	var bounds := level.map_data.layerData.bounds()
+	var bounds := level.level_state.map_data.layerData.bounds()
 	if bounds.has_area():
 		camera.position = (Vector2(bounds.position) + Vector2(bounds.size) / 2.0) * Vector2(level.tile_size)
 		# Keep the map clear of the side panel.
@@ -633,7 +635,7 @@ func _frame_camera() -> void:
 func _update_status() -> void:
 	if mode == Mode.UNITS:
 		var here := _unit_id_at(hover_cell)
-		status.text = "cell %s   |   %s" % [hover_cell, "unit: " + here if not here.is_empty() else "%d units" % level.map_data.units.size()]
+		status.text = "cell %s   |   %s" % [hover_cell, "unit: " + here if not here.is_empty() else "%d units" % level.level_state.map_data.units.size()]
 		return
 	var layer := selected_layer()
 	var layer_text := "no layer selected" if layer == null else "%s: %d verts" % [layer.name, layer.verts.size()]
@@ -658,7 +660,7 @@ func _draw_overlay() -> void:
 
 	if mode == Mode.UNITS:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
-		var ref: UnitReference = level.map_data.units.get(selected_unit_id)
+		var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
 		if ref != null:
 			overlay.draw_rect(_cell_rect(ref.start_cell), PAINT_COLOR, false, 1.0)
 		return

@@ -11,6 +11,11 @@ const FACTION_NAMES := {
 	Faction.ALLY: "ally",
 }
 
+static func are_hostile(ref_a: UnitReference, ref_b: UnitReference) -> bool:
+	var a_is_enemy: bool = ref_a.faction == UnitReference.Faction.ENEMY
+	var b_is_enemy: bool = ref_b.faction == UnitReference.Faction.ENEMY
+	return a_is_enemy != b_is_enemy
+
 ## GBA-style stat block. "hp" is max HP.
 const STAT_KEYS: Array[StringName] = [
 	&"hp", &"str", &"mag", &"skl", &"spd", &"lck", &"def", &"res", &"con", &"mov",
