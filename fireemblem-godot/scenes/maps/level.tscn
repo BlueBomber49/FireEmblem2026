@@ -1,7 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://jcagl5ai25md"]
 
-[ext_resource type="Script" path="res://scenes/maps/level.gd" id="1_level"]
+[ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://scenes/maps/level.gd" id="1_level"]
 
-[node name="Level" type="Node2D"]
+[node name="Level" type="Node2D" unique_id=1368453677]
 script = ExtResource("1_level")
 level_path = "res://data/maps/simple_level.json"
