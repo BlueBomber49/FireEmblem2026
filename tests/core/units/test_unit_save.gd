@@ -93,7 +93,7 @@ func test_unit_without_a_definition_file_cant_be_saved() -> void:
 	data.id = &"made_in_code"
 	data.class_data = load("res://data/units/classes/knight.tres")
 	assert_eq(Unit.new(data).to_dict(), {})
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -105,7 +105,7 @@ func test_unit_whose_only_item_has_no_file_cant_be_saved() -> void:
 	loose.id = &"loose"
 	unit.inventory.add(loose)
 	assert_eq(unit.to_dict(), {})
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -114,7 +114,7 @@ func test_inventory_to_array_is_null_when_an_item_has_no_file() -> void:
 	inv.add(load(LANCE_PATH))
 	inv.add(WeaponData.new())
 	assert_null(inv.to_array())
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -291,7 +291,7 @@ func test_missing_unit_data_returns_null() -> void:
 	var d := _saved_fresh()
 	d.erase("unit_data")
 	assert_null(Unit.from_dict(d))
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -299,7 +299,7 @@ func test_unloadable_unit_data_returns_null() -> void:
 	var d := _saved_fresh()
 	d["unit_data"] = {"path": "res://tests/fixtures/nope.tres"}
 	assert_null(Unit.from_dict(d))
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -307,7 +307,7 @@ func test_unit_data_pointing_at_an_item_returns_null() -> void:
 	var d := _saved_fresh()
 	d["unit_data"] = {"path": LANCE_PATH}
 	assert_null(Unit.from_dict(d))
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -315,7 +315,7 @@ func test_unit_data_pointing_at_wrong_type_fixture_returns_null() -> void:
 	var d := _saved_fresh()
 	d["unit_data"] = {"path": "res://tests/fixtures/not_a_unit.tres"}
 	assert_null(Unit.from_dict(d))
-	assert_push_error(1)
+	assert_push_error_count(1)
 	allow_save_warnings()
 
 
@@ -330,6 +330,6 @@ func test_unit_data_without_a_class_returns_null() -> void:
 func test_non_dictionary_top_level_returns_null() -> void:
 	assert_null(Unit.from_dict([1, 2]))
 	assert_null(Unit.from_dict(null))
-	assert_push_error(2)
+	assert_push_error_count(2)
 	allow_save_warnings()
 

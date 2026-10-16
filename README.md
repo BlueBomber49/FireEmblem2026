@@ -4,7 +4,7 @@ A turn-based tactics game inspired by the Game Boy Advance Fire Emblem games, bu
 
 ## Requirements
 
-- [Godot 4.5.x](https://godotengine.org/download), **standard** build (not the .NET build). The project uses GDScript only.
+- [Godot 4.6.3](https://godotengine.org/download/archive/4.6.3-stable/), **standard** build (not the .NET build). The project uses GDScript only.
 
 ## Getting started
 
@@ -69,7 +69,7 @@ Follow the [GDScript style guide](https://docs.godotengine.org/en/stable/tutoria
 
 **In the editor:** open the GUT panel at the bottom of the editor and set its directory to `res://tests/` with subdirectories on. Each teammate needs to do this once, because GUT saves panel settings per machine (in `user://`), not in the repo.
 
-**From the command line**, in the repo root. Here `godot` means the path to your Godot 4.5 **console** executable. On Windows that's the `_console.exe` in the Godot zip, such as `Godot_v4.5.2-stable_win64_console.exe`, which isn't on your PATH by default. Use the console version: the regular `.exe` detaches from the terminal, so test output and the exit code never reach it.
+**From the command line**, in the repo root. Here `godot` means the path to your Godot 4.6.3 **console** executable. On Windows that's the `_console.exe` in the Godot zip, such as `Godot_v4.6.3-stable_win64_console.exe`, which isn't on your PATH by default. Use the console version: the regular `.exe` detaches from the terminal, so test output and the exit code never reach it.
 
 ```sh
 # First time on a fresh clone, and again after adding a script with a new class_name:
