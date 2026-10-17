@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://dv4t01bk6r7xf"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/weapon_data.gd" id="1_i781a"]
+
+[resource]
+script = ExtResource("1_i781a")
+weapon_type = 1
+might = 4
+hit = 85
+crit = 5
+weight = 4
+id = &"slim_lance"
+display_name = "Slim Lance"

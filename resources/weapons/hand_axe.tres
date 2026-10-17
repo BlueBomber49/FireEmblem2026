@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://cgse23fr4aiq5"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/weapon_data.gd" id="1_vemox"]
+
+[resource]
+script = ExtResource("1_vemox")
+weapon_type = 2
+might = 7
+hit = 60
+weight = 12
+max_range = 2
+id = &"hand_axe"
+display_name = "Hand Axe"

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://232owcd4fu2h"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/weapon_data.gd" id="1_ynjb3"]
+
+[resource]
+script = ExtResource("1_ynjb3")
+weapon_type = 2
+might = 11
+hit = 65
+weight = 15
+id = &"steel_axe"
+display_name = "Steel Axe"

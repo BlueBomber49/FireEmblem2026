@@ -1,0 +1,221 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://g0hlt6jlidlw" path="res://gameplay/combat_forecast.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
+
+[node name="CombatForecast" type="PanelContainer"]
+theme = ExtResource("2_theme")
+theme_type_variation = &"ForecastFrame"
+script = ExtResource("1_script")
+
+[node name="Sections" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="PlayerHeader" type="PanelContainer" parent="Sections"]
+layout_mode = 2
+theme_type_variation = &"ForecastPlayerPanel"
+
+[node name="Rows" type="VBoxContainer" parent="Sections/PlayerHeader"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="NameRow" type="HBoxContainer" parent="Sections/PlayerHeader/Rows"]
+layout_mode = 2
+
+[node name="PlayerIcon" type="TextureRect" parent="Sections/PlayerHeader/Rows/NameRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PlayerName" type="Label" parent="Sections/PlayerHeader/Rows/NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ForecastLabel"
+text = "Eirika"
+
+[node name="PlayerAdvantage" type="Label" parent="Sections/PlayerHeader/Rows/NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "+"
+
+[node name="PlayerWeapon" type="Label" parent="Sections/PlayerHeader/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "Rapier"
+
+[node name="Stats" type="HBoxContainer" parent="Sections"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="PlayerSide" type="PanelContainer" parent="Sections/Stats"]
+layout_mode = 2
+theme_type_variation = &"ForecastPlayerStats"
+
+[node name="PlayerValues" type="VBoxContainer" parent="Sections/Stats/PlayerSide"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="PlayerHp" type="Label" parent="Sections/Stats/PlayerSide/PlayerValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "20"
+horizontal_alignment = 2
+
+[node name="DamageRow" type="HBoxContainer" parent="Sections/Stats/PlayerSide/PlayerValues"]
+layout_mode = 2
+theme_override_constants/separation = 0
+alignment = 2
+
+[node name="PlayerDamage" type="Label" parent="Sections/Stats/PlayerSide/PlayerValues/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "7"
+
+[node name="PlayerCount" type="Label" parent="Sections/Stats/PlayerSide/PlayerValues/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "x2"
+
+[node name="PlayerHit" type="Label" parent="Sections/Stats/PlayerSide/PlayerValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "85"
+horizontal_alignment = 2
+
+[node name="PlayerCrit" type="Label" parent="Sections/Stats/PlayerSide/PlayerValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "5"
+horizontal_alignment = 2
+
+[node name="StatNamePanel" type="PanelContainer" parent="Sections/Stats"]
+layout_mode = 2
+theme_type_variation = &"ForecastStatNamePanel"
+
+[node name="StatNames" type="VBoxContainer" parent="Sections/Stats/StatNamePanel"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HpLabel" type="Label" parent="Sections/Stats/StatNamePanel/StatNames"]
+layout_mode = 2
+theme_type_variation = &"ForecastStatName"
+text = "HP"
+horizontal_alignment = 1
+
+[node name="DamageLabel" type="Label" parent="Sections/Stats/StatNamePanel/StatNames"]
+layout_mode = 2
+theme_type_variation = &"ForecastStatName"
+text = "Mt"
+horizontal_alignment = 1
+
+[node name="HitLabel" type="Label" parent="Sections/Stats/StatNamePanel/StatNames"]
+layout_mode = 2
+theme_type_variation = &"ForecastStatName"
+text = "Hit"
+horizontal_alignment = 1
+
+[node name="CritLabel" type="Label" parent="Sections/Stats/StatNamePanel/StatNames"]
+layout_mode = 2
+theme_type_variation = &"ForecastStatName"
+text = "Crit"
+horizontal_alignment = 1
+
+[node name="EnemySide" type="PanelContainer" parent="Sections/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ForecastEnemyStats"
+
+[node name="EnemyValues" type="VBoxContainer" parent="Sections/Stats/EnemySide"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="EnemyHp" type="Label" parent="Sections/Stats/EnemySide/EnemyValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "25"
+horizontal_alignment = 2
+
+[node name="DamageRow" type="HBoxContainer" parent="Sections/Stats/EnemySide/EnemyValues"]
+layout_mode = 2
+theme_override_constants/separation = 0
+alignment = 2
+
+[node name="EnemyDamage" type="Label" parent="Sections/Stats/EnemySide/EnemyValues/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "4"
+
+[node name="EnemyCount" type="Label" parent="Sections/Stats/EnemySide/EnemyValues/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "x2"
+
+[node name="EnemyHit" type="Label" parent="Sections/Stats/EnemySide/EnemyValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "62"
+horizontal_alignment = 2
+
+[node name="EnemyCrit" type="Label" parent="Sections/Stats/EnemySide/EnemyValues"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "0"
+horizontal_alignment = 2
+
+[node name="EnemyFooter" type="PanelContainer" parent="Sections"]
+layout_mode = 2
+theme_type_variation = &"ForecastEnemyPanel"
+
+[node name="Rows" type="VBoxContainer" parent="Sections/EnemyFooter"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="NameRow" type="HBoxContainer" parent="Sections/EnemyFooter/Rows"]
+layout_mode = 2
+
+[node name="EnemyName" type="Label" parent="Sections/EnemyFooter/Rows/NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ForecastLabel"
+text = "Bandit"
+
+[node name="EnemyIcon" type="TextureRect" parent="Sections/EnemyFooter/Rows/NameRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="EnemyAdvantage" type="Label" parent="Sections/EnemyFooter/Rows/NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "-"
+
+[node name="EnemyWeapon" type="Label" parent="Sections/EnemyFooter/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ForecastLabel"
+text = "Iron Axe"

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ClassData" format=3 uid="uid://cf1sigfjkx1q3"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://gameplay/stats.gd" id="1_xq26o"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://gameplay/class_data.gd" id="2_bje8x"]
+
+[sub_resource type="Resource" id="Resource_mssgu"]
+script = ExtResource("1_xq26o")
+hp = 20
+strength = 5
+skill = 2
+speed = 4
+defense = 2
+constitution = 11
+movement = 5
+
+[sub_resource type="Resource" id="Resource_0be3b"]
+script = ExtResource("1_xq26o")
+hp = 60
+strength = 20
+magic = 20
+skill = 20
+speed = 20
+luck = 30
+defense = 20
+resistance = 20
+constitution = 20
+movement = 15
+
+[sub_resource type="Resource" id="Resource_ukocs"]
+script = ExtResource("1_xq26o")
+hp = 85
+strength = 55
+skill = 35
+speed = 30
+luck = 15
+defense = 15
+resistance = 15
+
+[resource]
+script = ExtResource("2_bje8x")
+id = &"fighter"
+display_name = "Fighter"
+base_stats = SubResource("Resource_mssgu")
+growths = SubResource("Resource_ukocs")
+caps = SubResource("Resource_0be3b")
+usable_weapon_types = Array[int]([2])
