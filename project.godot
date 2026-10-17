@@ -12,7 +12,13 @@ config_version=5
 
 config/name="FireEmblem2026"
 config/description="A GBA Fire Emblem-inspired tactics game."
+run/main_scene="res://gameplay/battle.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
+config/icon="res://assets/icon.svg"
+
+[autoload]
+
+WindowControls="*res://gameplay/window_controls.gd"
 
 [editor_plugins]
 

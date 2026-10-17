@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="PackedScene" path="res://scenes/ui/action_menu.tscn" id="1_menu"]
-
-[node name="MapMenu" instance=ExtResource("1_menu")]
-options = Array[StringName]([&"unit", &"status", &"options", &"suspend", &"end"])

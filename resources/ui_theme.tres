@@ -1,0 +1,141 @@
+[gd_resource type="Theme" format=3 uid="uid://cpbjyilm7puv7"]
+
+[ext_resource type="FontFile" uid="uid://doumgu732ijpt" path="res://assets/fonts/fire-emblem-8-text-fill.otf" id="1_0hks0"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_highlight"]
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+bg_color = Color(1, 1, 1, 0.25)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_normal"]
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_enemy"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.55, 0.14, 0.14, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_enemy_stats"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.55, 0.14, 0.14, 1)
+border_width_left = 2
+border_width_top = 2
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_frame"]
+content_margin_left = 2.0
+content_margin_top = 2.0
+content_margin_right = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(0.85, 0.9, 1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_player"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.12, 0.2, 0.52, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_player_stats"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.12, 0.2, 0.52, 1)
+border_width_bottom = 2
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_forecast_stat_names"]
+content_margin_left = 6.0
+content_margin_top = 2.0
+content_margin_right = 6.0
+content_margin_bottom = 2.0
+bg_color = Color(0.76, 0.64, 0.44, 1)
+border_width_bottom = 2
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.2, 0.52, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.9, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_terrain"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.76, 0.64, 0.44, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.9, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[resource]
+default_font = ExtResource("1_0hks0")
+default_font_size = 40
+Button/colors/font_color = Color(1, 1, 1, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_outline_color = Color(0.06879827, 0.06879828, 0.06879828, 1)
+Button/colors/font_pressed_color = Color(1, 0.95, 0.6, 1)
+Button/constants/outline_size = 10
+Button/styles/focus = SubResource("StyleBoxFlat_highlight")
+Button/styles/hover = SubResource("StyleBoxEmpty_normal")
+Button/styles/normal = SubResource("StyleBoxEmpty_normal")
+Button/styles/pressed = SubResource("StyleBoxFlat_highlight")
+ForecastEnemyPanel/base_type = &"PanelContainer"
+ForecastEnemyPanel/styles/panel = SubResource("StyleBoxFlat_forecast_enemy")
+ForecastEnemyStats/base_type = &"PanelContainer"
+ForecastEnemyStats/styles/panel = SubResource("StyleBoxFlat_forecast_enemy_stats")
+ForecastFrame/base_type = &"PanelContainer"
+ForecastFrame/styles/panel = SubResource("StyleBoxFlat_forecast_frame")
+ForecastLabel/base_type = &"Label"
+ForecastLabel/constants/outline_size = 8
+ForecastLabel/font_sizes/font_size = 28
+ForecastPlayerPanel/base_type = &"PanelContainer"
+ForecastPlayerPanel/styles/panel = SubResource("StyleBoxFlat_forecast_player")
+ForecastPlayerStats/base_type = &"PanelContainer"
+ForecastPlayerStats/styles/panel = SubResource("StyleBoxFlat_forecast_player_stats")
+ForecastStatName/base_type = &"Label"
+ForecastStatName/constants/outline_size = 8
+ForecastStatName/font_sizes/font_size = 28
+ForecastStatNamePanel/base_type = &"PanelContainer"
+ForecastStatNamePanel/styles/panel = SubResource("StyleBoxFlat_forecast_stat_names")
+Label/colors/font_color = Color(1, 1, 1, 1)
+Label/colors/font_outline_color = Color(0, 0, 0, 1)
+Label/constants/outline_size = 10
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_panel")
+TerrainLabel/base_type = &"Label"
+TerrainLabel/font_sizes/font_size = 28
+TerrainPanel/base_type = &"PanelContainer"
+TerrainPanel/styles/panel = SubResource("StyleBoxFlat_terrain")

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://cxdh05nov6enq"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/weapon_data.gd" id="1_6wyoh"]
+
+[resource]
+script = ExtResource("1_6wyoh")
+weapon_type = 1
+might = 10
+hit = 70
+weight = 13
+id = &"steel_lance"
+display_name = "Steel Lance"
