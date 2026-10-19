@@ -20,18 +20,19 @@ res://
 ├─ assets/          # art: battle_pack/ (unit sprite sheets, tiles, UI), tilesets/, portraits/, fonts/
 ├─ resources/       # .tres and level data: classes/ weapons/ consumables/ terrain/ levels/ ui_theme.tres
 ├─ editor/          # the map editor scene (map_editor.tscn). Run it directly, not as the main scene
-├─ gameplay/        # every game script and scene, in one flat folder
+├─ gameplay/        # the game: battle.tscn and shared rules/utilities at the root, map/ for the map and unit model, ui/ for menus and panels
 ├─ docs/            # reference notes (FE7 numbers behind resources/)
-└─ tests/           # GUT tests: tests/gameplay/ for scripts, tests/data/ for resources, tests/fixtures/ for test data
+└─ tests/           # GUT tests: tests/gameplay/ mirrors gameplay/ (map/, ui/), tests/data/ for resources, tests/fixtures/ for test data
 ```
 
-`gameplay/` holds the game and, alongside it, a data model that is not wired in yet:
+`gameplay/` holds the game and, alongside it, a data model that is not wired in yet. The root has `Battle`, `Combat` and shared helpers (`Enums`, `JsonUtil`, `ResourceRef`, `SaveUtil`, the `WindowControls` autoload); `gameplay/map/` has the map and everything that stands on it; `gameplay/ui/` has the menus and panels:
 
-- **Battle** (`battle.tscn`, the main scene) wraps a `Level` with the cursor, menus, forecast and terrain panel. `Level`, `LevelUnit`, `LevelState`, `MapData`, `MapLayer`, `Pathfinding` and `TerrainType` load a JSON level from `resources/levels/`, draw it with `resources/terrain/` and place units from `assets/battle_pack/`. `Battle` decides what the keys do; `Level` only draws. `Combat` holds the forecast numbers. The editor in `editor/` builds the levels.
+- **Battle** (`battle.tscn`, the main scene) wraps a `Level` with the cursor, menus, forecast and terrain panel. In `gameplay/map/`, `Level`, `LevelUnit`, `LevelState`, `MapData`, `MapLayer`, `Pathfinding` and `TerrainType` load a JSON level from `resources/levels/`, draw it with `resources/terrain/` and place units from `assets/battle_pack/`. `Battle` decides what the keys do; `Level` only draws. `Combat` holds the forecast numbers. The editor in `editor/` builds the levels.
 - **Controls:** arrows or mouse hover move the cursor. Z (Enter, Space) confirms: on your unit it selects it and shows its range, on a cell in range it moves there and opens the unit menu, on anything else it opens the map menu. X (Esc, right click) cancels and undoes a move. A opens the unit menu without moving. Attack shows the forecast against adjacent enemies (left / right cycle targets); confirming plays the fight out with FE7 true hit and a stand-in Iron Sword, and units at 0 HP leave the map. End in the map menu refreshes every unit.
-- **Unit data model** (not yet hooked into Battle): `Stats`, `ClassData`, `UnitData`, `Unit`, `WeaponData`, `Inventory` and the FE7 `.tres` files in `resources/classes/`, `weapons/` and `consumables/`.
+- **UI** (`gameplay/ui/`): `ActionMenu` (and `map_menu.tscn`), `CombatForecast` with its `ForecastSide` data, `TerrainPanel` with its `TerrainInfo` data, and the map overlays `MapCursor`, `RangeOverlay` and `PathArrow`. These only draw what `Battle` hands them.
+- **Unit data model** (`gameplay/map/`, not yet hooked into Battle): `Stats`, `ClassData`, `UnitData`, `Unit`, `WeaponData`, `Inventory` and the FE7 `.tres` files in `resources/classes/`, `weapons/` and `consumables/`.
 
-Add new scripts and scenes to `gameplay/`, new `.tres` files to the matching `resources/` folder, and new art to `assets/`.
+Add new scripts and scenes to the matching `gameplay/` subfolder, new `.tres` files to the matching `resources/` folder, and new art to `assets/`.
 
 ## Conventions
 
@@ -40,7 +41,7 @@ Follow the [GDScript style guide](https://docs.godotengine.org/en/stable/tutoria
 - `snake_case` for files and folders (`unit_data.gd`, `battle_map.tscn`).
 - `PascalCase` for `class_name` and node names.
 - Typed GDScript: give variables, parameters and return values types.
-- Tests are named `test_<script>.gd` and go in `tests/gameplay/` (or `tests/data/` for resource checks).
+- Tests are named `test_<script>.gd` and go in the `tests/gameplay/` folder that mirrors the script's (`tests/gameplay/map/`, `tests/gameplay/ui/`, or the root), or `tests/data/` for resource checks.
 
 ## Running tests
 

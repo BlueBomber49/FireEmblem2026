@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://g0hlt6jlidlw" path="res://gameplay/combat_forecast.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://g0hlt6jlidlw" path="res://gameplay/ui/combat_forecast.gd" id="1_script"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
 
 [node name="CombatForecast" type="PanelContainer"]

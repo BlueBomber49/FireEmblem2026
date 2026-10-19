@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ClassData" format=3 uid="uid://b10iwdbhphu0e"]
 
-[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://gameplay/stats.gd" id="1_42s3m"]
-[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://gameplay/class_data.gd" id="2_u87wi"]
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://gameplay/map/stats.gd" id="1_42s3m"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://gameplay/map/class_data.gd" id="2_u87wi"]
 
 [sub_resource type="Resource" id="Resource_etlo8"]
 script = ExtResource("1_42s3m")

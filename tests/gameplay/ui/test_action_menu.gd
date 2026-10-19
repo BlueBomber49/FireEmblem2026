@@ -1,6 +1,6 @@
 extends GutTest
 
-const ActionMenuScene: PackedScene = preload("res://gameplay/action_menu.tscn")
+const ActionMenuScene: PackedScene = preload("res://gameplay/ui/action_menu.tscn")
 
 var _menu: ActionMenu
 
