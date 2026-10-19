@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bcsto6w4m48g1" path="res://gameplay/ui/action_menu.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
+
+[node name="ActionMenu" type="PanelContainer"]
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Options" type="VBoxContainer" parent="MarginContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_constants/separation = 2

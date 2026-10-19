@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ConsumableData" load_steps=2 format=3 uid="uid://dof8on6xqqvp"]
+
+[ext_resource type="Script" uid="uid://dugdqysmhspgh" path="res://gameplay/map/consumable_data.gd" id="1_d5ien"]
+
+[resource]
+script = ExtResource("1_d5ien")
+max_uses = 3
+heal_amount = 10
+id = &"vulnerary"
+display_name = "Vulnerary"

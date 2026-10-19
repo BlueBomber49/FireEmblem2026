@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://c41cl7tsuc3fo"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/map/weapon_data.gd" id="1_i2yq5"]
+
+[resource]
+script = ExtResource("1_i2yq5")
+weapon_type = 1
+might = 6
+hit = 65
+weight = 11
+max_range = 2
+id = &"javelin"
+display_name = "Javelin"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://wlb6bpwk6yc7"]
+
+[ext_resource type="Script" uid="uid://pjfbfaxbbqoi" path="res://gameplay/map/weapon_data.gd" id="1_tacun"]
+
+[resource]
+script = ExtResource("1_tacun")
+might = 8
+hit = 75
+weight = 10
+id = &"steel_sword"
+display_name = "Steel Sword"

@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=6 format=3 uid="uid://c3e168gli2xyn"]
+
+[ext_resource type="Script" uid="uid://nscxpkfknfek" path="res://gameplay/map/stats.gd" id="1_mb6ed"]
+[ext_resource type="Script" uid="uid://c8kvrd2mc61eu" path="res://gameplay/map/class_data.gd" id="2_0i7n4"]
+
+[sub_resource type="Resource" id="Resource_2h34p"]
+script = ExtResource("1_mb6ed")
+hp = 14
+strength = 4
+skill = 5
+speed = 5
+defense = 3
+resistance = 2
+constitution = 5
+movement = 7
+
+[sub_resource type="Resource" id="Resource_e7ohh"]
+script = ExtResource("1_mb6ed")
+hp = 60
+strength = 20
+magic = 20
+skill = 20
+speed = 20
+luck = 30
+defense = 20
+resistance = 20
+constitution = 20
+movement = 15
+
+[sub_resource type="Resource" id="Resource_n3s3q"]
+script = ExtResource("1_mb6ed")
+hp = 65
+strength = 35
+skill = 40
+speed = 40
+luck = 35
+defense = 12
+resistance = 35
+
+[resource]
+script = ExtResource("2_0i7n4")
+id = &"pegasus_knight"
+display_name = "Pegasus Knight"
+movement_type = 3
+base_stats = SubResource("Resource_2h34p")
+growths = SubResource("Resource_n3s3q")
+caps = SubResource("Resource_e7ohh")
+usable_weapon_types = Array[int]([1])
+tags = Array[StringName]([&"flier"])
