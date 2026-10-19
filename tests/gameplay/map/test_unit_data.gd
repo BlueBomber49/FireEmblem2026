@@ -1,6 +1,6 @@
 extends GutTest
 
-const ClassDataTest := preload("res://tests/gameplay/test_class_data.gd")
+const ClassDataTest := preload("res://tests/gameplay/map/test_class_data.gd")
 
 
 func _class() -> ClassData:

@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="UnitData" format=3 uid="uid://barxjt7urbt6i"]
 
 [ext_resource type="Resource" uid="uid://b10iwdbhphu0e" path="res://resources/classes/knight.tres" id="1_xotmk"]
-[ext_resource type="Script" uid="uid://b2uq8ktv4ymbl" path="res://gameplay/unit_data.gd" id="2_8wrtd"]
-[ext_resource type="Script" uid="uid://bj2ctne0wlemd" path="res://gameplay/item_data.gd" id="3_jipyo"]
+[ext_resource type="Script" uid="uid://b2uq8ktv4ymbl" path="res://gameplay/map/unit_data.gd" id="2_8wrtd"]
+[ext_resource type="Script" uid="uid://bj2ctne0wlemd" path="res://gameplay/map/item_data.gd" id="3_jipyo"]
 [ext_resource type="Resource" uid="uid://cu45iaa3osiww" path="res://resources/weapons/iron_lance.tres" id="4_8lxoh"]
 [ext_resource type="Resource" uid="uid://dof8on6xqqvp" path="res://resources/consumables/vulnerary.tres" id="5_r6eog"]
 

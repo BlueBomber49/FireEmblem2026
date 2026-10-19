@@ -1,6 +1,6 @@
 extends GutTest
 
-const TerrainPanelScene: PackedScene = preload("res://gameplay/terrain_panel.tscn")
+const TerrainPanelScene: PackedScene = preload("res://gameplay/ui/terrain_panel.tscn")
 
 var _panel: TerrainPanel
 

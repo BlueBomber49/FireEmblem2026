@@ -1,6 +1,6 @@
 extends GutTest
 
-const ForecastScene: PackedScene = preload("res://gameplay/combat_forecast.tscn")
+const ForecastScene: PackedScene = preload("res://gameplay/ui/combat_forecast.tscn")
 
 var _forecast: CombatForecast
 

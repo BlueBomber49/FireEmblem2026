@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TerrainType" load_steps=2 format=3]
 
-[ext_resource type="Script" uid="uid://cnfn5ymp0f61w" path="res://gameplay/terrain_type.gd" id="1_terrain"]
+[ext_resource type="Script" uid="uid://cnfn5ymp0f61w" path="res://gameplay/map/terrain_type.gd" id="1_terrain"]
 
 [resource]
 script = ExtResource("1_terrain")
