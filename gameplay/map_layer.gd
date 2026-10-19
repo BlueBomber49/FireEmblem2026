@@ -2,7 +2,7 @@ class_name MapLayer
 extends RefCounted
 ## One terrain layer of a map: a terrain type and the vertices it occupies.
 
-## Key in MapLayersData.layers.
+## Key in MapData.layers.
 var name: String
 var z: int = 0
 ## A TerrainType id (resources/terrain/<id>.tres).

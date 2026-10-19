@@ -65,7 +65,7 @@ func _ready() -> void:
 
 ## Resets the cursor and UI for the level currently built in `level`.
 func start() -> void:
-	var bounds := level.level_state.map_data.layerData.bounds()
+	var bounds := level.level_state.map_data.bounds()
 	cursor.bounds = bounds
 	cursor.tile_size = level.tile_size
 	# Same z as the units, but earlier in the tree, so they show under the units.
@@ -376,7 +376,7 @@ func _on_map_menu_cancelled() -> void:
 ## still to come, so only the name and walkability are real.
 func terrain_info_at(cell: Vector2i) -> TerrainInfo:
 	var info := TerrainInfo.new()
-	var terrain := level.level_state.map_data.layerData.top_terrain_at(cell)
+	var terrain := level.level_state.map_data.top_terrain_at(cell)
 	info.terrain_name = terrain.capitalize() if not terrain.is_empty() else "None"
 	info.move_cost = 1 if level.pathfinding.is_walkable(cell) else TerrainInfo.IMPASSABLE
 	return info
@@ -433,13 +433,13 @@ func _update_panels() -> void:
 
 
 func _is_left_half(cell: Vector2i) -> bool:
-	var bounds := level.level_state.map_data.layerData.bounds()
+	var bounds := level.level_state.map_data.bounds()
 	return cell.x < bounds.position.x + bounds.size.x / 2.0
 
 
 ## Cells on the map within ATTACK_RANGE steps of `from`, not counting `from`.
 func _cells_in_attack_range(from: Vector2i) -> Dictionary:
-	var bounds := level.level_state.map_data.layerData.bounds()
+	var bounds := level.level_state.map_data.bounds()
 	var cells := {}
 	for dx in range(-ATTACK_RANGE, ATTACK_RANGE + 1):
 		for dy in range(-ATTACK_RANGE, ATTACK_RANGE + 1):

@@ -39,7 +39,7 @@ func test_cursor_moves_and_stays_inside_the_map() -> void:
 	assert_eq(battle.cursor.cell, LYN_CELL + Vector2i.RIGHT)
 	for i in 50:
 		battle.move_cursor(Vector2i.LEFT)
-	assert_eq(battle.cursor.cell.x, battle.level.level_state.map_data.layerData.bounds().position.x)
+	assert_eq(battle.cursor.cell.x, battle.level.level_state.map_data.bounds().position.x)
 
 
 func test_terrain_info_names_the_top_layer() -> void:
@@ -343,7 +343,7 @@ func test_attack_marks_the_cells_in_range_red() -> void:
 
 
 func test_attack_range_stops_at_the_map_edge() -> void:
-	var bounds := battle.level.level_state.map_data.layerData.bounds()
+	var bounds := battle.level.level_state.map_data.bounds()
 	lyn.cell = bounds.position
 	battle.level.place_unit(battle.level.unit_nodes["lyn"], bounds.position)
 	bandit.cell = bounds.position + Vector2i.RIGHT

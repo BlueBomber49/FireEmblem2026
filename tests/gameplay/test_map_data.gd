@@ -19,8 +19,8 @@ const SAMPLE := {
 
 func test_layers_round_trip() -> void:
 	var data := MapData.fromJson(SAMPLE)
-	assert_eq(data.layerData.layers.size(), 2)
-	var grass: MapLayer = data.layerData.layers["grass"]
+	assert_eq(data.layers.size(), 2)
+	var grass: MapLayer = data.layers["grass"]
 	assert_eq(grass.name, "grass")
 	assert_eq(grass.z, 1)
 	assert_eq(grass.terrain, "grass")
@@ -29,32 +29,32 @@ func test_layers_round_trip() -> void:
 
 	var again := MapData.fromJson(data.toJson())
 	assert_eq(again.toJson(), data.toJson())
-	assert_eq(again.layerData.structures, {"houses": []})
+	assert_eq(again.structures, {"houses": []})
 
 
 func test_sorted_layers_by_z() -> void:
 	var data := MapData.fromJson(SAMPLE)
 	var names := []
-	for layer in data.layerData.sorted_layers():
+	for layer in data.sorted_layers():
 		names.append(layer.name)
 	assert_eq(names, ["water", "grass"])
 
 
 func test_drawn_cells_is_union() -> void:
 	var data := MapData.fromJson(SAMPLE)
-	var cells := data.layerData.drawn_cells()
+	var cells := data.drawn_cells()
 	# The 2x2 water block draws a 3x3 ring of cells from (0,0) to (2,2).
 	assert_eq(cells.size(), 9)
-	assert_true(data.layerData.is_drawn(Vector2i(0, 0)))
-	assert_true(data.layerData.is_drawn(Vector2i(2, 2)))
-	assert_false(data.layerData.is_drawn(Vector2i(3, 3)))
-	assert_false(data.layerData.is_drawn(Vector2i(-1, -1)))
+	assert_true(data.is_drawn(Vector2i(0, 0)))
+	assert_true(data.is_drawn(Vector2i(2, 2)))
+	assert_false(data.is_drawn(Vector2i(3, 3)))
+	assert_false(data.is_drawn(Vector2i(-1, -1)))
 
 
 func test_bounds() -> void:
 	var data := MapData.fromJson(SAMPLE)
-	assert_eq(data.layerData.bounds(), Rect2i(0, 0, 3, 3))
-	assert_eq(MapLayersData.new().bounds(), Rect2i())
+	assert_eq(data.bounds(), Rect2i(0, 0, 3, 3))
+	assert_eq(MapData.new().bounds(), Rect2i())
 
 
 func test_units_keyed_by_id() -> void:
