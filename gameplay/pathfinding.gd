@@ -18,7 +18,7 @@ func _init(p_level_state: LevelState) -> void:
 ## positions are read fresh on every find_path, so those need no rebuild.
 func rebuild() -> void:
 	astar = AStarGrid2D.new()
-	astar.region = level_state.map_data.layerData.bounds()
+	astar.region = level_state.map_data.bounds()
 	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
 	# Manhattan gives long straight runs; the default (Euclidean) staircases
 	# along the diagonal, which makes the unit turn on almost every tile.
@@ -26,7 +26,7 @@ func rebuild() -> void:
 	astar.default_estimate_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
 	astar.update()
 	# Any cell some layer draws on is walkable; everything else is not.
-	var drawn := level_state.map_data.layerData.drawn_cells()
+	var drawn := level_state.map_data.drawn_cells()
 	for x in range(astar.region.position.x, astar.region.end.x):
 		for y in range(astar.region.position.y, astar.region.end.y):
 			var cell := Vector2i(x, y)

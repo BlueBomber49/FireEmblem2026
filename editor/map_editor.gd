@@ -207,7 +207,7 @@ func selected_layer() -> MapLayer:
 	var items := layer_list.get_selected_items()
 	if items.is_empty():
 		return null
-	return level.level_state.map_data.layerData.layers.get(layer_list.get_item_metadata(items[0]))
+	return level.level_state.map_data.layers.get(layer_list.get_item_metadata(items[0]))
 
 
 ## Vertices the brush covers around `hover_vert`.
@@ -254,7 +254,7 @@ func _refresh_layer_list(select_name := "") -> void:
 	if previous.is_empty() and selected_layer() != null:
 		previous = selected_layer().name
 	layer_list.clear()
-	for layer in level.level_state.map_data.layerData.sorted_layers():
+	for layer in level.level_state.map_data.sorted_layers():
 		var i := layer_list.add_item("%s   (%s, z=%d)" % [layer.name, layer.terrain, layer.z])
 		layer_list.set_item_metadata(i, layer.name)
 		if layer.name == previous:
@@ -274,11 +274,11 @@ func _add_layer() -> void:
 	if layer_name.is_empty() or terrain.is_empty():
 		status.text = "Pick a terrain and a layer name first."
 		return
-	if level.level_state.map_data.layerData.layers.has(layer_name):
+	if level.level_state.map_data.layers.has(layer_name):
 		status.text = "A layer named '%s' already exists." % layer_name
 		return
 	var before := _snapshot()
-	level.level_state.map_data.layerData.layers[layer_name] = MapLayer.new(layer_name, int(z_spin.value), terrain)
+	level.level_state.map_data.layers[layer_name] = MapLayer.new(layer_name, int(z_spin.value), terrain)
 	_commit(before)
 	name_edit.text = ""
 	level.rebuild()
@@ -290,7 +290,7 @@ func _remove_layer() -> void:
 	if layer == null:
 		return
 	var before := _snapshot()
-	level.level_state.map_data.layerData.layers.erase(layer.name)
+	level.level_state.map_data.layers.erase(layer.name)
 	_commit(before)
 	level.rebuild()
 	_refresh_layer_list()
@@ -298,7 +298,7 @@ func _remove_layer() -> void:
 
 func _next_z() -> int:
 	var z := 0
-	for layer in level.level_state.map_data.layerData.layers.values():
+	for layer in level.level_state.map_data.layers.values():
 		z = maxi(z, layer.z + 1)
 	return z
 
@@ -624,7 +624,7 @@ func _zoom(factor: float) -> void:
 
 
 func _frame_camera() -> void:
-	var bounds := level.level_state.map_data.layerData.bounds()
+	var bounds := level.level_state.map_data.bounds()
 	if bounds.has_area():
 		camera.position = (Vector2(bounds.position) + Vector2(bounds.size) / 2.0) * Vector2(level.tile_size)
 		# Keep the map clear of the side panel.

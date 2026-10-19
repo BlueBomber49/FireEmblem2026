@@ -76,7 +76,7 @@ func _build_layers() -> int:
 	add_child(layers_root)
 
 	var max_z := 0
-	for layer in level_state.map_data.layerData.sorted_layers():
+	for layer in level_state.map_data.sorted_layers():
 		var terrain := TerrainType.load_by_id(layer.terrain)
 		if terrain == null:
 			push_error("Layer '%s': unknown terrain '%s'" % [layer.name, layer.terrain])
@@ -95,7 +95,7 @@ func _build_layers() -> int:
 
 ## Redraws one layer's tiles after its verts changed (used by the map editor).
 func repaint_layer(layer_name: String) -> void:
-	var layer: MapLayer = level_state.map_data.layerData.layers.get(layer_name)
+	var layer: MapLayer = level_state.map_data.layers.get(layer_name)
 	var tile_layer := layers_root.get_node_or_null(NodePath(layer_name)) as TileMapLayer
 	if layer == null or tile_layer == null:
 		return
@@ -142,7 +142,7 @@ func _setup_camera() -> void:
 	camera = Camera2D.new()
 	camera.name = "Camera"
 	camera.zoom = Vector2(camera_zoom, camera_zoom)
-	var bounds := level_state.map_data.layerData.bounds()
+	var bounds := level_state.map_data.bounds()
 	camera.position = (Vector2(bounds.position) + Vector2(bounds.size) / 2.0) * Vector2(tile_size)
 	add_child(camera)
 	camera.make_current()

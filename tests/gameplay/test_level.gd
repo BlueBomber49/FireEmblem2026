@@ -43,7 +43,7 @@ func test_rebuild_builds_layers_units_and_pathfinding() -> void:
 	assert_eq(level.layers_root.get_child(0).name, "water", "lowest z first")
 	assert_eq(level.layers_root.get_child(1).name, "grass")
 	var grass: TileMapLayer = level.layers_root.get_child(1)
-	assert_eq(grass.get_used_cells().size(), level.level_state.map_data.layerData.layers["grass"].cell_masks().size())
+	assert_eq(grass.get_used_cells().size(), level.level_state.map_data.layers["grass"].cell_masks().size())
 	assert_eq(grass.get_cell_atlas_coords(Vector2i(6, 5)), Vector2i(1, 1), "fill tile inside the blob")
 	assert_eq(grass.get_cell_atlas_coords(Vector2i(12, 9)), Vector2i(4, 2), "diagonal tile")
 
