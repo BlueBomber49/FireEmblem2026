@@ -1,0 +1,49 @@
+{
+	"id": "nomad",
+	"name": "Nomad",
+	"movement_type": "mounted",
+	"weapon_types": [
+		"bow"
+	],
+	"base_stats": {
+		"hp": 16,
+		"strength": 5,
+		"magic": 0,
+		"skill": 4,
+		"speed": 5,
+		"luck": 0,
+		"defense": 4,
+		"resistance": 0,
+		"constitution": 7,
+		"movement": 7
+	},
+	"growths": {
+		"hp": 65,
+		"strength": 30,
+		"magic": 0,
+		"skill": 40,
+		"speed": 45,
+		"luck": 30,
+		"defense": 12,
+		"resistance": 15
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [
+		"mounted"
+	],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/MountedArcher/MountedArcher_{color}1.png"
+}

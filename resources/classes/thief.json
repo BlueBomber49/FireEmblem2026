@@ -1,0 +1,47 @@
+{
+	"id": "thief",
+	"name": "Thief",
+	"movement_type": "foot",
+	"weapon_types": [
+		"sword"
+	],
+	"base_stats": {
+		"hp": 16,
+		"strength": 3,
+		"magic": 0,
+		"skill": 1,
+		"speed": 9,
+		"luck": 0,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 6,
+		"movement": 6
+	},
+	"growths": {
+		"hp": 50,
+		"strength": 5,
+		"magic": 0,
+		"skill": 45,
+		"speed": 40,
+		"luck": 40,
+		"defense": 5,
+		"resistance": 20
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 2,
+	"promoted": false,
+	"tags": [],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/Thief/Thief_{color}1.png"
+}

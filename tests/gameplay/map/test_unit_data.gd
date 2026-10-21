@@ -22,17 +22,9 @@ func _valid_unit() -> UnitData:
 	return u
 
 
-var _next_fake_path := 0
-
-
-## An item that looks saved as its own file. Each gets a unique path that no real file
-## uses, because Godot allows only one resource per path.
-func _file_item() -> WeaponData:
-	var w := WeaponData.new()
-	w.id = &"iron_lance"
-	_next_fake_path += 1
-	w.resource_path = "res://tests/not_a_real_file_%d.tres" % _next_fake_path
-	return w
+## A real item from resources/weapons, so its id is known to GameData.
+func _known_item() -> ItemData:
+	return GameData.get_item(&"iron_lance")
 
 
 func test_valid_unit_passes() -> void:
@@ -68,32 +60,32 @@ func test_level_out_of_range_fails() -> void:
 func test_too_many_starting_items_fails() -> void:
 	var u := _valid_unit()
 	for i in Inventory.DEFAULT_CAPACITY + 1:
-		u.starting_items.append(_file_item())
+		u.starting_items.append(_known_item())
 	assert_gt(u.validate().size(), 0)
 
 
 func test_starting_items_at_capacity_pass() -> void:
 	var u := _valid_unit()
 	for i in Inventory.DEFAULT_CAPACITY:
-		u.starting_items.append(_file_item())
+		u.starting_items.append(_known_item())
 	assert_eq(u.validate(), PackedStringArray())
 
 
-func test_starting_item_created_in_code_fails() -> void:
+func test_starting_item_with_a_known_id_passes() -> void:
 	var u := _valid_unit()
-	var w := WeaponData.new()
-	w.id = &"loose"
-	u.starting_items.append(w)
-	assert_gt(u.validate().size(), 0)
+	u.starting_items.append(_known_item())
+	assert_eq(u.validate(), PackedStringArray())
 
 
-func test_starting_item_embedded_in_another_file_fails() -> void:
+func test_starting_item_with_an_unknown_id_fails() -> void:
+	# Saves store items by id, so an item GameData doesn't know couldn't be loaded back.
 	var u := _valid_unit()
 	var w := WeaponData.new()
-	w.id = &"embedded"
-	w.resource_path = "res://resources/classes/oswin.tres::WeaponData_abc"
+	w.id = &"spoon"
 	u.starting_items.append(w)
 	assert_gt(u.validate().size(), 0)
+	assert_string_contains("
+".join(u.validate()), "spoon")
 
 
 func test_null_starting_item_fails() -> void:

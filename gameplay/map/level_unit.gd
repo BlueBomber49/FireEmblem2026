@@ -12,7 +12,7 @@ static func create(ref: UnitReference, unit_state: LevelUnitState) -> LevelUnit:
 	unit.name = ref.id
 	unit.reference = ref
 	unit.state = unit_state
-	unit.sprite_frames = SpriteFramesBuilder.for_sheet(ref.sprite_sheet)
+	unit.sprite_frames = SpriteFramesBuilder.for_sheet(ref.resolved_sprite())
 	return unit
 
 

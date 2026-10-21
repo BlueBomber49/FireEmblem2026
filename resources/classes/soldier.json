@@ -1,0 +1,47 @@
+{
+	"id": "soldier",
+	"name": "Soldier",
+	"movement_type": "foot",
+	"weapon_types": [
+		"lance"
+	],
+	"base_stats": {
+		"hp": 20,
+		"strength": 3,
+		"magic": 0,
+		"skill": 0,
+		"speed": 1,
+		"luck": 0,
+		"defense": 0,
+		"resistance": 0,
+		"constitution": 6,
+		"movement": 5
+	},
+	"growths": {
+		"hp": 80,
+		"strength": 50,
+		"magic": 0,
+		"skill": 30,
+		"speed": 20,
+		"luck": 25,
+		"defense": 12,
+		"resistance": 15
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 2,
+	"promoted": false,
+	"tags": [],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/SpearFighter/SpearFighter_ShortHair_{color}1.png"
+}

@@ -1,0 +1,47 @@
+{
+	"id": "mage",
+	"name": "Mage",
+	"movement_type": "mage",
+	"weapon_types": [
+		"anima"
+	],
+	"base_stats": {
+		"hp": 16,
+		"strength": 0,
+		"magic": 1,
+		"skill": 2,
+		"speed": 3,
+		"luck": 0,
+		"defense": 3,
+		"resistance": 3,
+		"constitution": 6,
+		"movement": 5
+	},
+	"growths": {
+		"hp": 55,
+		"strength": 0,
+		"magic": 55,
+		"skill": 40,
+		"speed": 35,
+		"luck": 20,
+		"defense": 5,
+		"resistance": 30
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/Wizard/Wizard_{color}1.png"
+}

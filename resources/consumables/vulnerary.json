@@ -1,0 +1,6 @@
+{
+	"id": "vulnerary",
+	"name": "Vulnerary",
+	"max_uses": 3,
+	"heal": 10
+}

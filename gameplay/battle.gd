@@ -23,9 +23,6 @@ const TARGET_STEPS := {
 	&"ui_right": 1,
 	&"ui_down": 1,
 }
-## Cells away from the attacker that the stand-in weapon reaches.
-const ATTACK_RANGE := 1
-
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
 @onready var arrow: PathArrow = $Arrow
@@ -212,7 +209,7 @@ func _select(unit: LevelUnit) -> void:
 	level.select(unit)
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
-	reachable = level.pathfinding.reachable_cells(unit.state, unit.reference.stat(&"mov"))
+	reachable = level.pathfinding.reachable_cells(unit.state, unit.state.unit.stats.movement)
 	range_overlay.set_cells(reachable, attack_cells)
 	state = State.UNIT_SELECTED
 	_update_arrow()
@@ -252,7 +249,7 @@ func _finish_action() -> void:
 
 func _open_unit_menu() -> void:
 	state = State.UNIT_MENU
-	targets = Combat.adjacent_hostiles(level.selected.state, level.level_state)
+	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
 	var options: Array[StringName] = [&"wait"]
 	if not targets.is_empty():
 		options.push_front(&"attack")
@@ -269,7 +266,7 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"attack":
 			state = State.TARGETING
 			target_index = 0
-			attack_cells = _cells_in_attack_range(level.selected.state.cell)
+			attack_cells = _cells_in_attack_range(level.selected.state)
 			range_overlay.set_cells(reachable, attack_cells)
 			_show_forecast()
 		&"wait":
@@ -282,11 +279,50 @@ func _on_unit_menu_cancelled() -> void:
 	if unit.state.cell != move_origin:
 		level.place_unit(unit, move_origin)
 	unit.state.has_moved = origin_has_moved
-	reachable = level.pathfinding.reachable_cells(unit.state, unit.reference.stat(&"mov"))
+	reachable = level.pathfinding.reachable_cells(unit.state, unit.state.unit.stats.movement)
 	range_overlay.set_cells(reachable, attack_cells)
 	cursor.set_cell(move_origin)
 	state = State.UNIT_SELECTED
 	_update_panels()
+
+
+# --- Item hooks ----------------------------------------------------------------
+# For an Item menu (not built yet): it can list selected_unit_items() and call
+# use_item / equip_item with a slot index. They act on the unit whose unit menu
+# is open, like Attack and Wait.
+
+
+## What's in the selected unit's inventory, or null when no unit is selected.
+func selected_unit_items() -> UnitInfo:
+	if level.selected == null:
+		return null
+	return UnitInfo.from_unit(level.selected.state.unit)
+
+
+## Uses the consumable in `index` (e.g. a Vulnerary). Like FE, this ends the
+## unit's action. Returns false, changing nothing, for a weapon, an empty slot,
+## a healing item at full HP, or when no unit menu is open.
+func use_item(index: int) -> bool:
+	if state != State.UNIT_MENU or level.selected == null:
+		return false
+	if not level.selected.state.unit.use_item(index):
+		return false
+	unit_menu.close()
+	_finish_action()
+	return true
+
+
+## Equips the weapon in `index` (moves it to the front). Doesn't end the action;
+## the unit menu reopens with targets for the new weapon's range. Returns false,
+## changing nothing, for a consumable, a weapon the class can't use, or when no
+## unit menu is open.
+func equip_item(index: int) -> bool:
+	if state != State.UNIT_MENU or level.selected == null:
+		return false
+	if not level.selected.state.unit.equip(index):
+		return false
+	_open_unit_menu()
+	return true
 
 
 # --- Attack forecast ---------------------------------------------------------
@@ -295,7 +331,7 @@ func _on_unit_menu_cancelled() -> void:
 func _show_forecast() -> void:
 	var target := targets[target_index]
 	cursor.set_cell(target.cell)
-	var sides := Combat.forecast(level.selected.state, target, true)
+	var sides := Combat.forecast(level.selected.state, target, level.level_state)
 	forecast.open(sides[0], sides[1])
 	forecast.set_side(CombatForecast.ScreenSide.RIGHT if _is_left_half(target.cell)
 			else CombatForecast.ScreenSide.LEFT)
@@ -319,7 +355,7 @@ func _fight(target: LevelUnitState) -> void:
 	_update_panels()
 	# Keep the state, not the node: a fallen attacker's node is gone by the end.
 	var attacker := level.selected.state
-	var strikes := Combat.resolve(attacker, target, true, roll)
+	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
 	if attacker.is_alive():
@@ -333,10 +369,19 @@ func _fight(target: LevelUnitState) -> void:
 func _play_strike(strike: Combat.Strike) -> void:
 	var striker: LevelUnit = level.unit_nodes[strike.attacker.unit_ref.id]
 	var target: LevelUnit = level.unit_nodes[strike.defender.unit_ref.id]
-	await striker.play_once("attack", (strike.defender.cell - strike.attacker.cell).sign())
+	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
 	strike.defender.current_hp = strike.hp_after
 	if not strike.defender.is_alive():
 		await level.fade_out_unit(target)
+
+
+## The straight direction to face for a strike along `offset`. A ranged strike can
+## be diagonal (a bow at (-1, 1)), but sprites only face the four directions, so the
+## horizontal side wins, as the side view is what shows an attack best.
+static func strike_direction(offset: Vector2i) -> Vector2i:
+	if offset.x != 0:
+		return Vector2i(signi(offset.x), 0)
+	return Vector2i(0, signi(offset.y))
 
 
 func _random_roll() -> int:
@@ -372,13 +417,24 @@ func _on_map_menu_cancelled() -> void:
 # --- Panels and drawing ------------------------------------------------------
 
 
-## What the terrain panel shows for `cell`. Terrain stats are separate data
-## still to come, so only the name and walkability are real.
+## What the terrain panel shows for `cell`: the terrain rules the game uses there
+## (MapData.rules_terrain_at), with the move cost for the selected unit, or for a
+## foot unit when nothing is selected.
 func terrain_info_at(cell: Vector2i) -> TerrainInfo:
 	var info := TerrainInfo.new()
-	var terrain := level.level_state.map_data.top_terrain_at(cell)
-	info.terrain_name = terrain.capitalize() if not terrain.is_empty() else "None"
-	info.move_cost = 1 if level.pathfinding.is_walkable(cell) else TerrainInfo.IMPASSABLE
+	var terrain := level.pathfinding.terrain_at(cell)
+	if terrain == null:
+		info.terrain_name = "None"
+		info.move_cost = TerrainInfo.IMPASSABLE
+		return info
+	info.terrain_name = terrain.display_name
+	info.defense = terrain.defense
+	info.avoid = terrain.avoid
+	info.heal_percent = terrain.heal_percent
+	var movement_type := Enums.MovementType.FOOT
+	if level.selected != null:
+		movement_type = level.selected.state.unit.class_data().movement_type
+	info.move_cost = terrain.move_cost(movement_type)
 	return info
 
 
@@ -389,7 +445,8 @@ func _on_cursor_moved(_cell: Vector2i) -> void:
 
 ## While choosing a destination the arrow traces the cursor, Fire Emblem style,
 ## so the player picks the exact route. Stepping to a cell next to the arrow's
-## end extends it (within the mov budget), stepping back onto the arrow cuts it
+## end extends it (if the unit can enter it and the route's terrain cost stays
+## within its movement), stepping back onto the arrow cuts it
 ## there, a jump elsewhere in range rebuilds the shortest route, and leaving
 ## the range leaves the arrow as it was.
 func _update_arrow() -> void:
@@ -409,14 +466,14 @@ func _update_arrow() -> void:
 		return
 
 	var tail: Vector2i = path[-1] if not path.is_empty() else unit.state.cell
-	var steps_after := maxi(path.size(), 1)
 	var adjacent := (cell - tail).abs() == Vector2i(1, 0) or (cell - tail).abs() == Vector2i(0, 1)
-	if adjacent and steps_after <= unit.reference.stat(&"mov") \
-			and level.pathfinding.is_passable(unit.state, cell):
-		var extended: Array[Vector2i] = path.duplicate()
-		if extended.is_empty():
-			extended.append(unit.state.cell)
-		extended.append(cell)
+	var extended: Array[Vector2i] = path.duplicate()
+	if extended.is_empty():
+		extended.append(unit.state.cell)
+	extended.append(cell)
+	# The traced route must stay on terrain the unit can enter, within its movement.
+	if adjacent and level.pathfinding.is_passable(unit.state, cell) \
+			and level.pathfinding.path_cost(unit.state, extended) <= unit.state.unit.stats.movement:
 		arrow.set_path(extended)
 	elif reachable.has(cell):
 		arrow.set_path(level.pathfinding.find_path(unit.state, cell))
@@ -437,15 +494,19 @@ func _is_left_half(cell: Vector2i) -> bool:
 	return cell.x < bounds.position.x + bounds.size.x / 2.0
 
 
-## Cells on the map within ATTACK_RANGE steps of `from`, not counting `from`.
-func _cells_in_attack_range(from: Vector2i) -> Dictionary:
-	var bounds := level.level_state.map_data.bounds()
+## Cells on the map that `unit`'s equipped weapon reaches from where it stands
+## (its min-max range, so a bow skips the cells next to it). Empty without a weapon.
+func _cells_in_attack_range(unit: LevelUnitState) -> Dictionary:
 	var cells := {}
-	for dx in range(-ATTACK_RANGE, ATTACK_RANGE + 1):
-		for dy in range(-ATTACK_RANGE, ATTACK_RANGE + 1):
-			var distance := absi(dx) + absi(dy)
-			var cell := from + Vector2i(dx, dy)
-			if distance > 0 and distance <= ATTACK_RANGE and bounds.has_point(cell):
+	var weapon := unit.unit.equipped_weapon()
+	if weapon == null:
+		return cells
+	var bounds := level.level_state.map_data.bounds()
+	var reach := weapon.max_range
+	for dx in range(-reach, reach + 1):
+		for dy in range(-reach, reach + 1):
+			var cell := unit.cell + Vector2i(dx, dy)
+			if weapon.in_range(absi(dx) + absi(dy)) and bounds.has_point(cell):
 				cells[cell] = true
 	return cells
 
