@@ -1,6 +1,6 @@
 # FE7 reference data
 
-This game uses *Fire Emblem: The Blazing Blade* (FE7, GBA) mechanics and numbers as its baseline. This page records where the starting values in `data/` came from, so they can be checked. Once a value is in a `.tres` file, that file is the source of truth: tune it there, not here.
+This game uses *Fire Emblem: The Blazing Blade* (FE7, GBA) mechanics and numbers as its baseline. This page records where the starting values in `resources/` (the JSON data files; see [data-format.md](data-format.md)) came from, so they can be checked. Once a value is in a data file, that file is the source of truth: tune it there, not here.
 
 Sources (Serenes Forest, retrieved 2026-10-09; terrain re-checked 2026-10-14):
 - [Calculations](https://serenesforest.net/blazing-sword/miscellaneous/calculations/)
@@ -17,7 +17,7 @@ Serenes Forest's `/blazing-sword/weapons/...` URLs redirect to *Shadow Dragon* (
 |---|---|---|
 | One combined Str/Mag stat | Separate `strength` and `magic` | Team decision. FE7's number goes in `strength` for physical classes and `magic` for magic classes, and the other is 0. |
 | 11 movement groups | 5: foot, armored, mounted, flier, mage | Simpler. **Nomads use mounted costs** (FE7 Nomads differ from Cavaliers in forest and desert), and **Fighters use foot costs** (FE7 Fighters pay 3 on mountains, where foot units pay 4). |
-| Character data stored as offsets from class bases | `UnitData.starting_stats` holds **total** stats | Teammates can paste numbers straight from character pages. Movement always comes from the class. |
+| Character data stored as offsets from class bases | Character files' `stats` hold **total** stats | Teammates can paste numbers straight from character pages. Movement always comes from the class. |
 | Male and female class variants | Male values only | Simpler; can be added as separate classes later. |
 
 ## Combat formulas
@@ -67,6 +67,8 @@ Movement costs by our movement group. A dash means impassable. FE7's other group
 
 "Mounted" is FE7's Knights 1 group (Cavalier). FE7's full table also has Nomad, Fighter, Bandit and Pirate columns.
 
+**Which terrain a map cell is.** Maps are painted by corners, so a cell at a terrain's edge can mix terrains. The game uses the majority rule (`MapData.rules_terrain_at`): the highest layer covering 3 or 4 of the cell's corners, or covering a straight half-edge if its terrain counts half-edges (forest does, so half-tree edge tiles play as forest); otherwise the layer covering the most corners (ties go to the higher layer); and a cell with fewer than 3 corners painted at all counts as nothing (impassable). The drawn tiles map to these rules through each terrain file's `tiles` list: grass and dirt are plains, trees are forest, sand is desert, water is sea, walls are wall. A tile no terrain file lists is treated as plains, with a warning.
+
 ## Classes (male, unpromoted)
 Stats in order HP / Str / Mag / Skl / Spd / Lck / Def / Res / Con / Mov. Growth rates in order HP / Str / Mag / Skl / Spd / Lck / Def / Res (%).
 
@@ -85,6 +87,8 @@ Stats in order HP / Str / Mag / Skl / Spd / Lck / Def / Res / Con / Mov. Growth 
 | Mage | 16/0/1/2/3/0/3/3/6/5 | 55/0/55/40/35/20/5/30 | Mage | Anima | 3 |
 
 Unpromoted caps for every class: HP 60, Str 20, Mag 20, Skl 20, Spd 20, Lck 30, Def 20, Res 20, Con 20, Mov 15. FE7 bases give every class Lck 0.
+
+There's no flier art yet, so the Pegasus Knight's default sprite is a stand-in (the long-haired spear fighter).
 
 ## Weapons
 Rank / range / weight / might / hit / crit / uses. Uses aren't modeled yet (no durability).
