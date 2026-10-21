@@ -42,12 +42,29 @@ func test_cursor_moves_and_stays_inside_the_map() -> void:
 	assert_eq(battle.cursor.cell.x, battle.level.level_state.map_data.bounds().position.x)
 
 
-func test_terrain_info_names_the_top_layer() -> void:
-	assert_eq(battle.terrain_info_at(LYN_CELL).terrain_name, "Grass")
-	assert_eq(battle.terrain_info_at(LYN_CELL).move_cost, 1)
+func test_terrain_info_shows_the_rules_terrain() -> void:
+	var plains := battle.terrain_info_at(LYN_CELL)
+	assert_eq(plains.terrain_name, "Plains", "grass tiles follow the plains rules")
+	assert_eq(plains.move_cost, 1)
+	assert_eq(plains.defense, 0)
+	assert_eq(plains.avoid, 0)
+	var sea := battle.terrain_info_at(Vector2i(3, 5))
+	assert_eq(sea.terrain_name, "Sea")
+	assert_eq(sea.avoid, 10)
+	assert_eq(sea.move_cost, TerrainInfo.IMPASSABLE, "foot units can't enter")
 	var outside := battle.terrain_info_at(Vector2i(30, 30))
 	assert_eq(outside.terrain_name, "None")
 	assert_eq(outside.move_cost, TerrainInfo.IMPASSABLE)
+
+
+func test_terrain_info_move_cost_is_for_the_selected_unit() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.PLAYER
+	# Turn Wil into a flier for this check: fliers can cross the sea.
+	wil.unit.data = UnitReference.fromJson("p", {"class": "pegasus_knight", "items": ["iron_lance"]}).build_unit_data()
+	battle.cursor.set_cell(wil.cell)
+	battle.confirm()
+	assert_eq(battle.terrain_info_at(Vector2i(3, 5)).move_cost, 1)
 
 
 func test_confirm_on_empty_ground_opens_the_map_menu() -> void:
@@ -110,6 +127,16 @@ func test_arrow_traces_the_cursor_step_by_step() -> void:
 	_trace([Vector2i(6, 4), Vector2i(7, 4), Vector2i(8, 4), Vector2i(8, 5)])
 	assert_eq(battle.arrow.path, [LYN_CELL, Vector2i(6, 4), Vector2i(7, 4), Vector2i(8, 4), Vector2i(8, 5)] as Array[Vector2i],
 			"the detour, not the three-cell shortest route")
+
+
+func test_arrow_never_steps_onto_water() -> void:
+	_select_lyn()
+	_trace([Vector2i(5, 5), Vector2i(4, 5), Vector2i(3, 5)])
+	assert_eq(battle.arrow.path, [LYN_CELL, Vector2i(5, 5), Vector2i(4, 5)] as Array[Vector2i],
+			"the sea cell isn't added")
+	assert_false(battle.reachable.has(Vector2i(3, 5)))
+	battle.confirm()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED, "confirming on the water does nothing")
 
 
 func test_stepping_back_onto_the_arrow_cuts_it() -> void:
@@ -279,7 +306,9 @@ func _always(value: int) -> Callable:
 
 func test_confirming_the_forecast_plays_the_fight_and_spends_the_unit() -> void:
 	bandit.cell = LYN_CELL + Vector2i.RIGHT
-	battle.roll = _always(50)
+	# A roll of 10 hits both sides: lyn's Iron Sword (7 damage, doubles) and the
+	# bandit's Iron Axe (12 damage); see test_combat.gd for the numbers.
+	battle.roll = _always(10)
 	_select_lyn()
 	battle.confirm()
 	battle.unit_menu.option_selected.emit(&"attack")
@@ -291,8 +320,8 @@ func test_confirming_the_forecast_plays_the_fight_and_spends_the_unit() -> void:
 	await wait_seconds(FIGHT_TIME)
 	assert_eq(battle.state, Battle.State.FREE)
 	assert_true(lyn.has_acted)
-	assert_eq(lyn.current_hp, 6, "bandit's counter landed")
-	assert_eq(bandit.current_hp, 12, "lyn hit twice")
+	assert_eq(lyn.current_hp, 4, "bandit's counter landed: 16 - 12")
+	assert_eq(bandit.current_hp, 10, "lyn hit twice: 24 - 7 - 7")
 	assert_eq(battle.level.unit_nodes["lyn"].animation, &"idle_side")
 
 
@@ -315,7 +344,7 @@ func test_a_unit_at_zero_hp_leaves_the_map() -> void:
 func test_the_attacker_can_fall_too() -> void:
 	bandit.cell = LYN_CELL + Vector2i.RIGHT
 	lyn.current_hp = 5
-	battle.roll = _always(50)
+	battle.roll = _always(10)
 	_select_lyn()
 	battle.confirm()
 	battle.unit_menu.option_selected.emit(&"attack")
@@ -325,7 +354,116 @@ func test_the_attacker_can_fall_too() -> void:
 	assert_false(battle.level.unit_nodes.has("lyn"))
 	assert_null(battle.level.selected)
 	assert_eq(battle.state, Battle.State.FREE)
-	assert_eq(bandit.current_hp, 18)
+	assert_eq(bandit.current_hp, 17, "24 - 7 before the counter")
+
+
+func test_diagonal_ranged_attack_faces_a_straight_direction() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = wil.cell + Vector2i(-1, 1)  # down-left, 2 tiles away
+	battle.roll = _always(10)
+	battle.cursor.set_cell(wil.cell)
+	battle.act_in_place()
+	battle.unit_menu.option_selected.emit(&"attack")
+	battle.forecast.close()
+	battle.forecast.confirmed.emit()
+	await wait_seconds(FIGHT_TIME)
+	assert_eq(wil.facing, Vector2i.LEFT, "faces the target's side, not a diagonal")
+	assert_true(battle.level.unit_nodes["wil"].flip_h, "the side view is mirrored to face left")
+
+
+func test_strike_direction_prefers_the_horizontal() -> void:
+	assert_eq(Battle.strike_direction(Vector2i(-1, 1)), Vector2i.LEFT)
+	assert_eq(Battle.strike_direction(Vector2i(2, -1)), Vector2i.RIGHT)
+	assert_eq(Battle.strike_direction(Vector2i(0, -2)), Vector2i.UP)
+	assert_eq(Battle.strike_direction(Vector2i(0, 1)), Vector2i.DOWN)
+
+
+func test_an_archer_attacks_from_two_tiles() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = wil.cell + Vector2i(2, 0)
+	battle.cursor.set_cell(wil.cell)
+	battle.act_in_place()
+	assert_eq(battle.unit_menu.options, [&"attack", &"wait"] as Array[StringName])
+	battle.unit_menu.option_selected.emit(&"attack")
+	assert_eq(battle.cursor.cell, bandit.cell)
+	assert_true(battle.attack_cells.has(wil.cell + Vector2i(2, 0)))
+	assert_false(battle.attack_cells.has(wil.cell + Vector2i(1, 0)), "a bow can't reach the next cell")
+
+
+func test_no_attack_option_when_the_weapon_cant_reach() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = wil.cell + Vector2i(1, 0)
+	battle.cursor.set_cell(wil.cell)
+	battle.act_in_place()
+	assert_eq(battle.unit_menu.options, [&"wait"] as Array[StringName], "too close for the bow")
+
+
+# --- Item hooks (for the Item menu Spencer will build) --------------------------
+# Lyn carries an Iron Sword (slot 0) and a Vulnerary (slot 1).
+
+
+func _lyn_in_unit_menu() -> void:
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+
+
+func test_selected_unit_items_describes_the_selected_unit() -> void:
+	assert_null(battle.selected_unit_items(), "nothing selected")
+	_lyn_in_unit_menu()
+	var info := battle.selected_unit_items()
+	assert_eq(info.unit_name, "Lyn")
+	assert_eq(info.items.size(), 2)
+
+
+func test_using_a_vulnerary_heals_and_ends_the_action() -> void:
+	lyn.current_hp = 5
+	_lyn_in_unit_menu()
+	assert_true(battle.use_item(1))
+	assert_eq(lyn.current_hp, 15)
+	assert_eq(lyn.unit.inventory.get_item(1).uses_left, 2)
+	assert_true(lyn.has_acted, "using an item ends the unit's action, as in FE")
+	assert_eq(battle.state, Battle.State.FREE)
+
+
+func test_using_an_item_at_full_hp_is_refused() -> void:
+	_lyn_in_unit_menu()
+	assert_false(battle.use_item(1))
+	assert_false(lyn.has_acted)
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+
+
+func test_using_a_weapon_is_refused() -> void:
+	lyn.current_hp = 5
+	_lyn_in_unit_menu()
+	assert_false(battle.use_item(0))
+	assert_false(lyn.has_acted)
+
+
+func test_equipping_keeps_the_action_and_refreshes_targets() -> void:
+	lyn.unit.inventory.add(GameData.get_item(&"steel_sword"))
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	_lyn_in_unit_menu()
+	assert_true(battle.equip_item(2))
+	assert_eq(lyn.unit.equipped_weapon(), GameData.get_item(&"steel_sword"))
+	assert_false(lyn.has_acted, "equipping doesn't end the action")
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_eq(battle.unit_menu.options, [&"attack", &"wait"] as Array[StringName])
+
+
+func test_equipping_a_consumable_is_refused() -> void:
+	_lyn_in_unit_menu()
+	assert_false(battle.equip_item(1))
+
+
+func test_item_hooks_need_a_unit_in_the_unit_menu() -> void:
+	lyn.current_hp = 5
+	assert_false(battle.use_item(1), "nothing selected")
+	assert_false(battle.equip_item(0))
+	assert_eq(lyn.current_hp, 5)
 
 
 func test_attack_marks_the_cells_in_range_red() -> void:
@@ -335,7 +473,7 @@ func test_attack_marks_the_cells_in_range_red() -> void:
 	assert_true(battle.attack_cells.is_empty(), "nothing marked until Attack is picked")
 	battle.unit_menu.option_selected.emit(&"attack")
 	assert_eq(battle.attack_cells.size(), 4, "the four neighbours")
-	for offset in Combat.NEIGHBOURS:
+	for offset in Pathfinding.NEIGHBOURS:
 		assert_true(battle.attack_cells.has(LYN_CELL + offset))
 	assert_false(battle.attack_cells.has(LYN_CELL))
 	battle.cancel()

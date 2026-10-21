@@ -56,17 +56,12 @@ func move_to_front(index: int) -> void:
 	_items.insert(0, entry)
 
 
-## The inventory as save data: [{"item": <reference>, "uses_left": n}, ...].
-## Only consumables save uses_left. Returns an empty Array for an empty inventory
-## and null (not an Array) if any item can't be referenced, so callers can tell
-## "no items" from "saving failed".
-func to_array() -> Variant:
+## The inventory as save data: [{"item": "iron_sword"}, {"item": "vulnerary", "uses_left": 2}].
+## Items are saved by id; only consumables save uses_left.
+func to_array() -> Array:
 	var entries := []
 	for entry in _items:
-		var ref := ResourceRef.to_dict(entry.data)
-		if ref.is_empty():
-			return null
-		var saved := {"item": ref}
+		var saved := {"item": String(entry.data.id)}
 		if entry.is_consumable():
 			saved["uses_left"] = entry.uses_left
 		entries.append(saved)
@@ -74,9 +69,9 @@ func to_array() -> Variant:
 
 
 ## An inventory read from save data. Skips (with a warning) entries that aren't
-## dictionaries or whose item can't load, and drops entries beyond capacity.
-## A consumable's missing or bad uses_left becomes its max uses; others are clamped
-## to 1 through max uses.
+## dictionaries or whose item id GameData doesn't know, and drops entries beyond
+## capacity. A consumable's missing or bad uses_left becomes its max uses; others
+## are clamped to 1 through max uses.
 static func from_array(a: Variant, p_capacity: int = DEFAULT_CAPACITY) -> Inventory:
 	var inventory := Inventory.new(p_capacity)
 	if not a is Array:
@@ -86,9 +81,10 @@ static func from_array(a: Variant, p_capacity: int = DEFAULT_CAPACITY) -> Invent
 		if not saved is Dictionary:
 			push_warning("Save data: skipping an inventory entry that isn't a dictionary.")
 			continue
-		var item := ResourceRef.load_from(saved.get("item"), ItemData) as ItemData
+		var item_id: Variant = saved.get("item")
+		var item: ItemData = GameData.get_item(StringName(item_id)) if item_id is String else null
 		if item == null:
-			push_warning("Save data: skipping an inventory item that can't load.")
+			push_warning("Save data: skipping unknown inventory item %s." % [item_id])
 			continue
 		var uses := -1
 		if item is ConsumableData:

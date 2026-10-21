@@ -1,0 +1,11 @@
+{
+	"id": "iron_lance",
+	"name": "Iron Lance",
+	"type": "lance",
+	"might": 7,
+	"hit": 80,
+	"crit": 0,
+	"weight": 8,
+	"min_range": 1,
+	"max_range": 1
+}

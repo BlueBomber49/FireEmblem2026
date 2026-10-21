@@ -16,8 +16,12 @@ const MAX_LEVEL := 20
 @export var starting_stats: Stats
 ## Personal growth rates, in percent. Leave empty to use the class's growths.
 @export var growths: Stats
-## Pick existing item files. Items created inside this file can't be saved with the unit.
+## Starting items. Each must be a known item id (resources/weapons or consumables),
+## because saves store items by id.
 @export var starting_items: Array[ItemData] = []
+## Sprite sheet path with a {color} placeholder, overriding the class's default.
+## Empty uses the class's sprite.
+@export var sprite := ""
 
 
 ## Returns a list of problems with this definition; empty when it's valid.
@@ -40,6 +44,6 @@ func validate() -> PackedStringArray:
 	for item in starting_items:
 		if item == null:
 			errors.append("%s: a starting item slot is empty." % id)
-		elif not ResourceRef.can_reference(item):
-			errors.append("%s: starting item '%s' isn't saved as its own file." % [id, item.id])
+		elif GameData.get_item(item.id) == null:
+			errors.append("%s: starting item '%s' isn't a known item id." % [id, item.id])
 	return errors

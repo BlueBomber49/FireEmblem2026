@@ -1,0 +1,11 @@
+{
+	"id": "slim_sword",
+	"name": "Slim Sword",
+	"type": "sword",
+	"might": 3,
+	"hit": 100,
+	"crit": 5,
+	"weight": 2,
+	"min_range": 1,
+	"max_range": 1
+}

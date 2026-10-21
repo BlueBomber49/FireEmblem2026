@@ -1,0 +1,11 @@
+{
+	"id": "fire",
+	"name": "Fire",
+	"type": "anima",
+	"might": 5,
+	"hit": 90,
+	"crit": 0,
+	"weight": 4,
+	"min_range": 1,
+	"max_range": 2
+}

@@ -206,6 +206,19 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "New unit template"
 
+[node name="CharacterRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+
+[node name="CharacterLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow"]
+layout_mode = 2
+text = "character"
+
+[node name="CharacterOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "A named character from resources/characters, or None for a generic unit of the class below."
+
 [node name="ClassRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 layout_mode = 2
 
@@ -252,6 +265,23 @@ min_value = 1.0
 max_value = 40.0
 value = 1.0
 
+[node name="ItemsLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+layout_mode = 2
+text = "items"
+
+[node name="ItemsEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "iron_axe, vulnerary"
+tooltip_text = "Item ids, comma-separated, in inventory order (see resources/weapons and resources/consumables)."
+
+[node name="OverrideCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Override class stats"
+tooltip_text = "Off: the unit uses its class's base stats. On: edit the stats below (movement always comes from the class)."
+
 [node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -263,10 +293,17 @@ layout_mode = 2
 disabled = true
 text = "Delete unit"
 
+[node name="DeselectButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Deselect (X / Esc)"
+
 [node name="UnitsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 layout_mode = 2
 text = "Left: place / click to select / drag to move
-Right: delete"
+Right: delete
+X / Esc: deselect, to place a different unit"
 autowrap_mode = 3
 
 [node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]

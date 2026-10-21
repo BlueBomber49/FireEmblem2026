@@ -1,0 +1,15 @@
+{
+	"id": "mountain",
+	"name": "Mountain",
+	"defense": 1,
+	"avoid": 30,
+	"heal_percent": 0,
+	"move_costs": {
+		"foot": 4,
+		"armored": -1,
+		"mounted": -1,
+		"flier": 1,
+		"mage": 4
+	},
+	"tiles": []
+}

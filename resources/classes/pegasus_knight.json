@@ -1,0 +1,49 @@
+{
+	"id": "pegasus_knight",
+	"name": "Pegasus Knight",
+	"movement_type": "flier",
+	"weapon_types": [
+		"lance"
+	],
+	"base_stats": {
+		"hp": 14,
+		"strength": 4,
+		"magic": 0,
+		"skill": 5,
+		"speed": 5,
+		"luck": 0,
+		"defense": 3,
+		"resistance": 2,
+		"constitution": 5,
+		"movement": 7
+	},
+	"growths": {
+		"hp": 65,
+		"strength": 35,
+		"magic": 0,
+		"skill": 40,
+		"speed": 40,
+		"luck": 35,
+		"defense": 12,
+		"resistance": 35
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [
+		"flier"
+	],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/SpearFighter/SpearFighter_LongHair_{color}1.png"
+}

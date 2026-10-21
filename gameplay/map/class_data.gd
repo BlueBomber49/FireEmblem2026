@@ -20,6 +20,9 @@ extends Resource
 @export var promoted := false
 ## Traits weapons can be effective against, such as &"flier", &"mounted" or &"armored".
 @export var tags: Array[StringName] = []
+## Default sprite sheet path with a {color} placeholder (Blue, Red or Green by
+## faction), e.g. "res://assets/battle_pack/Sprite Sheets/LanceKnight/LanceKnight_{color}.png".
+@export var sprite := ""
 
 
 func can_wield(weapon: WeaponData) -> bool:

@@ -33,7 +33,8 @@ func test_fresh_load_builds_states_from_map_units() -> void:
 	assert_eq(level.level_state.level_units.size(), level.level_state.map_data.units.size())
 	var lyn: LevelUnitState = level.level_state.level_units["lyn"]
 	assert_eq(lyn.cell, level.level_state.map_data.units["lyn"].start_cell)
-	assert_eq(lyn.current_hp, level.level_state.map_data.units["lyn"].stat(&"hp"))
+	assert_eq(lyn.current_hp, lyn.unit.max_hp())
+	assert_eq(lyn.unit.max_hp(), 16, "Lyn's own stats from resources/characters/lyn.json")
 
 
 func test_rebuild_builds_layers_units_and_pathfinding() -> void:
@@ -51,9 +52,39 @@ func test_rebuild_builds_layers_units_and_pathfinding() -> void:
 	assert_eq(level.unit_at(Vector2i(6, 5)).reference.id, "lyn")
 	assert_almost_eq(level.unit_nodes["lyn"].global_position, Vector2(104, 88), Vector2(0.01, 0.01))
 
-	assert_true(level.pathfinding.is_walkable(Vector2i(0, 0)), "water edge is drawn, so walkable for now")
+	assert_true(level.pathfinding.is_walkable(Vector2i(1, 1)), "water is terrain (who can enter it is per unit)")
+	assert_false(level.pathfinding.is_walkable(Vector2i(0, 0)), "a mostly-blank corner cell")
 	assert_false(level.pathfinding.is_walkable(Vector2i(30, 30)), "outside every layer")
 	assert_eq(level.pathfinding.find_path(level.level_state.level_units["lyn"], Vector2i(8, 5)).size(), 3)
+
+
+## A cell well inside test_level's grass blob.
+const INNER_GRASS := Vector2i(6, 5)
+
+
+func test_rebuild_refreshes_rules_terrain() -> void:
+	var level := _loaded_level()
+	level.rebuild()
+	assert_eq(level.level_state.map_data.rules_terrain_at(INNER_GRASS), "grass")
+	level.level_state.map_data.layers.erase("grass")
+	level.rebuild()
+	assert_eq(level.level_state.map_data.rules_terrain_at(INNER_GRASS), "water")
+
+
+func test_repainting_a_layer_refreshes_rules_terrain() -> void:
+	var level := _loaded_level()
+	level.rebuild()
+	assert_eq(level.level_state.map_data.rules_terrain_at(INNER_GRASS), "grass")
+	# Erase the grass from the cell's four corners, as an eraser stroke would.
+	var corners := [INNER_GRASS, INNER_GRASS + Vector2i(1, 0), INNER_GRASS + Vector2i(0, 1), INNER_GRASS + Vector2i(1, 1)]
+	var grass: MapLayer = level.level_state.map_data.layers["grass"]
+	var kept: Array[Vector2i] = []
+	for v in grass.verts:
+		if v not in corners:
+			kept.append(v)
+	grass.verts = kept
+	level.repaint_layer("grass")
+	assert_eq(level.level_state.map_data.rules_terrain_at(INNER_GRASS), "water", "a brush stroke erased it")
 
 
 func test_rebuild_is_idempotent() -> void:

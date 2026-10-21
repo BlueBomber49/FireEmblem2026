@@ -4,8 +4,8 @@ const SAMPLE := {
 	"map_data": {
 		"layers": {"grass": {"z": 0, "terrain": "grass", "verts": [[0, 0], [1, 0]]}},
 		"units": {
-			"lyn": {"faction": "player", "stats": {"hp": 16}, "start_cell": [2, 3]},
-			"wil": {"faction": "ally", "stats": {"hp": 20}, "start_cell": [4, 3]},
+			"lyn": {"character": "lyn", "faction": "player", "start_cell": [2, 3]},
+			"wil": {"character": "wil", "faction": "ally", "start_cell": [4, 3]},
 		},
 	},
 	"events": {"on_start": ["hello"]},
@@ -44,7 +44,7 @@ func test_save_round_trip_restores_unit_state() -> void:
 	assert_eq(again.level_units["lyn"].cell, Vector2i(7, 7))
 	assert_eq(again.level_units["lyn"].current_hp, 3)
 	assert_eq(again.level_units["wil"].current_hp, 20, "untouched unit is unchanged")
-	assert_eq(again.toJson(), state.toJson())
+	assert_eq(JSON.stringify(again.toJson()), JSON.stringify(state.toJson()))
 
 
 func test_events_are_copied_not_shared() -> void:
@@ -60,8 +60,33 @@ func test_file_round_trip() -> void:
 	assert_eq(state.save_file(path), OK)
 	var again := LevelState.load_file(path)
 	assert_not_null(again)
-	assert_eq(again.toJson(), state.toJson())
+	assert_eq(JSON.stringify(again.toJson()), JSON.stringify(state.toJson()))
 	DirAccess.remove_absolute(path)
+
+
+func test_file_round_trip_keeps_full_unit_state() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	var lyn: LevelUnitState = state.level_units["lyn"]
+	lyn.current_hp = 5
+	assert_true(lyn.unit.use_item(1), "Lyn's Vulnerary: 5 -> 15, 2 uses left")
+	lyn.cell = Vector2i(7, 5)
+	lyn.has_acted = true
+	var path := "user://test_level_state_units.json"
+	assert_eq(state.save_file(path), OK)
+	var again: LevelUnitState = LevelState.load_file(path).level_units["lyn"]
+	assert_eq(again.current_hp, 15)
+	assert_eq(again.unit.max_hp(), 16, "max HP stays separate")
+	assert_eq(again.unit.inventory.get_item(1).uses_left, 2)
+	assert_eq(again.unit.equipped_weapon(), GameData.get_item(&"iron_sword"))
+	assert_eq(again.cell, Vector2i(7, 5))
+	assert_true(again.has_acted)
+	DirAccess.remove_absolute(path)
+
+
+func test_authored_level_still_loads_fresh() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	assert_eq(state.level_units["lyn"].current_hp, 16)
+	assert_eq(state.level_units["lyn"].unit.inventory.get_item(1).uses_left, 3)
 
 
 func test_load_file_returns_null_for_a_missing_file() -> void:
