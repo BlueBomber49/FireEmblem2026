@@ -1,0 +1,49 @@
+{
+	"id": "knight",
+	"name": "Knight",
+	"movement_type": "armored",
+	"weapon_types": [
+		"lance"
+	],
+	"base_stats": {
+		"hp": 17,
+		"strength": 5,
+		"magic": 0,
+		"skill": 2,
+		"speed": 0,
+		"luck": 0,
+		"defense": 9,
+		"resistance": 0,
+		"constitution": 13,
+		"movement": 4
+	},
+	"growths": {
+		"hp": 80,
+		"strength": 40,
+		"magic": 0,
+		"skill": 30,
+		"speed": 15,
+		"luck": 25,
+		"defense": 28,
+		"resistance": 20
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [
+		"armored"
+	],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/LanceKnight/LanceKnight_{color}.png"
+}

@@ -6,8 +6,6 @@ extends RefCounted
 ## lives with whoever owns the board, not here.
 
 const MAX_EXPERIENCE := 99
-## Bump when the save format changes, and handle older versions in from_dict.
-const SAVE_VERSION := 1
 
 var data: UnitData
 var level := 1
@@ -114,63 +112,39 @@ func use_item(index: int) -> bool:
 	return true
 
 
-## This unit's state as JSON-safe save data. Definitions (the UnitData and items)
-## are saved as references, and stats as copies. Returns {} (with an error already
-## reported) if anything can't be referenced, rather than a save that would lose
-## the unit or an item when loaded.
-func to_dict() -> Dictionary:
-	var unit_ref := ResourceRef.to_dict(data)
-	if unit_ref.is_empty():
-		return {}
-	var items: Variant = inventory.to_array()
-	if items == null:
-		return {}
+## What changes about this unit during play, as JSON-safe data: level, EXP, stats,
+## current HP, and items by id (with uses left for consumables). Who the unit is
+## isn't saved: the map's placement supplies that when the level loads.
+func save_state() -> Dictionary:
 	return {
-		"version": SAVE_VERSION,
-		"unit_data": unit_ref,
 		"level": level,
 		"experience": experience,
 		"stats": stats.to_dict(),
 		"current_hp": current_hp,
-		"inventory": items,
+		"inventory": inventory.to_array(),
 	}
 
 
-## A unit rebuilt from save data. Missing and wrong-type fields fall back with a
-## warning. Out-of-range numbers are clamped without one, since lowering a class
-## cap is ordinary tuning, not a broken save. Returns null (with an error) only when
-## there's no definition to build from: `d` isn't a Dictionary, or its unit_data
-## reference doesn't load as a UnitData. Loaded stats follow the creation rules:
-## movement from the class, clamped to the class caps, HP at least 1.
-static func from_dict(d: Variant) -> Unit:
+## Restores what save_state() wrote. Tolerant of hand-edited or corrupted saves:
+## missing and wrong-type fields fall back (with a "Save data:" warning) to this
+## unit's fresh values, and out-of-range numbers are clamped silently. Loaded stats
+## follow the creation rules: movement from the class, clamped to the class caps,
+## HP at least 1. Anything but a Dictionary leaves the unit as it was.
+func apply_saved_state(d: Variant) -> void:
 	if not d is Dictionary:
-		push_error("Can't load unit: save data isn't a dictionary.")
-		return null
-	var version := SaveUtil.read_int(d, "version", SAVE_VERSION)
-	if version != SAVE_VERSION:
-		push_warning("Save data: unknown unit save version %d; reading as version %d." % [version, SAVE_VERSION])
-	var unit_data := ResourceRef.load_from(d.get("unit_data"), UnitData) as UnitData
-	if unit_data == null:
-		push_error("Can't load unit: its unit_data reference doesn't load as a UnitData.")
-		return null
-	var problem := build_problem(unit_data)
-	if not problem.is_empty():
-		push_error("Can't load unit: %s" % problem)
-		return null
+		push_warning("Save data: unit state isn't a dictionary; keeping the fresh unit.")
+		return
+	level = clampi(SaveUtil.read_int(d, "level", level), UnitData.MIN_LEVEL, UnitData.MAX_LEVEL)
+	experience = clampi(SaveUtil.read_int(d, "experience", 0), 0, MAX_EXPERIENCE)
 
-	var unit := Unit.new(unit_data)
-	unit.level = clampi(SaveUtil.read_int(d, "level", unit_data.level), UnitData.MIN_LEVEL, UnitData.MAX_LEVEL)
-	unit.experience = clampi(SaveUtil.read_int(d, "experience", 0), 0, MAX_EXPERIENCE)
-
-	var klass := unit_data.class_data
-	var loaded := Stats.from_dict(d.get("stats"), unit.stats)
+	var klass := class_data()
+	var loaded := Stats.from_dict(d.get("stats"), stats)
 	loaded.movement = klass.base_stats.movement
-	unit.stats = loaded.clamped(klass.caps)
-	unit.stats.hp = maxi(unit.stats.hp, 1)
+	stats = loaded.clamped(klass.caps)
+	stats.hp = maxi(stats.hp, 1)
 
-	unit.current_hp = clampi(SaveUtil.read_int(d, "current_hp", unit.max_hp()), 0, unit.max_hp())
-	unit.inventory = Inventory.from_array(d.get("inventory"))
-	return unit
+	current_hp = clampi(SaveUtil.read_int(d, "current_hp", max_hp()), 0, max_hp())
+	inventory = Inventory.from_array(d.get("inventory"))
 
 
 ## Starting stats for a new unit: the definition's totals, or the class bases for

@@ -1,8 +1,14 @@
 extends GutTest
 
-const Knight: ClassData = preload("res://resources/classes/knight.tres")
-const IronLance: WeaponData = preload("res://resources/weapons/iron_lance.tres")
-const IronSword: WeaponData = preload("res://resources/weapons/iron_sword.tres")
+var Knight: ClassData
+var IronLance: WeaponData
+var IronSword: WeaponData
+
+
+func before_each() -> void:
+	Knight = GameData.get_class_data(&"knight")
+	IronLance = GameData.get_item(&"iron_lance")
+	IronSword = GameData.get_item(&"iron_sword")
 
 
 func _unit(items: Array[ItemData]) -> Unit:

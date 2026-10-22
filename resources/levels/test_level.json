@@ -1378,22 +1378,8 @@
 		"structures": {},
 		"units": {
 			"lyn": {
-				"name": "Lyn",
-				"unit_class": "SwordFighter",
+				"character": "lyn",
 				"faction": "player",
-				"level": 1,
-				"stats": {
-					"hp": 16,
-					"str": 5,
-					"mag": 0,
-					"skl": 7,
-					"spd": 9,
-					"lck": 2,
-					"def": 2,
-					"res": 0,
-					"con": 5,
-					"mov": 5
-				},
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/SwordFighter/SwordFighter_LongHair_Blue1.png",
 				"start_cell": [
 					6,
@@ -1405,22 +1391,8 @@
 				]
 			},
 			"wil": {
-				"name": "Wil",
-				"unit_class": "Archer",
+				"character": "wil",
 				"faction": "ally",
-				"level": 1,
-				"stats": {
-					"hp": 20,
-					"str": 5,
-					"mag": 0,
-					"skl": 6,
-					"spd": 7,
-					"lck": 4,
-					"def": 3,
-					"res": 1,
-					"con": 6,
-					"mov": 5
-				},
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/Archer/Archer_Green1.png",
 				"start_cell": [
 					6,
@@ -1432,22 +1404,24 @@
 				]
 			},
 			"bandit": {
+				"class": "fighter",
 				"name": "Bandit",
-				"unit_class": "AxeFighter",
-				"faction": "enemy",
 				"level": 2,
+				"items": [
+					"iron_axe"
+				],
 				"stats": {
 					"hp": 24,
-					"str": 7,
-					"mag": 0,
-					"skl": 3,
-					"spd": 4,
-					"lck": 1,
-					"def": 4,
-					"res": 0,
-					"con": 9,
-					"mov": 5
+					"strength": 7,
+					"magic": 0,
+					"skill": 3,
+					"speed": 4,
+					"luck": 1,
+					"defense": 4,
+					"resistance": 0,
+					"constitution": 9
 				},
+				"faction": "enemy",
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/AxeFighter/AxeFighter_ShortHair_Red1.png",
 				"start_cell": [
 					10,

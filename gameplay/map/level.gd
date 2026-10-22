@@ -103,6 +103,8 @@ func repaint_layer(layer_name: String) -> void:
 	tiles.add_terrain(terrain)
 	tile_layer.clear()
 	_paint_layer(tile_layer, layer, terrain)
+	# A brush stroke changed which corners this layer covers.
+	level_state.map_data.invalidate_terrain_cache()
 
 
 func _paint_layer(tile_layer: TileMapLayer, layer: MapLayer, terrain: TerrainType) -> void:

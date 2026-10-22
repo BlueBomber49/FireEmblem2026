@@ -20,18 +20,6 @@ const ERASE_COLOR := Color(1, 0.3, 0.3)
 const CELL_COLOR := Color(1, 1, 1, 0.5)
 const SELECTED_TINT := Color(1.0, 1.0, 0.5)
 
-const SHEETS_DIR := "res://assets/battle_pack/Sprite Sheets/"
-## Faction -> colour suffix used by the sheet filenames.
-const FACTION_COLORS := {
-	UnitReference.Faction.PLAYER: "Blue",
-	UnitReference.Faction.ENEMY: "Red",
-	UnitReference.Faction.ALLY: "Green",
-}
-## Stats a newly placed unit starts with.
-const DEFAULT_STATS := {
-	&"hp": 20, &"str": 5, &"mag": 0, &"skl": 5, &"spd": 5,
-	&"lck": 3, &"def": 4, &"res": 1, &"con": 6, &"mov": 5,
-}
 
 @export_file("*.json") var level_path := "res://resources/levels/simple_level.json"
 
@@ -54,6 +42,10 @@ const DEFAULT_STATS := {
 @onready var id_edit: LineEdit = %IdEdit
 @onready var unit_name_edit: LineEdit = %UnitNameEdit
 @onready var level_spin: SpinBox = %LevelSpin
+@onready var character_option: OptionButton = %CharacterOption
+@onready var deselect_button: Button = %DeselectButton
+@onready var items_edit: LineEdit = %ItemsEdit
+@onready var override_check: CheckBox = %OverrideCheck
 @onready var stats_grid: GridContainer = %StatsGrid
 @onready var status: Label = %Status
 
@@ -70,12 +62,21 @@ var panning := false
 var selected_unit_id := ""
 ## Unit being dragged to a new cell, or "".
 var dragging_unit_id := ""
-## Class name -> directory under SHEETS_DIR.
-var unit_classes: Array[String] = []
+## Game class ids, in the order the class picker lists them.
+var unit_classes: Array[StringName] = []
+## Character ids, in the order the character picker lists them after "None".
+var character_ids: Array[StringName] = []
 ## StringName -> SpinBox, built in _ready.
 var stat_spins: Dictionary = {}
 ## True while the inspector is being filled from a unit, so edits don't echo back.
 var _syncing := false
+## What _fill_inspector last put in the pickers and the items field. Applying
+## compares against these, so only a value the user actually changed is written:
+## a broken placement shows a placeholder class, and the items field shows only
+## known items, and neither should be saved back by accident.
+var _shown_character_index := 0
+var _shown_class_index := 0
+var _shown_items_text := ""
 
 ## Level snapshots (toJson(false)) to restore on undo / redo.
 var undo_stack: Array[Dictionary] = []
@@ -110,7 +111,12 @@ func _ready() -> void:
 	id_edit.focus_exited.connect(_apply_inspector)
 	unit_name_edit.text_changed.connect(func(_t: String) -> void: _apply_inspector())
 	level_spin.value_changed.connect(func(_v: float) -> void: _apply_inspector())
+	character_option.item_selected.connect(_on_character_picked)
+	items_edit.text_submitted.connect(func(_t: String) -> void: _apply_inspector())
+	items_edit.focus_exited.connect(_apply_inspector)
+	override_check.toggled.connect(_on_override_toggled)
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
+	deselect_button.pressed.connect(_select_unit.bind(""))
 	%UndoButton.pressed.connect(undo)
 	%RedoButton.pressed.connect(redo)
 
@@ -143,6 +149,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			redo()
 		elif key.keycode == KEY_Z:
 			undo()
+		return
+
+	# The game's cancel keys (X, Esc, gamepad B) deselect, back to the new-unit
+	# template. Right-click stays delete here. Keys typed into a focused field
+	# never reach this.
+	if event.is_action_pressed(&"cancel") and not event is InputEventMouseButton:
+		get_viewport().set_input_as_handled()
+		_select_unit("")
 		return
 
 	var click := event as InputEventMouseButton
@@ -354,22 +368,46 @@ func _unit_id_at(cell: Vector2i) -> String:
 
 func _place_unit(cell: Vector2i) -> void:
 	if unit_classes.is_empty():
-		status.text = "No sprite sheets found under %s" % SHEETS_DIR
+		status.text = "No classes found in resources/classes."
 		return
 	var ref := UnitReference.new()
-	ref.unit_class = class_option.get_item_text(class_option.selected)
 	ref.faction = faction_option.selected as UnitReference.Faction
-	ref.id = _free_unit_id(ref.unit_class)
-	ref.name = ref.unit_class
-	ref.level = 1
-	ref.stats = DEFAULT_STATS.duplicate()
-	ref.sprite_sheet = sheet_for(ref.unit_class, ref.faction)
+	var character_id := _picked_character()
+	if not character_id.is_empty():
+		if _refuse_if_placed(character_id, ""):  # a new placement is never the selected one
+			return
+		ref.character_id = String(character_id)
+		ref.id = _free_unit_id(ref.character_id)
+	else:
+		var class_id := unit_classes[maxi(class_option.selected, 0)]
+		ref.class_id = String(class_id)
+		ref.id = _free_unit_id(ref.class_id)
+		ref.level = 1
+		var weapon := default_weapon_for(GameData.get_class_data(class_id))
+		if weapon != null:
+			ref.items.append(String(weapon.id))
+	ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
 	ref.start_cell = cell
 	var before := _snapshot()
 	level.level_state.map_data.units[ref.id] = ref
 	_commit(before)
 	_rebuild_units()
 	_select_unit(ref.id)
+
+
+## A starting weapon for a new unit of `klass`: an Iron weapon of a type it can use
+## if there is one, otherwise the first usable weapon by id. Null if none.
+static func default_weapon_for(klass: ClassData) -> WeaponData:
+	var fallback: WeaponData = null
+	for item_id in GameData.all_item_ids():
+		var weapon := GameData.get_item(item_id) as WeaponData
+		if weapon == null or not klass.can_wield(weapon):
+			continue
+		if String(item_id).begins_with("iron_"):
+			return weapon
+		if fallback == null:
+			fallback = weapon
+	return fallback
 
 
 func _delete_unit(id: String) -> void:
@@ -404,8 +442,56 @@ func _rebuild_units() -> void:
 		level.unit_nodes[node_id].modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
 
 
-func _free_unit_id(unit_class: String) -> String:
-	var base := unit_class.to_snake_case()
+## Picking a character on a placed unit applies it; with no unit selected it
+## previews the character in the template (its class, name, items and stats).
+func _on_character_picked(_index: int) -> void:
+	if selected_unit_id.is_empty():
+		_fill_inspector()
+	else:
+		_apply_inspector(true)
+
+
+## The id of the placement that is `character_id` on this map, or "" if none.
+## A named character can be placed only once per map.
+func _placement_of(character_id: StringName) -> String:
+	var units: Dictionary = level.level_state.map_data.units
+	for unit_id in units:
+		if units[unit_id].character_id == String(character_id):
+			return unit_id
+	return ""
+
+
+## True (with a status message) when `character_id` is already placed by a unit
+## other than `own_unit_id` (the selected unit, which may keep its own character).
+func _refuse_if_placed(character_id: StringName, own_unit_id: String) -> bool:
+	var placed := _placement_of(character_id)
+	if placed.is_empty() or placed == own_unit_id:
+		return false
+	status.text = "%s is already on this map (unit '%s'); a character can be placed only once." 			% [GameData.get_character(character_id).display_name, placed]
+	if not selected_unit_id.is_empty():
+		# New units copy the selected unit's pickers, so say how to get a fresh template.
+		status.text += " Deselect (X / Esc) to place a different unit."
+	return true
+
+
+## Grays out characters already placed by another unit; the selected unit's own
+## character stays pickable.
+func _update_character_availability() -> void:
+	for i in character_ids.size():
+		var placed := _placement_of(character_ids[i])
+		character_option.set_item_disabled(i + 1, not placed.is_empty() and placed != selected_unit_id)
+
+
+## The character picked in the inspector, or &"" for None.
+func _picked_character() -> StringName:
+	var index := character_option.selected - 1
+	return character_ids[index] if index >= 0 and index < character_ids.size() else &""
+
+
+func _free_unit_id(class_id: String) -> String:
+	var base := class_id.to_snake_case()
+	if not level.level_state.map_data.units.has(base) and GameData.get_character(StringName(base)) != null:
+		return base  # a character's first placement is just its id, e.g. "lyn"
 	var n := 1
 	while level.level_state.map_data.units.has("%s_%d" % [base, n]):
 		n += 1
@@ -416,31 +502,108 @@ func _fill_inspector() -> void:
 	_syncing = true
 	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
 	var editing := ref != null
-	unit_header.text = "Editing '%s'" % selected_unit_id if editing else "New unit template"
+	# A placement that can't be built (unknown character or class, 0 HP) is shown
+	# read-only: only the character or class picker can change it, to fix it.
+	var broken := editing and not ref.build_problem().is_empty()
+	# A named character's class, name, level, items and stats live in its own file.
+	var generic := editing and not ref.is_character()
+	var fields_editable := generic and not broken
+	_update_character_availability()
+	if not editing and character_option.is_item_disabled(character_option.selected):
+		character_option.selected = 0  # already on the map; can't be placed again
+	var template_character := GameData.get_character(_picked_character()) if not editing else null
+	if not editing:
+		unit_header.text = "New unit template"
+	elif broken:
+		unit_header.text = "BROKEN: %s Pick a character or class to fix it." % ref.build_problem()
+	elif ref.is_character():
+		unit_header.text = "Editing '%s' (character '%s')" % [selected_unit_id, ref.character_id]
+	else:
+		unit_header.text = "Editing '%s'" % selected_unit_id
 	id_edit.editable = editing
-	unit_name_edit.editable = editing
-	level_spin.editable = editing
+	# A character's file decides its class, so the class picker is grayed out
+	# whenever a character is picked, placed or not.
+	class_option.disabled = (editing and not generic) or template_character != null
+	unit_name_edit.editable = fields_editable
+	level_spin.editable = fields_editable
+	items_edit.editable = fields_editable
 	%DeleteUnitButton.disabled = not editing
-	for spin in stat_spins.values():
-		spin.editable = editing
+	deselect_button.disabled = not editing
 	if editing:
-		class_option.selected = maxi(unit_classes.find(ref.unit_class), 0)
+		var data := ref.build_unit_data()
+		var class_id: StringName = data.class_data.id if data != null else StringName(ref.class_id)
+		character_option.selected = character_ids.find(StringName(ref.character_id)) + 1 if ref.is_character() else 0
+		class_option.selected = maxi(unit_classes.find(class_id), 0)
 		faction_option.selected = ref.faction
 		id_edit.text = ref.id
-		unit_name_edit.text = ref.name
-		level_spin.value = ref.level
+		unit_name_edit.text = data.display_name if data != null else ref.name
+		level_spin.value = data.level if data != null else ref.level
+		# Characters list their file's items; generic units list what the level file
+		# says, including ids that don't load (so they're never dropped unseen).
+		items_edit.text = ", ".join(_item_ids(data)) if ref.is_character() and data != null else ", ".join(ref.items)
+		override_check.disabled = not fields_editable
+		override_check.button_pressed = generic and not ref.stat_overrides.is_empty()
+		var shown := _shown_stats(data)
 		for key in stat_spins:
-			stat_spins[key].value = ref.stat(key)
+			stat_spins[key].value = shown.get(key)
+	elif template_character != null:
+		id_edit.text = ""
+		class_option.selected = maxi(unit_classes.find(template_character.class_data.id), 0)
+		unit_name_edit.text = template_character.display_name
+		level_spin.value = template_character.level
+		items_edit.text = ", ".join(_item_ids(template_character))
+		override_check.disabled = true
+		override_check.button_pressed = false
+		var shown := _shown_stats(template_character)
+		for key in stat_spins:
+			stat_spins[key].value = shown.get(key)
 	else:
 		id_edit.text = ""
 		unit_name_edit.text = ""
 		level_spin.value = 1
+		items_edit.text = ""
+		override_check.disabled = true
+		override_check.button_pressed = false
+		var klass: ClassData = null
+		if not unit_classes.is_empty():
+			klass = GameData.get_class_data(unit_classes[maxi(class_option.selected, 0)])
 		for key in stat_spins:
-			stat_spins[key].value = DEFAULT_STATS[key]
+			stat_spins[key].value = klass.base_stats.get(key) if klass != null else 0
+	_shown_character_index = character_option.selected
+	_shown_class_index = class_option.selected
+	_shown_items_text = items_edit.text
+	_update_stat_editability()
 	_syncing = false
 
 
-## Writes the inspector back to the selected unit. `respawn` when the sprite changes.
+## Stat spins are editable only for a generic unit with "Override class stats" on.
+## Movement never is: it always comes from the class.
+func _update_stat_editability() -> void:
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
+	var editable := ref != null and not ref.is_character() and ref.build_problem().is_empty() \
+			and override_check.button_pressed
+	for key in stat_spins:
+		stat_spins[key].editable = editable and key != &"movement"
+
+
+static func _item_ids(data: UnitData) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for item in data.starting_items:
+		ids.append(String(item.id))
+	return ids
+
+
+## The stats a placement starts with (movement from the class), or zeros when it
+## can't be built.
+static func _shown_stats(data: UnitData) -> Stats:
+	if data == null:
+		return Stats.new()
+	var source := data.starting_stats if data.starting_stats != null else data.class_data.base_stats
+	var shown := source.copy()
+	shown.movement = data.class_data.base_stats.movement
+	return shown
+
+
 func _apply_inspector(respawn := false) -> void:
 	if _syncing:
 		return
@@ -460,53 +623,151 @@ func _apply_inspector(respawn := false) -> void:
 			level.level_state.map_data.units[new_id] = ref
 			selected_unit_id = new_id
 			respawn = true
-	ref.name = unit_name_edit.text
-	ref.level = int(level_spin.value)
-	for key in stat_spins:
-		ref.stats[key] = int(stat_spins[key].value)
-	ref.unit_class = class_option.get_item_text(class_option.selected)
-	ref.faction = faction_option.selected as UnitReference.Faction
-	ref.sprite_sheet = sheet_for(ref.unit_class, ref.faction)
+	var picker_changed := character_option.selected != _shown_character_index \
+			or class_option.selected != _shown_class_index
+	if not ref.build_problem().is_empty():
+		# Broken: keep everything as written, unless the user picked a character or
+		# class to fix it. Then only that changes; items and overrides stay.
+		if picker_changed:
+			var fix := String(_picked_character())
+			if not fix.is_empty() and _refuse_if_placed(StringName(fix), ref.id):
+				character_option.selected = _shown_character_index
+				return
+			if not fix.is_empty():
+				ref.character_id = fix
+			elif class_option.selected != _shown_class_index:
+				ref.character_id = ""
+				ref.class_id = String(unit_classes[maxi(class_option.selected, 0)])
+			_commit(before, tag)
+			_rebuild_units_and_inspector()
+			_update_status()
+		elif respawn:
+			_commit(before, tag)
+			_rebuild_units()
+		return
+
+	var new_faction := faction_option.selected as UnitReference.Faction
+	var appearance_changed := new_faction != ref.faction
+	ref.faction = new_faction
+
+	var picked := String(_picked_character())
+	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
+		character_option.selected = _shown_character_index
+		picked = ref.character_id
+	if picked != ref.character_id:
+		appearance_changed = true
+		if not picked.is_empty():
+			# Becomes a named character: its file supplies everything else.
+			ref.character_id = picked
+		else:
+			# Back to a generic unit, keeping the class it had as that character.
+			var was := GameData.get_character(StringName(ref.character_id))
+			ref.character_id = ""
+			ref.class_id = String(was.class_data.id) if was != null else String(unit_classes[0])
+			ref.items = _known_items(_item_ids(was)) if was != null else []
+			ref.stat_overrides = {}
+		_commit(before, tag)
+		_rebuild_units_and_inspector()
+		return
+
+	if not ref.is_character():
+		var class_id := String(unit_classes[maxi(class_option.selected, 0)])
+		if class_id != ref.class_id:
+			ref.class_id = class_id
+			ref.stat_overrides = {}
+			appearance_changed = true
+		ref.name = unit_name_edit.text
+		ref.level = int(level_spin.value)
+		# Only an edit to the items field changes the items.
+		if items_edit.text != _shown_items_text:
+			ref.items = _known_items(items_edit.text.split(",", false))
+			_shown_items_text = items_edit.text
+		if override_check.button_pressed:
+			ref.stat_overrides = _overrides_from_spins(GameData.get_class_data(StringName(ref.class_id)))
+		else:
+			ref.stat_overrides = {}
+	if appearance_changed:
+		ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
+		respawn = true
 	# Typing in a field produces many tiny edits; they merge into one undo step.
 	_commit(before, tag)
 	if respawn:
-		_rebuild_units()
-	unit_header.text = "Editing '%s'" % selected_unit_id
+		_rebuild_units_and_inspector()
 
 
-## The sheet for a class in a faction's colour, e.g. Archer + ENEMY -> Archer_Red1.png.
-func sheet_for(unit_class: String, faction: UnitReference.Faction) -> String:
-	var dir := DirAccess.open(SHEETS_DIR + unit_class)
-	if dir == null:
-		return ""
-	var color: String = FACTION_COLORS[faction]
-	var candidates := []
-	for file in dir.get_files():
-		if file.ends_with(".png") and (file.ends_with("_%s1.png" % color) or file.ends_with("_%s.png" % color)):
-			candidates.append(file)
-	if candidates.is_empty():
-		return ""
-	candidates.sort()
-	return SHEETS_DIR + unit_class + "/" + candidates[0]
+func _rebuild_units_and_inspector() -> void:
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
+	if ref != null:
+		ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
+	_rebuild_units()
+	_fill_inspector()
+
+
+## The ids in `ids` (trimmed) that GameData knows; reports any it doesn't.
+func _known_items(ids: PackedStringArray) -> Array[String]:
+	var known: Array[String] = []
+	var unknown := PackedStringArray()
+	for raw in ids:
+		var item_id := raw.strip_edges()
+		if item_id.is_empty():
+			continue
+		if GameData.get_item(StringName(item_id)) != null:
+			known.append(item_id)
+		else:
+			unknown.append(item_id)
+	if not unknown.is_empty():
+		status.text = "Unknown item id(s), not added: %s" % ", ".join(unknown)
+	return known
+
+
+func _on_override_toggled(pressed: bool) -> void:
+	if _syncing:
+		return
+	if not pressed:
+		# Back to the class's stats.
+		var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
+		var klass := GameData.get_class_data(StringName(ref.class_id)) if ref != null else null
+		if klass != null:
+			_syncing = true
+			for key in stat_spins:
+				stat_spins[key].value = klass.base_stats.get(key)
+			_syncing = false
+	_update_stat_editability()
+	_apply_inspector()
+
+
+## Stat spins that differ from `klass`'s base stats, as overrides. Movement never
+## overrides: it always comes from the class.
+func _overrides_from_spins(klass: ClassData) -> Dictionary:
+	var overrides := {}
+	if klass == null:
+		return overrides
+	for key in stat_spins:
+		if key == &"movement":
+			continue
+		var value := int(stat_spins[key].value)
+		if value != int(klass.base_stats.get(key)):
+			overrides[String(key)] = value
+	return overrides
 
 
 func _fill_unit_options() -> void:
-	unit_classes.clear()
+	character_ids = GameData.all_character_ids()
+	character_option.clear()
+	character_option.add_item("None")
+	for character_id in character_ids:
+		character_option.add_item(GameData.get_character(character_id).display_name)
+	unit_classes = GameData.all_class_ids()
 	class_option.clear()
-	var dir := DirAccess.open(SHEETS_DIR)
-	if dir != null:
-		var names := dir.get_directories()
-		names.sort()
-		for n in names:
-			unit_classes.append(n)
-			class_option.add_item(n)
+	for class_id in unit_classes:
+		class_option.add_item(GameData.get_class_data(class_id).display_name)
 	faction_option.clear()
 	for f in UnitReference.Faction.values():
 		faction_option.add_item(UnitReference.FACTION_NAMES[f].capitalize(), f)
 
 
 func _build_stats_grid() -> void:
-	for key in UnitReference.STAT_KEYS:
+	for key in Stats.FIELDS:
 		var label := Label.new()
 		label.text = String(key)
 		stats_grid.add_child(label)
@@ -635,10 +896,24 @@ func _update_status() -> void:
 	if mode == Mode.UNITS:
 		var here := _unit_id_at(hover_cell)
 		status.text = "cell %s   |   %s" % [hover_cell, "unit: " + here if not here.is_empty() else "%d units" % level.level_state.map_data.units.size()]
+		var broken := broken_placements()
+		if not broken.is_empty():
+			status.text += "   |   NOT SHOWN: " + "; ".join(broken)
 		return
 	var layer := selected_layer()
 	var layer_text := "no layer selected" if layer == null else "%s: %d verts" % [layer.name, layer.verts.size()]
 	status.text = "vert %s   |   %s" % [hover_vert, layer_text]
+
+
+## Why each placement that can't be built is skipped (for example a mistyped
+## character id). They stay in the level file; play and the editor can't show them.
+func broken_placements() -> PackedStringArray:
+	var problems := PackedStringArray()
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		var problem := ref.build_problem()
+		if not problem.is_empty():
+			problems.append(problem)
+	return problems
 
 
 func _cell_rect(cell: Vector2i) -> Rect2:

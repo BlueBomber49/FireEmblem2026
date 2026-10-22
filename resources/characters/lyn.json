@@ -1,0 +1,21 @@
+{
+	"id": "lyn",
+	"name": "Lyn",
+	"class": "myrmidon",
+	"level": 1,
+	"stats": {
+		"hp": 16,
+		"strength": 5,
+		"magic": 0,
+		"skill": 7,
+		"speed": 9,
+		"luck": 2,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 5
+	},
+	"items": [
+		"iron_sword",
+		"vulnerary"
+	]
+}

@@ -1,0 +1,11 @@
+{
+	"id": "slim_lance",
+	"name": "Slim Lance",
+	"type": "lance",
+	"might": 4,
+	"hit": 85,
+	"crit": 5,
+	"weight": 4,
+	"min_range": 1,
+	"max_range": 1
+}
