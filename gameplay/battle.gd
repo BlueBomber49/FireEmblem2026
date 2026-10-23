@@ -32,6 +32,7 @@ const TARGET_STEPS := {
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var turn_loop: TurnLoop = $TurnLoop
+@onready var music: AudioStreamPlayer = $Music
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -57,6 +58,7 @@ func _ready() -> void:
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
 	cursor.moved.connect(_on_cursor_moved)
+	turn_loop.phase_changed.connect(_on_phase_changed)
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level)
@@ -541,3 +543,11 @@ func _first_player_unit() -> LevelUnit:
 		if unit.reference.faction == UnitReference.Faction.PLAYER:
 			return unit
 	return null
+	
+	
+# --- Music -----------------------------------------------------------------
+func _on_phase_changed(phase: TurnLoop.Phase) -> void:
+	if phase == TurnLoop.Phase.PLAYER:
+		music.play()
+	else:
+		music.stop()
