@@ -1,0 +1,21 @@
+{
+	"id": "rowland",
+	"name": "Rowland",
+	"class": "fighter",
+	"level": 1,
+	"stats": {
+		"hp": 21,
+		"strength": 7,
+		"magic": 0,
+		"skill": 2,
+		"speed": 5,
+		"luck": 1,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 11,
+		"movement": 5
+	},
+	"items": [
+		"iron_axe"
+	]
+}

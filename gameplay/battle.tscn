@@ -23,7 +23,7 @@ script = ExtResource("9_arrow")
 
 [node name="Level" type="Node2D" parent="."]
 script = ExtResource("2_level")
-level_path = "res://resources/levels/simple_level.json"
+level_path = "res://resources/levels/prologue.json"
 
 [node name="TurnLoop" type="Node" parent="."]
 script = ExtResource("11_turn_loop")
