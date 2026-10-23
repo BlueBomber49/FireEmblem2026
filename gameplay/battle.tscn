@@ -1,40 +1,41 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene format=3 uid="uid://dwl0cynv1qesm"]
 
-[ext_resource type="Script" path="res://gameplay/battle.gd" id="1_battle"]
+[ext_resource type="Script" uid="uid://tft1id8iokhu" path="res://gameplay/battle.gd" id="1_battle"]
 [ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://gameplay/map/level.gd" id="2_level"]
-[ext_resource type="Script" path="res://gameplay/ui/map_cursor.gd" id="3_cursor"]
-[ext_resource type="Script" path="res://gameplay/ui/path_arrow.gd" id="9_arrow"]
-[ext_resource type="Script" path="res://gameplay/ui/range_overlay.gd" id="10_range"]
+[ext_resource type="Script" uid="uid://bt2nsykliy8e3" path="res://gameplay/ui/map_cursor.gd" id="3_cursor"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/map_menu.tscn" id="4_map_menu"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/action_menu.tscn" id="5_action_menu"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/combat_forecast.tscn" id="6_forecast"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/terrain_panel.tscn" id="7_terrain_panel"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="8_theme"]
+[ext_resource type="Script" uid="uid://dngpuv3leh5ku" path="res://gameplay/ui/path_arrow.gd" id="9_arrow"]
+[ext_resource type="Script" uid="uid://bw4e62eg8eu5e" path="res://gameplay/ui/range_overlay.gd" id="10_range"]
 [ext_resource type="Script" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
+[ext_resource type="AudioStream" uid="uid://dk3c0vvmc4pnp" path="res://assets/audio/player_phase.ogg" id="12_u0ie0"]
 
-[node name="Battle" type="Node2D"]
+[node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
 
-[node name="Range" type="Node2D" parent="."]
+[node name="Range" type="Node2D" parent="." unique_id=596188252]
 script = ExtResource("10_range")
 
-[node name="Arrow" type="Node2D" parent="."]
+[node name="Arrow" type="Node2D" parent="." unique_id=2102243893]
 script = ExtResource("9_arrow")
 
-[node name="Level" type="Node2D" parent="."]
+[node name="Level" type="Node2D" parent="." unique_id=1705077647]
 script = ExtResource("2_level")
-level_path = "res://resources/levels/simple_level.json"
+level_path = "res://resources/levels/prologue.json"
 
-[node name="TurnLoop" type="Node" parent="."]
+[node name="TurnLoop" type="Node" parent="." unique_id=1980547913]
 script = ExtResource("11_turn_loop")
 
-[node name="Cursor" type="Node2D" parent="."]
+[node name="Cursor" type="Node2D" parent="." unique_id=1962728683]
 z_index = 100
 script = ExtResource("3_cursor")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=624841247]
 
-[node name="Hint" type="Label" parent="UI"]
+[node name="Hint" type="Label" parent="UI" unique_id=2085341524]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
@@ -48,7 +49,7 @@ theme = ExtResource("8_theme")
 theme_override_font_sizes/font_size = 22
 text = "Arrows / mouse: cursor    Z: confirm    X: cancel    A: act in place"
 
-[node name="MapMenu" parent="UI" instance=ExtResource("4_map_menu")]
+[node name="MapMenu" parent="UI" unique_id=273969409 instance=ExtResource("4_map_menu")]
 unique_name_in_owner = true
 anchors_preset = 1
 anchor_left = 1.0
@@ -59,15 +60,18 @@ offset_right = -16.0
 offset_bottom = 16.0
 grow_horizontal = 0
 
-[node name="UnitMenu" parent="UI" instance=ExtResource("5_action_menu")]
+[node name="UnitMenu" parent="UI" unique_id=340764788 instance=ExtResource("5_action_menu")]
 unique_name_in_owner = true
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 16.0
 offset_bottom = 16.0
 
-[node name="Forecast" parent="UI" instance=ExtResource("6_forecast")]
+[node name="Forecast" parent="UI" unique_id=803896535 instance=ExtResource("6_forecast")]
 unique_name_in_owner = true
 
-[node name="TerrainPanel" parent="UI" instance=ExtResource("7_terrain_panel")]
+[node name="TerrainPanel" parent="UI" unique_id=717328038 instance=ExtResource("7_terrain_panel")]
 unique_name_in_owner = true
+
+[node name="Music" type="AudioStreamPlayer" parent="." unique_id=97659043]
+stream = ExtResource("12_u0ie0")
