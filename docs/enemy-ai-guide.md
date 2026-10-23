@@ -4,7 +4,7 @@ This document describes the current rules-only enemy AI, the tests that cover it
 
 ## Files added
 
-### `core/ai/enemy_ai.gd`
+### `gameplay/ai/enemy_ai.gd`
 
 Defines one AI controller per enemy. Its strategy is runtime state; board position remains outside `Unit`.
 
@@ -13,7 +13,7 @@ Defines one AI controller per enemy. Its strategy is runtime state; board positi
 - `begin_enemy_turn(team_members, player_units, context)`: checks defensive teams before their turn. `team_members` is an array of dictionaries containing `{"ai": EnemyAI, "unit": Unit}`. If any living member can attack a player, all living defensive members with that non-empty team ID switch to aggressive. The caller must invoke this once at the start of the enemy phase.
 - `take_turn(unit, position, player_units, context, allied_units)`: returns an `EnemyAIAction`. Healing is considered first for every strategy. Stationary enemies can only attack from their current position. Defensive enemies otherwise wait. Aggressive enemies attack if possible, or ask the helper to select a destination. `allied_units` should contain living allies that have not acted yet so the helper can avoid blocking their only attack cells.
 
-### `core/ai/enemy_ai_helpers.gd`
+### `gameplay/ai/enemy_ai_helpers.gd`
 
 Contains shared decision calculations. These methods choose actions but do not move units, use items, or apply combat.
 
@@ -28,7 +28,7 @@ Contains shared decision calculations. These methods choose actions but do not m
 - `_blocked_ally_attack_count(...)`: counts attacks that would be lost if the moving enemy occupied a cell that an ally can reach and that is the ally's only cell for attacking a living player.
 - `_distance(first, second)`: returns Manhattan distance between two grid coordinates.
 
-### `core/ai/enemy_ai_action.gd`
+### `gameplay/ai/enemy_ai_action.gd`
 
 Represents a planned action for another system to execute.
 
@@ -39,7 +39,7 @@ Represents a planned action for another system to execute.
 - `inventory_index`: healing item slot, when the action is `HEAL`.
 - `wait()`, `heal(item_index)`, `move(to)`, `attack(to, victim)`: factory methods that create an action with the corresponding fields set.
 
-### `core/ai/enemy_ai_combat_result.gd`
+### `gameplay/ai/enemy_ai_combat_result.gd`
 
 Carries combat estimates that the AI uses to rank an attack. Damage values are per hit; attack counts represent the number of strikes.
 
@@ -49,9 +49,9 @@ Carries combat estimates that the AI uses to rank an attack. Damage values are p
 - `effective_damage_taken()`: expected counter damage, or zero if the target cannot counter.
 - `can_one_shot(target)`: true when the enemy's forecast damage across its strikes is at least the target's current HP and hit chance is at least 50%.
 
-### `core/ai/enemy_ai_context.gd`
+### `gameplay/ai/enemy_ai_context.gd`
 
-Defines the adapter interface between AI rules and the future map/combat implementation. Its default methods report errors (except `terrain_advantage`, which defaults to zero); the gameplay project needs a concrete subclass.
+Defines the adapter interface between AI decisions and the gameplay map/combat systems. Its default methods report errors (except `terrain_advantage`, which defaults to zero); a concrete subclass still needs to connect the AI to a `LevelState`, `Pathfinding`, and `Combat`.
 
 - `unit_position(unit)`: returns the unit's current board coordinate.
 - `reachable_positions(unit, from)`: returns legal move destinations, including the current cell.
@@ -62,7 +62,7 @@ Defines the adapter interface between AI rules and the future map/combat impleme
 
 Godot also maintains `.gd.uid` sidecar files for scripts. They store editor resource identifiers; they do not contain AI behavior and should normally be left to Godot to generate or maintain.
 
-### `tests/core/ai/test_enemy_ai.gd`
+### `tests/gameplay/ai/test_enemy_ai.gd`
 
 Contains 24 GUT tests. Its nested `FakeContext` implements the AI context with a small grid, Manhattan movement and weapon range, occupancy checks, and test-supplied combat forecasts.
 
@@ -128,7 +128,7 @@ Test-file setup/helper methods:
 
 - `test_five_enemy_turns_heal_kill_focus_and_advance_toward_targets`: sets up five players and five enemies. It checks that Enemy 1 heals, Enemy 2 attacks and kills Player 3 using the supplied guaranteed-hit forecast, Enemies 3 and 4 both attack Player 2 without killing them, and Enemy 5 moves to `(14, 18)` toward Player 5 but remains outside attack range. The test manually applies healing, damage, and attack movement to model the battle controller between AI decisions.
 
-The full suite was run with Godot 4.6.3 and GUT after these tests were added: **215 tests passed, zero failed**.
+After relocating the AI files, the AI test file was discovered and all **24/24 AI tests passed** with Godot 4.6.3 and GUT. The full suite reported 586 passing and 180 failing tests in this checkout, with failures including resource import/loading and unrelated UI, map, and editor tests.
 
 ## Work needed to use the AI in a gameplay loop
 
@@ -136,20 +136,20 @@ The AI returns decisions. It does not own the board or execute its actions. Thes
 
 ### 1. Board state and terrain rules
 
-Add a rules-side board model, for example `core/maps/battle_board.gd`, to store each living unit's grid coordinate and answer occupancy/terrain queries. `Unit` intentionally has no position field.
+The gameplay branch already has board models: `LevelState` stores `LevelUnitState` values, each with a cell coordinate and `Unit`; `Level` provides scene views and occupancy queries. `Unit` intentionally has no position field. The AI still needs an adapter that translates its `Unit` arguments to the corresponding `LevelUnitState` values.
 
-Methods this board or a related map-rules class will need:
+The AI adapter needs to expose the corresponding board information:
 
-- `unit_position(unit)` and `set_unit_position(unit, cell)`.
-- `unit_at(cell)` / `is_occupied(cell, except_unit)`.
-- `terrain_at(cell)` returning `TerrainInfo` or a richer terrain resource.
+- `unit_position(unit)` and a way for the executor to update a unit's cell.
+- `is_occupied(cell, except_unit)`.
+- `terrain_at(cell)` returning `TerrainData` or the map's terrain rules resource.
 - A way to enumerate player and enemy units that are alive and currently on the map.
 
-Add map content and movement rules as needed. `TerrainInfo` currently contains display values such as defense, avoid, healing percentage, and a movement cost, but there is no authored battle map or terrain lookup system yet. Movement should use each unit class's `movement_type`, its movement allowance, terrain costs, impassable cells, and other occupied cells.
+The map data and terrain lookup already live under `gameplay/map/`. Keep board coordinates in `LevelUnitState` and derive terrain from `LevelState.map_data`.
 
 ### 2. Reachability and attack-range queries
 
-Add movement/pathfinding logic, for example `core/maps/movement_rules.gd`, to calculate legal destinations. It should provide the concrete logic used by `EnemyAIContext.reachable_positions()` and avoid treating Manhattan distance alone as pathfinding when terrain costs or walls matter.
+`gameplay/map/pathfinding.gd` already calculates weighted reachable cells and routes while accounting for terrain and occupied units. The remaining work is to make a concrete `EnemyAIContext` call it with the right `LevelUnitState`, movement allowance, and current board state.
 
 The context implementation must also provide:
 
@@ -159,17 +159,17 @@ The context implementation must also provide:
 - `can_attack_from()` using the equipped usable weapon, its `min_range`/`max_range`, and any map rules such as line of sight.
 - `terrain_advantage()` using the destination terrain's defensive/avoid values or another agreed score.
 
-A concrete context can live in the map/battle layer, such as `scenes/maps/enemy_ai_context.gd`, if it has to talk to active scene nodes. Keep rule calculations in `core/` where possible, following the repository's architecture rule.
+A concrete context can live in `gameplay/ai/` or alongside the battle integration if it needs active scene nodes. The existing board rules live under `gameplay/map/`.
 
 ### 3. Combat forecasting and resolution
 
-Add a combat calculator, for example `core/battle/combat_calculator.gd`, and use it both for the AI forecast and actual combat. The calculator must return damage, hit chance, strike count, counter ability, counter damage, and counter hit chance in `EnemyAICombatResult` format. It should account for weapons, unit stats, weapon triangle, class bonuses, terrain, and any other combat rules the game adopts.
+`gameplay/combat.gd` already provides combat forecasts and resolution. The AI integration still needs to translate its positional forecast into `EnemyAICombatResult` values so target ranking uses the same formulas as `Combat.forecast()`.
 
-Add or extend a combat resolver to roll hit/critical outcomes, apply damage through `Unit.take_damage()`, handle counterattacks and defeat, and return a combat result to the battle controller. Using the same calculation rules for forecast and resolution avoids the AI ranking attacks using numbers different from the fight itself.
+`Combat.resolve()` already rolls strikes without mutating units; `Battle` applies the strikes. The enemy integration needs to reuse this flow and its `LevelUnitState` arguments when it executes an AI attack.
 
 ### 4. Enemy turn controller and action execution
 
-Add a battle controller, for example `scenes/battle/enemy_turn_controller.gd`, that:
+Extend `gameplay/battle.gd` or add an enemy-turn controller that:
 
 1. Collects active enemy AIs, their units, and player units.
 2. Calls `EnemyAI.begin_enemy_turn()` once before enemies act, passing defensive-team records as `{"ai": ai, "unit": unit}`.
@@ -191,7 +191,7 @@ If movement and animation are asynchronous, the controller should wait for movem
 
 Each enemy placed in a chapter needs an `EnemyAI` instance initialized with its strategy and, for defensive enemies, a shared non-empty team ID. At present, strategy is not a field on `UnitData`; decide whether to add an AI configuration resource/field to spawn data or construct each AI in the chapter setup code.
 
-The project also needs a scene-side representation for map units, likely under `scenes/units/`, to display each `Unit` at the board coordinate and animate movement/attacks. Keep that visual actor synchronized with the rules-side board state rather than making it the only source of game position.
+The project already has `gameplay/map/level_unit.gd` for the scene-side representation. Keep it synchronized with `LevelUnitState` when the enemy turn executes movement, attacks, healing, and defeat.
 
 ## What still needs testing
 
@@ -210,12 +210,10 @@ The current tests validate the AI against a deliberately simple fake context. Th
 
 ### Tests for future gameplay files
 
-- `battle_board.gd`: position changes, occupancy, defeat removal, and terrain lookup.
-- `movement_rules.gd`: movement allowance, weighted terrain, impassable cells, occupied cells, and reachability around obstacles.
-- Concrete `EnemyAIContext`: position, attack range, combat forecast integration, and terrain preference.
-- `combat_calculator.gd` / combat resolver: forecast and resolved damage agreement, hit/miss, criticals, counterattacks, and defeats.
+- Concrete `EnemyAIContext`: mapping units to level state, pathfinding, weapon range, combat forecasts, and terrain preference.
 - Enemy turn controller: team activation runs once at phase start; every enemy acts at most once; each action type is executed; positions and HP are updated before the next AI decision; invalidated plans are handled; and the phase ends when all enemies finish.
-- Unit/map actor scenes: visual positions match board positions after a move, attack move, defeat, and turn transition.
+- Existing `Pathfinding`, `Combat`, `Level`, and `LevelUnit` integrations: terrain reachability, forecast and resolved damage agreement, hit/miss, criticals, counterattacks, defeats, and visual synchronization.
+- `Level` / `LevelUnit`: visual positions match board positions after a move, attack move, defeat, and turn transition.
 
 ## Running the tests
 
