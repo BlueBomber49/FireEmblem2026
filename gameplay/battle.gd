@@ -31,6 +31,7 @@ const TARGET_STEPS := {
 @onready var unit_menu: ActionMenu = %UnitMenu
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
+@onready var turn_loop: TurnLoop = $TurnLoop
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -58,6 +59,7 @@ func _ready() -> void:
 	cursor.moved.connect(_on_cursor_moved)
 	if level.level_state != null:
 		start()
+		turn_loop.setup(self, level)
 
 
 ## Resets the cursor and UI for the level currently built in `level`.
@@ -84,6 +86,8 @@ func start() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if turn_loop != null and not turn_loop.is_player_turn():
+		return
 	if state == State.MOVING or state == State.COMBAT:
 		return
 
@@ -141,12 +145,14 @@ func _cursor_is_free() -> bool:
 
 
 func move_cursor(direction: Vector2i) -> void:
-	if _cursor_is_free():
+	if _cursor_is_free() and (turn_loop == null or turn_loop.is_player_turn()):
 		cursor.move(direction)
 
 
 ## Confirm on the cursor's cell: select a unit, pick a destination, or open the map menu.
 func confirm() -> void:
+	if turn_loop != null and not turn_loop.is_player_turn():
+		return
 	match state:
 		State.FREE:
 			var unit := level.unit_at(cursor.cell)
@@ -188,7 +194,7 @@ func cancel() -> void:
 
 ## The unit key: open the unit menu for the unit under the cursor without moving it.
 func act_in_place() -> void:
-	if state != State.FREE:
+	if state != State.FREE or (turn_loop != null and not turn_loop.is_player_turn()):
 		return
 	var unit := level.unit_at(cursor.cell)
 	if _is_commandable(unit):
@@ -242,6 +248,7 @@ func _finish_action() -> void:
 	_deselect()
 	state = State.FREE
 	_update_panels()
+	turn_loop.on_player_action_completed()
 
 
 # --- Unit menu ---------------------------------------------------------------
@@ -303,7 +310,8 @@ func selected_unit_items() -> UnitInfo:
 ## unit's action. Returns false, changing nothing, for a weapon, an empty slot,
 ## a healing item at full HP, or when no unit menu is open.
 func use_item(index: int) -> bool:
-	if state != State.UNIT_MENU or level.selected == null:
+	if state != State.UNIT_MENU or level.selected == null \
+			or (turn_loop != null and not turn_loop.is_player_turn()):
 		return false
 	if not level.selected.state.unit.use_item(index):
 		return false
@@ -317,7 +325,8 @@ func use_item(index: int) -> bool:
 ## changing nothing, for a consumable, a weapon the class can't use, or when no
 ## unit menu is open.
 func equip_item(index: int) -> bool:
-	if state != State.UNIT_MENU or level.selected == null:
+	if state != State.UNIT_MENU or level.selected == null \
+			or (turn_loop != null and not turn_loop.is_player_turn()):
 		return false
 	if not level.selected.state.unit.equip(index):
 		return false
@@ -364,6 +373,22 @@ func _fight(target: LevelUnitState) -> void:
 	_deselect()
 	state = State.FREE
 	_update_panels()
+	turn_loop.on_player_action_completed()
+
+
+## Runs an enemy's already planned attack using the same combat and animation
+## code as a player fight. The turn loop owns when this is called.
+func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> void:
+	state = State.COMBAT
+	_update_panels()
+	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
+	for strike in strikes:
+		await _play_strike(strike)
+	if attacker.is_alive():
+		attacker.has_moved = true
+		attacker.has_acted = true
+	state = State.FREE
+	_update_panels()
 
 
 func _play_strike(strike: Combat.Strike) -> void:
@@ -404,7 +429,7 @@ func _open_map_menu() -> void:
 ## Only End does anything so far; the other options just close the menu.
 func _on_map_menu_option(option_id: StringName) -> void:
 	if option_id == &"end":
-		level.reset_turn()
+		turn_loop.end_player_turn()
 	state = State.FREE
 	_update_panels()
 

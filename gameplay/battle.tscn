@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://gameplay/ui/combat_forecast.tscn" id="6_forecast"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/terrain_panel.tscn" id="7_terrain_panel"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="8_theme"]
+[ext_resource type="Script" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
 
 [node name="Battle" type="Node2D"]
 script = ExtResource("1_battle")
@@ -23,6 +24,9 @@ script = ExtResource("9_arrow")
 [node name="Level" type="Node2D" parent="."]
 script = ExtResource("2_level")
 level_path = "res://resources/levels/simple_level.json"
+
+[node name="TurnLoop" type="Node" parent="."]
+script = ExtResource("11_turn_loop")
 
 [node name="Cursor" type="Node2D" parent="."]
 z_index = 100
