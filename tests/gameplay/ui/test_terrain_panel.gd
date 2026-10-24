@@ -32,10 +32,10 @@ func test_set_terrain_fills_stats() -> void:
 	assert_eq(_label("Move").text, "2")
 
 
-func test_heal_row_hidden_without_healing() -> void:
+func test_heal_row_shows_dashes_without_healing() -> void:
 	_panel.set_terrain(_terrain("Forest"))
-	assert_false(_label("HealLabel").visible)
-	assert_false(_label("Heal").visible)
+	assert_true(_label("HealLabel").visible, "always shown, so the height stays put")
+	assert_eq(_label("Heal").text, "--")
 
 
 func test_heal_row_shows_percent() -> void:
@@ -62,8 +62,23 @@ func test_set_side_moves_between_bottom_corners() -> void:
 	assert_eq(_panel.anchor_bottom, 1.0)
 
 
-func test_panel_shrinks_when_heal_row_hides() -> void:
+func test_whole_panel_sits_inside_the_margin() -> void:
+	_panel.set_terrain(_terrain("Sea"))
+	assert_eq(_panel.offset_bottom, -float(TerrainPanel.MARGIN), "bottom edge on screen")
+	assert_eq(_panel.offset_bottom - _panel.offset_top, _panel.size.y,
+			"pinned by its real size, fixed width included")
+	assert_eq(_panel.size.x, _panel.custom_minimum_size.x)
+
+
+func test_panel_keeps_one_size_across_terrains() -> void:
 	_panel.set_terrain(_terrain("Fort", 20))
-	var fort_height := _panel.size.y
+	var fort_size := _panel.size
 	_panel.set_terrain(_terrain("Plains"))
-	assert_lt(_panel.size.y, fort_height)
+	assert_eq(_panel.size, fort_size, "no jumping as the cursor moves")
+	_panel.set_terrain(_terrain("Mountain"))
+	assert_eq(_panel.size, fort_size, "longest name still fits")
+
+
+func test_mouse_passes_through_the_panel() -> void:
+	assert_eq(_panel.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	assert_eq((_panel.get_node("Rows") as Control).mouse_filter, Control.MOUSE_FILTER_IGNORE)

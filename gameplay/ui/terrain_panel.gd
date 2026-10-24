@@ -16,8 +16,21 @@ var _side := ScreenSide.LEFT
 @onready var _defense: Label = %Defense
 @onready var _avoid: Label = %Avoid
 @onready var _move: Label = %Move
-@onready var _heal_label: Label = %HealLabel
 @onready var _heal: Label = %Heal
+
+
+func _ready() -> void:
+	# It sits over map tiles, so the cursor must keep following the mouse under it.
+	ignore_mouse(self)
+
+
+## Lets mouse hovers and clicks pass through `control` and everything in it.
+## Panels and containers stop or catch the mouse by default.
+static func ignore_mouse(control: Control) -> void:
+	control.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in control.get_children():
+		if child is Control:
+			ignore_mouse(child)
 
 
 func set_terrain(info: TerrainInfo) -> void:
@@ -26,14 +39,8 @@ func set_terrain(info: TerrainInfo) -> void:
 	_avoid.text = str(info.avoid)
 	_move.text = "--" if info.move_cost == TerrainInfo.IMPASSABLE else str(info.move_cost)
 
-	var heals := info.heal_percent > 0
-	_heal_label.visible = heals
-	_heal.visible = heals
-	_heal.text = "%d%%" % info.heal_percent
-
-	# A Control never shrinks on its own when content is hidden, so drop back to
-	# the minimum size and re-pin it to its corner.
-	reset_size()
+	# Always shown, so the panel keeps one height as the cursor moves.
+	_heal.text = "%d%%" % info.heal_percent if info.heal_percent > 0 else "--"
 	set_side(_side)
 
 
@@ -41,4 +48,9 @@ func set_terrain(info: TerrainInfo) -> void:
 func set_side(side: ScreenSide) -> void:
 	_side = side
 	var preset := PRESET_BOTTOM_LEFT if side == ScreenSide.LEFT else PRESET_BOTTOM_RIGHT
-	set_anchors_and_offsets_preset(preset, PRESET_MODE_MINSIZE, MARGIN)
+	# Size first, then pin by that size. MINSIZE mode would place it by its
+	# content alone, ignoring the scene's fixed width, and the panel would then
+	# grow past the corner. reset_size() also shrinks it back if a long name
+	# ever stretched it.
+	reset_size()
+	set_anchors_and_offsets_preset(preset, PRESET_MODE_KEEP_SIZE, MARGIN)

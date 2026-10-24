@@ -20,6 +20,8 @@ var _side := ScreenSide.LEFT
 
 func _ready() -> void:
 	hide()
+	# Display only: hovering and clicks go through to the map under it.
+	TerrainPanel.ignore_mouse(self)
 
 
 ## Fills in both sides and shows the panel.

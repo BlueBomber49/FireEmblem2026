@@ -124,3 +124,9 @@ func test_set_side_moves_panel_to_right_corner() -> void:
 	assert_eq(_forecast.anchor_right, 1.0)
 	_forecast.set_side(CombatForecast.ScreenSide.LEFT)
 	assert_eq(_forecast.anchor_left, 0.0)
+
+
+func test_mouse_passes_through_the_panel() -> void:
+	assert_eq(_forecast.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	var header := _forecast.get_node("Sections/PlayerHeader") as Control
+	assert_eq(header.mouse_filter, Control.MOUSE_FILTER_IGNORE, "inner panels too")
