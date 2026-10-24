@@ -1,0 +1,21 @@
+{
+	"id": "adelard",
+	"name": "Adelard",
+	"class": "myrmidon",
+	"level": 1,
+	"stats": {
+		"hp": 17,
+		"strength": 5,
+		"magic": 0,
+		"skill": 9,
+		"speed": 9,
+		"luck": 2,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 8,
+		"movement": 5
+	},
+	"items": [
+		"iron_sword"
+	]
+}

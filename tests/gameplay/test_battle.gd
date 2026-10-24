@@ -1,6 +1,6 @@
 extends GutTest
-## Drives the Battle state machine through its public commands on test_level:
-## lyn (player) at (6, 5), wil (ally) at (6, 7), bandit (enemy) at (10, 5).
+## Drives Battle's player controls on test_level. Wil is made a player unit in
+## this fixture so one completed Lyn action doesn't immediately start a phase.
 
 const BattleScene: PackedScene = preload("res://gameplay/battle.tscn")
 const LEVEL_PATH := "res://resources/levels/test_level.json"
@@ -17,6 +17,8 @@ func before_each() -> void:
 	add_child_autofree(battle)
 	lyn = battle.level.level_state.level_units["lyn"]
 	bandit = battle.level.level_state.level_units["bandit"]
+	battle.level.level_state.level_units["wil"].unit_ref.faction = UnitReference.Faction.PLAYER
+	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
 
 
 func _select_lyn() -> void:
