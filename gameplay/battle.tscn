@@ -10,8 +10,9 @@
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="8_theme"]
 [ext_resource type="Script" uid="uid://dngpuv3leh5ku" path="res://gameplay/ui/path_arrow.gd" id="9_arrow"]
 [ext_resource type="Script" uid="uid://bw4e62eg8eu5e" path="res://gameplay/ui/range_overlay.gd" id="10_range"]
-[ext_resource type="Script" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
+[ext_resource type="Script" uid="uid://mwh67yusq8qf" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
 [ext_resource type="AudioStream" uid="uid://dk3c0vvmc4pnp" path="res://assets/audio/player_phase.ogg" id="12_u0ie0"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/item_menu.tscn" id="13_item_menu"]
 
 [node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
@@ -51,16 +52,19 @@ text = "Arrows / mouse: cursor    Z: confirm    X: cancel    A: act in place"
 
 [node name="MapMenu" parent="UI" unique_id=273969409 instance=ExtResource("4_map_menu")]
 unique_name_in_owner = true
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -16.0
+offset_left = 16.0
 offset_top = 16.0
-offset_right = -16.0
+offset_right = 16.0
 offset_bottom = 16.0
-grow_horizontal = 0
 
 [node name="UnitMenu" parent="UI" unique_id=340764788 instance=ExtResource("5_action_menu")]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 16.0
+offset_bottom = 16.0
+
+[node name="ItemMenu" parent="UI" unique_id=960260008 instance=ExtResource("13_item_menu")]
 unique_name_in_owner = true
 offset_left = 16.0
 offset_top = 16.0

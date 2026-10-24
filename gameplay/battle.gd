@@ -6,9 +6,10 @@ extends Node2D
 ##
 ## Keyboard: arrows move the cursor, confirm (Z / Enter / Space) selects and
 ## commits, cancel (X / Esc) backs out, unit (A) acts without moving.
-## Mouse: hovering moves the cursor, left click confirms, right click cancels.
+## Mouse: hovering moves the cursor (or picks the target in the forecast), left
+## click confirms (anywhere, in the forecast), right click cancels.
 
-enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, TARGETING, COMBAT, MAP_MENU }
+enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU }
 
 const CURSOR_DIRECTIONS := {
 	&"ui_left": Vector2i.LEFT,
@@ -29,6 +30,7 @@ const TARGET_STEPS := {
 @onready var cursor: MapCursor = $Cursor
 @onready var map_menu: ActionMenu = %MapMenu
 @onready var unit_menu: ActionMenu = %UnitMenu
+@onready var item_menu: ItemMenu = %ItemMenu
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var turn_loop: TurnLoop = $TurnLoop
@@ -55,6 +57,8 @@ func _ready() -> void:
 	map_menu.cancelled.connect(_on_map_menu_cancelled)
 	unit_menu.option_selected.connect(_on_unit_menu_option)
 	unit_menu.cancelled.connect(_on_unit_menu_cancelled)
+	item_menu.action_chosen.connect(_on_item_action)
+	item_menu.cancelled.connect(_on_item_menu_cancelled)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
 	cursor.moved.connect(_on_cursor_moved)
@@ -96,6 +100,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if _cursor_is_free():
 			cursor.set_cell(level.cell_at(get_global_mouse_position()))
+		elif state == State.TARGETING:
+			point_at_target(level.cell_at(get_global_mouse_position()))
 		return
 
 	var click := event as InputEventMouseButton
@@ -106,6 +112,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			cursor.set_cell(level.cell_at(get_global_mouse_position()))
 			confirm()
+		elif click.button_index == MOUSE_BUTTON_LEFT and state == State.TARGETING:
+			# Anywhere on screen attacks the target the forecast shows.
+			get_viewport().set_input_as_handled()
+			forecast.close()
+			_on_forecast_confirmed()
 		elif click.button_index == MOUSE_BUTTON_RIGHT:
 			get_viewport().set_input_as_handled()
 			cancel()
@@ -176,7 +187,8 @@ func confirm() -> void:
 				_move_along(path)
 
 
-## Backs out one step: deselect, undo a move, leave the forecast, or close the map menu.
+## Backs out one step: deselect, undo a move, leave the item menu or the forecast,
+## or close the map menu.
 func cancel() -> void:
 	match state:
 		State.UNIT_SELECTED:
@@ -186,6 +198,8 @@ func cancel() -> void:
 		State.UNIT_MENU:
 			unit_menu.close()
 			_on_unit_menu_cancelled()
+		State.ITEM_MENU:
+			item_menu.back()
 		State.TARGETING:
 			forecast.close()
 			_on_forecast_cancelled()
@@ -260,6 +274,8 @@ func _open_unit_menu() -> void:
 	state = State.UNIT_MENU
 	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
 	var options: Array[StringName] = [&"wait"]
+	if level.selected.state.unit.inventory.size() > 0:
+		options.push_front(&"item")
 	if not targets.is_empty():
 		options.push_front(&"attack")
 	cursor.set_cell(level.selected.state.cell)
@@ -278,6 +294,10 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			attack_cells = _cells_in_attack_range(level.selected.state)
 			range_overlay.set_cells(reachable, attack_cells)
 			_show_forecast()
+		&"item":
+			state = State.ITEM_MENU
+			item_menu.open(selected_unit_items())
+			_update_panels()
 		&"wait":
 			_finish_action()
 
@@ -295,10 +315,33 @@ func _on_unit_menu_cancelled() -> void:
 	_update_panels()
 
 
-# --- Item hooks ----------------------------------------------------------------
-# For an Item menu (not built yet): it can list selected_unit_items() and call
-# use_item / equip_item with a slot index. They act on the unit whose unit menu
-# is open, like Attack and Wait.
+# --- Item menu -----------------------------------------------------------------
+# The unit menu's Item command opens item_menu with selected_unit_items(); its
+# Equip and Use call equip_item / use_item with a slot index. They act on the
+# unit whose unit or item menu is open, like Attack and Wait.
+
+
+func _on_item_action(action_id: StringName, index: int) -> void:
+	var done := false
+	match action_id:
+		&"equip":
+			done = equip_item(index)
+		&"use":
+			done = use_item(index)
+	if not done:
+		item_menu.refresh(selected_unit_items(), index)
+
+
+## Cancel in the item menu goes back to the unit menu, with targets for
+## whatever weapon is now equipped. The move isn't undone.
+func _on_item_menu_cancelled() -> void:
+	_open_unit_menu()
+
+
+func _can_command_items() -> bool:
+	return (state == State.UNIT_MENU or state == State.ITEM_MENU) \
+			and level.selected != null \
+			and (turn_loop == null or turn_loop.is_player_turn())
 
 
 ## What's in the selected unit's inventory, or null when no unit is selected.
@@ -310,29 +353,32 @@ func selected_unit_items() -> UnitInfo:
 
 ## Uses the consumable in `index` (e.g. a Vulnerary). Like FE, this ends the
 ## unit's action. Returns false, changing nothing, for a weapon, an empty slot,
-## a healing item at full HP, or when no unit menu is open.
+## a healing item at full HP, or when no unit or item menu is open.
 func use_item(index: int) -> bool:
-	if state != State.UNIT_MENU or level.selected == null \
-			or (turn_loop != null and not turn_loop.is_player_turn()):
+	if not _can_command_items():
 		return false
 	if not level.selected.state.unit.use_item(index):
 		return false
 	unit_menu.close()
+	item_menu.close()
 	_finish_action()
 	return true
 
 
-## Equips the weapon in `index` (moves it to the front). Doesn't end the action;
-## the unit menu reopens with targets for the new weapon's range. Returns false,
+## Equips the weapon in `index` (moves it to the front). Doesn't end the action.
+## From the item menu, the list redraws with the weapon on top; from the unit
+## menu, it reopens with targets for the new weapon's range. Returns false,
 ## changing nothing, for a consumable, a weapon the class can't use, or when no
-## unit menu is open.
+## unit or item menu is open.
 func equip_item(index: int) -> bool:
-	if state != State.UNIT_MENU or level.selected == null \
-			or (turn_loop != null and not turn_loop.is_player_turn()):
+	if not _can_command_items():
 		return false
 	if not level.selected.state.unit.equip(index):
 		return false
-	_open_unit_menu()
+	if state == State.ITEM_MENU:
+		item_menu.refresh(selected_unit_items())
+	else:
+		_open_unit_menu()
 	return true
 
 
@@ -343,15 +389,27 @@ func _show_forecast() -> void:
 	var target := targets[target_index]
 	cursor.set_cell(target.cell)
 	var sides := Combat.forecast(level.selected.state, target, level.level_state)
+	# Stays in its default top-left corner; set_side with _is_left_half(target.cell)
+	# would flip it away from the target instead.
 	forecast.open(sides[0], sides[1])
-	forecast.set_side(CombatForecast.ScreenSide.RIGHT if _is_left_half(target.cell)
-			else CombatForecast.ScreenSide.LEFT)
 	_update_panels()
 
 
 func _cycle_target(step: int) -> void:
 	target_index = wrapi(target_index + step, 0, targets.size())
 	_show_forecast()
+
+
+## Mouse hover while picking a target: switch to the enemy on `cell`, if it's one
+## of the targets in range.
+func point_at_target(cell: Vector2i) -> void:
+	if state != State.TARGETING:
+		return
+	for i in targets.size():
+		if targets[i].cell == cell and i != target_index:
+			target_index = i
+			_show_forecast()
+			return
 
 
 func _on_forecast_confirmed() -> void:
@@ -507,15 +565,16 @@ func _update_arrow() -> void:
 	# Otherwise the cursor is outside the range: keep the arrow where it was.
 
 
-## The terrain panel is only for free-cursor play, on the half away from the cursor.
+## The terrain panel is only for free-cursor play. It stays in its default
+## bottom-left corner; to flip it away from the cursor instead, call
+## terrain_panel.set_side(RIGHT if _is_left_half(cursor.cell) else LEFT).
 func _update_panels() -> void:
 	terrain_panel.visible = _cursor_is_free()
 	if terrain_panel.visible:
 		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
-		terrain_panel.set_side(TerrainPanel.ScreenSide.RIGHT if _is_left_half(cursor.cell)
-				else TerrainPanel.ScreenSide.LEFT)
 
 
+## Unused while the panels stay on the left; kept for flipping them with set_side.
 func _is_left_half(cell: Vector2i) -> bool:
 	var bounds := level.level_state.map_data.bounds()
 	return cell.x < bounds.position.x + bounds.size.x / 2.0

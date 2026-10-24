@@ -4,6 +4,7 @@
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
 
 [node name="TerrainPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(134, 0)
 theme = ExtResource("2_theme")
 theme_type_variation = &"TerrainPanel"
 script = ExtResource("1_script")
