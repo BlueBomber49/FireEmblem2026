@@ -59,7 +59,9 @@ func test_counts() -> void:
 	assert_eq(GameData.all_class_ids().size(), 11)
 	assert_eq(GameData.all_item_ids().size(), 14 + 2, "14 weapons, 2 consumables")
 	assert_eq(GameData.all_terrain_ids().size(), 11)
-	assert_eq(GameData.all_character_ids(), [&"kent", &"lyn", &"wil"] as Array[StringName])
+	# Characters keep being added, so only the ones the tests rely on are checked.
+	for id: StringName in [&"kent", &"lyn", &"wil"]:
+		assert_has(GameData.all_character_ids(), id)
 
 
 func test_every_character_file_is_loaded() -> void:

@@ -1,7 +1,10 @@
 extends GutTest
-## Turn-cycle tests use the playable scene and its authored simple level.
+## Turn-cycle tests use the playable scene on simple_level: Lyn, Wil and Kent
+## against the bandit and brigand. The level is set here rather than taken from
+## battle.tscn, so changing the level the game opens with doesn't break them.
 
 const BattleScene: PackedScene = preload("res://gameplay/battle.tscn")
+const LEVEL_PATH := "res://resources/levels/simple_level.json"
 
 var _battle: Battle
 var _loop: TurnLoop
@@ -9,6 +12,7 @@ var _loop: TurnLoop
 
 func before_each() -> void:
 	_battle = BattleScene.instantiate()
+	(_battle.get_node("Level") as Level).level_path = LEVEL_PATH
 	add_child_autofree(_battle)
 	_loop = _battle.turn_loop
 	# Keep enemy actions instantaneous and predictable in phase-transition tests.
