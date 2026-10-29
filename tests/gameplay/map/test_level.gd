@@ -113,3 +113,30 @@ func test_save_and_reload_restores_unit_state() -> void:
 	assert_eq(reloaded.unit_at(Vector2i(7, 7)).reference.id, "lyn")
 	assert_eq(reloaded.level_state.level_units["wil"].current_hp, 20, "untouched unit is unchanged")
 
+
+
+# --- Acted tint: only the side whose phase it is ---------------------------
+
+
+func _acted_level() -> Level:
+	var level := Level.new()
+	level.level_path = LEVEL_PATH
+	add_child_autofree(level)
+	for id in ["lyn", "bandit"]:
+		(level.level_state.level_units[id] as LevelUnitState).has_acted = true
+	return level
+
+
+func test_acted_player_units_are_gray_in_the_player_phase() -> void:
+	var level := _acted_level()
+	level.update_tints()
+	assert_eq(level.unit_nodes["lyn"].modulate, Level.ACTED_TINT)
+	assert_eq(level.unit_nodes["bandit"].modulate, Color.WHITE, "enemies aren't grayed on your turn")
+
+
+func test_acted_enemies_are_gray_in_the_enemy_phase() -> void:
+	var level := _acted_level()
+	level.acting_faction = UnitReference.Faction.ENEMY
+	level.update_tints()
+	assert_eq(level.unit_nodes["bandit"].modulate, Level.ACTED_TINT)
+	assert_eq(level.unit_nodes["lyn"].modulate, Color.WHITE, "your units look normal while enemies act")
