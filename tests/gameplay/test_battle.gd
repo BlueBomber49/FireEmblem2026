@@ -225,7 +225,7 @@ func test_confirm_in_range_walks_then_opens_the_unit_menu() -> void:
 	await wait_seconds(Level.STEP_TIME * 2 + 0.2)
 	assert_eq(battle.state, Battle.State.UNIT_MENU)
 	assert_true(battle.unit_menu.visible)
-	assert_eq(battle.unit_menu.options, [&"wait"] as Array[StringName], "no enemy next to (8, 5)")
+	assert_eq(battle.unit_menu.options, [&"item", &"wait"] as Array[StringName], "no enemy next to (8, 5)")
 	assert_eq(lyn.cell, Vector2i(8, 5))
 	assert_true(lyn.has_moved)
 	assert_eq(battle.cursor.cell, Vector2i(8, 5))
@@ -284,7 +284,7 @@ func test_attack_is_offered_only_next_to_an_enemy() -> void:
 	bandit.cell = LYN_CELL + Vector2i.RIGHT
 	_select_lyn()
 	battle.confirm()
-	assert_eq(battle.unit_menu.options, [&"attack", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
 
 
 func test_attack_shows_the_forecast_on_the_target() -> void:
@@ -387,7 +387,7 @@ func test_an_archer_attacks_from_two_tiles() -> void:
 	bandit.cell = wil.cell + Vector2i(2, 0)
 	battle.cursor.set_cell(wil.cell)
 	battle.act_in_place()
-	assert_eq(battle.unit_menu.options, [&"attack", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
 	battle.unit_menu.option_selected.emit(&"attack")
 	assert_eq(battle.cursor.cell, bandit.cell)
 	assert_true(battle.attack_cells.has(wil.cell + Vector2i(2, 0)))
@@ -400,7 +400,7 @@ func test_no_attack_option_when_the_weapon_cant_reach() -> void:
 	bandit.cell = wil.cell + Vector2i(1, 0)
 	battle.cursor.set_cell(wil.cell)
 	battle.act_in_place()
-	assert_eq(battle.unit_menu.options, [&"wait"] as Array[StringName], "too close for the bow")
+	assert_eq(battle.unit_menu.options, [&"item", &"wait"] as Array[StringName], "too close for the bow")
 
 
 # --- Item hooks (for the Item menu Spencer will build) --------------------------
@@ -453,7 +453,7 @@ func test_equipping_keeps_the_action_and_refreshes_targets() -> void:
 	assert_eq(lyn.unit.equipped_weapon(), GameData.get_item(&"steel_sword"))
 	assert_false(lyn.has_acted, "equipping doesn't end the action")
 	assert_eq(battle.state, Battle.State.UNIT_MENU)
-	assert_eq(battle.unit_menu.options, [&"attack", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
 
 
 func test_equipping_a_consumable_is_refused() -> void:
@@ -466,6 +466,78 @@ func test_item_hooks_need_a_unit_in_the_unit_menu() -> void:
 	assert_false(battle.use_item(1), "nothing selected")
 	assert_false(battle.equip_item(0))
 	assert_eq(lyn.current_hp, 5)
+
+
+# --- Item menu -----------------------------------------------------------------
+
+
+func _lyn_in_item_menu() -> void:
+	_lyn_in_unit_menu()
+	_press_item()
+	assert_eq(battle.state, Battle.State.ITEM_MENU)
+
+
+## Presses the unit menu's Item button, which closes the unit menu as a real press does.
+func _press_item() -> void:
+	(battle.unit_menu.get_node("%Options/Item") as Button).pressed.emit()
+
+
+func test_no_item_option_with_an_empty_inventory() -> void:
+	lyn.unit.inventory.remove_at(1)
+	lyn.unit.inventory.remove_at(0)
+	_lyn_in_unit_menu()
+	assert_eq(battle.unit_menu.options, [&"wait"] as Array[StringName])
+
+
+func test_item_opens_the_item_menu() -> void:
+	_lyn_in_item_menu()
+	assert_true(battle.item_menu.visible)
+	assert_false(battle.unit_menu.visible)
+	assert_false(battle.terrain_panel.visible, "panel hides behind menus")
+
+
+func test_cancel_in_the_item_menu_goes_back_to_the_unit_menu_without_undoing_the_move() -> void:
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(8, 5))
+	battle.confirm()
+	await wait_seconds(Level.STEP_TIME * 2 + 0.2)
+	_press_item()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_false(battle.item_menu.visible)
+	assert_true(battle.unit_menu.visible)
+	assert_eq(lyn.cell, Vector2i(8, 5), "still where it moved")
+
+
+func test_equip_from_the_item_menu_stays_in_the_item_menu() -> void:
+	lyn.unit.inventory.add(GameData.get_item(&"steel_sword"))
+	_lyn_in_item_menu()
+	battle.item_menu.action_chosen.emit(&"equip", 2)
+	assert_eq(battle.state, Battle.State.ITEM_MENU)
+	assert_true(battle.item_menu.visible)
+	assert_eq(lyn.unit.equipped_weapon(), GameData.get_item(&"steel_sword"))
+	var first_row := battle.item_menu.get_node("%Rows").get_child(0)
+	assert_eq((first_row.get_node("Columns/ItemName") as Label).text, "Steel Sword", "new weapon on top")
+	assert_false(lyn.has_acted)
+
+
+func test_use_from_the_item_menu_ends_the_action() -> void:
+	lyn.current_hp = 5
+	_lyn_in_item_menu()
+	battle.item_menu.action_chosen.emit(&"use", 1)
+	assert_eq(lyn.current_hp, 15)
+	assert_true(lyn.has_acted)
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_false(battle.item_menu.visible)
+	assert_false(battle.unit_menu.visible)
+
+
+func test_a_refused_use_keeps_the_item_menu_open() -> void:
+	_lyn_in_item_menu()
+	battle.item_menu.action_chosen.emit(&"use", 1)
+	assert_eq(battle.state, Battle.State.ITEM_MENU, "full HP: nothing happens")
+	assert_true(battle.item_menu.visible)
+	assert_false(lyn.has_acted)
 
 
 func test_attack_marks_the_cells_in_range_red() -> void:
@@ -520,7 +592,60 @@ func test_arrows_cycle_between_targets() -> void:
 	assert_eq(battle.cursor.cell, bandit.cell, "wraps around")
 
 
+func test_hovering_another_target_switches_the_forecast() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	var brigand := LevelUnitState.from_reference(bandit.unit_ref)
+	brigand.cell = LYN_CELL + Vector2i.DOWN
+	battle.level.level_state.level_units["brigand"] = brigand
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	battle.point_at_target(brigand.cell)
+	assert_eq(battle.cursor.cell, brigand.cell)
+	assert_eq(battle.targets[battle.target_index], brigand)
+	battle.point_at_target(LYN_CELL + Vector2i.UP)
+	assert_eq(battle.cursor.cell, brigand.cell, "not a target: nothing changes")
+
+
+func test_left_click_anywhere_confirms_the_forecast() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	battle.roll = _always(10)
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	battle._unhandled_input(click)
+	assert_eq(battle.state, Battle.State.COMBAT)
+	assert_false(battle.forecast.visible)
+	await wait_seconds(FIGHT_TIME)
+	assert_true(lyn.has_acted)
+
+
+func test_the_forecast_stays_top_left() -> void:
+	# The bandit is on the left half, which used to flip the panel right.
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	assert_eq(battle.forecast.anchor_left, 0.0)
+	assert_eq(battle.forecast.anchor_right, 0.0)
+
+
+func test_the_terrain_panel_stays_bottom_left() -> void:
+	battle.cursor.set_cell(Vector2i(1, 1))
+	assert_eq(battle.terrain_panel.anchor_left, 0.0, "cursor on the left half")
+	assert_eq(battle.terrain_panel.anchor_top, 1.0)
+
+
 # --- Map menu --------------------------------------------------------------
+
+
+func test_the_map_menu_is_top_left() -> void:
+	assert_eq(battle.map_menu.anchor_left, 0.0)
+	assert_eq(battle.map_menu.anchor_right, 0.0)
+	assert_eq(battle.map_menu.position, battle.unit_menu.position, "same spot as the unit menu")
 
 
 func test_end_turn_refreshes_every_unit() -> void:

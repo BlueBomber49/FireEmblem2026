@@ -62,3 +62,32 @@ func test_unit_without_a_weapon() -> void:
 	var unit := _lyn()
 	unit.inventory.remove_at(0)
 	assert_eq(UnitInfo.from_unit(unit).weapon_name, "--")
+
+
+func test_weapon_stats_for_the_item_menu() -> void:
+	var sword: UnitInfo.ItemInfo = UnitInfo.from_unit(_lyn()).items[0]
+	var data := GameData.get_item(&"iron_sword") as WeaponData
+	assert_eq(sword.weapon_type, "Sword")
+	assert_eq(sword.might, data.might)
+	assert_eq(sword.hit, data.hit)
+	assert_eq(sword.crit, data.crit)
+	assert_eq(sword.weight, data.weight)
+	assert_eq(sword.range_text(), "1")
+
+
+func test_range_text_for_ranged_weapons() -> void:
+	var unit := _lyn()
+	unit.inventory.add(GameData.get_item(&"iron_bow"))
+	unit.inventory.add(GameData.get_item(&"hand_axe"))
+	var info := UnitInfo.from_unit(unit)
+	assert_eq(info.items[2].range_text(), "2", "a bow only reaches 2")
+	assert_eq(info.items[3].range_text(), "1-2")
+
+
+func test_consumable_effect_text() -> void:
+	var unit := _lyn()
+	unit.inventory.add(GameData.get_item(&"elixir"))
+	var info := UnitInfo.from_unit(unit)
+	assert_eq(info.items[1].effect_text(), "Restores 10 HP")
+	assert_eq(info.items[2].effect_text(), "Restores all HP")
+	assert_eq(info.items[1].might, 0, "consumables have no weapon stats")

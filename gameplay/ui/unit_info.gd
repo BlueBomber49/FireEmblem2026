@@ -18,6 +18,28 @@ class ItemInfo:
 	var uses_left: int = -1
 	## 0 for items that don't track uses.
 	var max_uses: int = 0
+	## Weapon stats, for the item menu's stats panel. Zero for consumables.
+	var weapon_type: String = ""
+	var might := 0
+	var hit := 0
+	var crit := 0
+	var weight := 0
+	var min_range := 0
+	var max_range := 0
+	## HP a consumable restores, or ConsumableData.FULL_HEAL. Zero for weapons.
+	var heal_amount := 0
+
+	## "1", or "1-2" for a weapon that reaches more than one distance.
+	func range_text() -> String:
+		if min_range == max_range:
+			return str(min_range)
+		return "%d-%d" % [min_range, max_range]
+
+	## What a consumable does, e.g. "Restores 10 HP".
+	func effect_text() -> String:
+		if heal_amount == ConsumableData.FULL_HEAL:
+			return "Restores all HP"
+		return "Restores %d HP" % heal_amount
 
 
 var unit_name: String = ""
@@ -53,11 +75,20 @@ static func from_unit(unit: Unit) -> UnitInfo:
 		item.is_weapon = entry.is_weapon()
 		item.equipped = i == equipped_index
 		if entry.is_weapon():
-			item.usable = unit.class_data().can_wield(entry.data as WeaponData)
+			var weapon_data := entry.data as WeaponData
+			item.usable = unit.class_data().can_wield(weapon_data)
+			item.weapon_type = Enums.weapon_type_name(weapon_data.weapon_type).capitalize()
+			item.might = weapon_data.might
+			item.hit = weapon_data.hit
+			item.crit = weapon_data.crit
+			item.weight = weapon_data.weight
+			item.min_range = weapon_data.min_range
+			item.max_range = weapon_data.max_range
 		else:
 			var consumable := entry.data as ConsumableData
 			item.uses_left = entry.uses_left
 			item.max_uses = consumable.max_uses
+			item.heal_amount = consumable.heal_amount
 			item.usable = unit.current_hp < unit.max_hp()
 		info.items.append(item)
 	return info
