@@ -68,6 +68,14 @@ func plan_action(state: LevelUnitState) -> EnemyAIAction:
 		_living_player_units(), context, allies)
 
 
+## The strategy the AI currently uses for `unit_id`: its assigned one, or
+## Aggressive when none was assigned. A defensive group that has activated reads
+## as Aggressive from then on.
+func strategy_for(unit_id: String) -> EnemyAI.Strategy:
+	var ai := _ais.get(unit_id) as EnemyAI
+	return ai.strategy if ai != null else EnemyAI.Strategy.AGGRESSIVE
+
+
 func state_for(unit: Unit) -> LevelUnitState:
 	if unit == null or level_state == null:
 		return null
