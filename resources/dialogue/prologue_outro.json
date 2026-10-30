@@ -1,0 +1,11 @@
+{
+	"id": "prologue_outro",
+	"background": "",
+	"lines": [
+		{ "speaker": "rowland", "side": "back_left", "face_outside": true, "text": "Whew, that was close.  Bandits, huh?  Was not expecting that!" },
+		{ "speaker": "adelard", "side": "right", "face_outside": false, "text": "Yeah, me neither." },
+		{ "speaker": "rowland", "side": "back_left", "face_outside": true, "text": "Glad we made it out safe!"},
+		{ "speaker": "adelard", "side": "left", "face_outside": true, "text": "Me too!"},
+		{ "speaker": "", "text": "To be continued..."}
+	]
+}
