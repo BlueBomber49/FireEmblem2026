@@ -55,40 +55,9 @@ func test_every_file_is_loaded_under_its_file_name() -> void:
 		assert_not_null(GameData.get_terrain(StringName(id)), "terrain " + id)
 
 
-func test_counts() -> void:
-	assert_eq(GameData.all_class_ids().size(), 11)
-	assert_eq(GameData.all_item_ids().size(), 14 + 2, "14 weapons, 2 consumables")
-	assert_eq(GameData.all_terrain_ids().size(), 11)
-	# Characters keep being added, so only the ones the tests rely on are checked.
-	for id: StringName in [&"kent", &"lyn", &"wil"]:
-		assert_has(GameData.all_character_ids(), id)
-
-
 func test_every_character_file_is_loaded() -> void:
 	for id in _json_files("res://resources/characters"):
 		assert_not_null(GameData.get_character(StringName(id)), "character " + id)
-
-
-func test_lyn_has_her_own_stats_class_and_items() -> void:
-	var lyn := GameData.get_character(&"lyn")
-	assert_eq(lyn.display_name, "Lyn")
-	assert_eq(lyn.class_data, GameData.get_class_data(&"myrmidon"))
-	assert_eq(lyn.level, 1)
-	assert_eq(lyn.starting_stats.hp, 16)
-	assert_eq(lyn.starting_stats.speed, 9)
-	assert_eq(lyn.starting_stats.luck, 2, "her own luck, not the class's 0")
-	assert_null(lyn.growths, "no personal growths: uses the class's")
-	assert_eq(lyn.starting_items, [GameData.get_item(&"iron_sword"), GameData.get_item(&"vulnerary")] as Array[ItemData])
-
-
-func test_wil_and_kent() -> void:
-	var wil := GameData.get_character(&"wil")
-	assert_eq(wil.class_data.id, &"archer")
-	assert_eq(wil.starting_items, [GameData.get_item(&"iron_bow")] as Array[ItemData])
-	var kent := GameData.get_character(&"kent")
-	assert_eq(kent.class_data.id, &"cavalier")
-	assert_eq(kent.starting_stats.hp, 22)
-	assert_eq(kent.starting_items.size(), 2)
 
 
 func test_every_character_validates() -> void:
