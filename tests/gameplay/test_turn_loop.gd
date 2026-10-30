@@ -111,3 +111,21 @@ func test_completed_game_ignores_later_end_turn_requests() -> void:
 	await _loop.end_player_turn()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
+
+
+func test_lord_falling_ends_the_level_in_defeat_with_others_alive() -> void:
+	_loop.objective = Objective.fromJson({"lose": [{"type": "unit_defeated", "unit": "lyn"}]})
+	watch_signals(_battle)
+	(_battle.level.level_state.level_units["lyn"] as LevelUnitState).current_hp = 0
+	await _loop.on_player_action_completed()
+
+	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
+	assert_signal_emitted_with_parameters(_battle, "ended", [false])
+
+
+func test_setup_without_an_objective_is_a_rout() -> void:
+	var loop := TurnLoop.new()
+	add_child_autofree(loop)
+	loop.setup(null, null)
+	assert_eq(loop.objective.win.size(), 1)
+	assert_eq(loop.objective.lose.size(), 1)

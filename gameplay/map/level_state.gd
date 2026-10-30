@@ -10,6 +10,8 @@ var map_data: MapData = MapData.new()
 var level_units: Dictionary = {}
 ## Unimplemented for now; carried through JSON untouched.
 var events: Dictionary = {}
+## How the level is won or lost. Rout by default.
+var objective := Objective.new()
 
 
 static func fromJson(d: Dictionary) -> LevelState:
@@ -18,6 +20,10 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.events = d.get("events", {}).duplicate(true)
 	# A save carries level_units; an authored level doesn't, so units start fresh.
 	state.level_units = LevelUnitState.build_all(state.map_data.units, d.get("level_units", {}))
+	var objective_json: Variant = d.get("objective", {})
+	state.objective = Objective.fromJson(objective_json if objective_json is Dictionary else {})
+	for problem in state.objective.validate(state):
+		push_warning("Objective: %s" % problem)
 	return state
 
 
@@ -28,6 +34,7 @@ func toJson(include_state := true) -> Dictionary:
 		"version": SAVE_VERSION,
 		"map_data": map_data.toJson(),
 		"events": events.duplicate(true),
+		"objective": objective.toJson(),
 	}
 	if include_state:
 		var saved_units := {}

@@ -9,6 +9,9 @@ extends Node2D
 ## Mouse: hovering moves the cursor (or picks the target in the forecast), left
 ## click confirms (anywhere, in the forecast), right click cancels.
 
+## The level is over; GameFlow decides what plays next.
+signal ended(won: bool)
+
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU }
 
 const CURSOR_DIRECTIONS := {
@@ -63,9 +66,11 @@ func _ready() -> void:
 	forecast.cancelled.connect(_on_forecast_cancelled)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
+	# Before setup: a level can be over at once (no enemies), ending inside it.
+	turn_loop.finished.connect(ended.emit)
 	if level.level_state != null:
 		start()
-		turn_loop.setup(self, level)
+		turn_loop.setup(self, level, level.level_state.objective)
 
 
 ## Resets the cursor and UI for the level currently built in `level`.
