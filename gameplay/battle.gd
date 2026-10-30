@@ -5,11 +5,13 @@ extends Node2D
 ## do in each state. Level only draws; this node decides.
 ##
 ## Keyboard: arrows move the cursor, confirm (Z / Enter / Space) selects and
-## commits, cancel (X / Esc) backs out, unit (A) acts without moving.
+## commits, cancel (X / Esc) backs out, unit (A) acts without moving, status
+## (R / pad Y) opens the status screen of the unit under the cursor.
 ## Mouse: hovering moves the cursor (or picks the target in the forecast), left
-## click confirms (anywhere, in the forecast), right click cancels.
+## click confirms (anywhere, in the forecast), right click cancels, or opens the
+## status screen of a unit when nothing is selected.
 
-enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU }
+enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
 const CURSOR_DIRECTIONS := {
 	&"ui_left": Vector2i.LEFT,
@@ -33,6 +35,8 @@ const TARGET_STEPS := {
 @onready var item_menu: ItemMenu = %ItemMenu
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
+@onready var unit_panel: UnitPanel = %UnitPanel
+@onready var status_screen: StatusScreen = %StatusScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
 
@@ -47,6 +51,12 @@ var origin_has_moved := false
 ## Hostile units next to the selected unit while picking an attack target.
 var targets: Array[LevelUnitState] = []
 var target_index := 0
+## The state to go back to when the status screen closes.
+var status_return_state := State.FREE
+## The unit the status screen shows.
+var status_unit: LevelUnit
+## The last unit the free cursor was on; the unit panel keeps showing it.
+var last_hovered: LevelUnit
 ## 0-99 for Combat.resolve; replace it to script a fight.
 var roll: Callable = _random_roll
 var rng := RandomNumberGenerator.new()
@@ -61,6 +71,8 @@ func _ready() -> void:
 	item_menu.cancelled.connect(_on_item_menu_cancelled)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
+	status_screen.cycle_requested.connect(_on_status_cycle)
+	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
 	if level.level_state != null:
@@ -94,7 +106,7 @@ func start() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
-	if state == State.MOVING or state == State.COMBAT:
+	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
 		return
 
 	if event is InputEventMouseMotion:
@@ -119,7 +131,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_forecast_confirmed()
 		elif click.button_index == MOUSE_BUTTON_RIGHT:
 			get_viewport().set_input_as_handled()
-			cancel()
+			right_click(level.cell_at(get_global_mouse_position()))
 		return
 
 	if state == State.TARGETING:
@@ -141,6 +153,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"unit"):
 		get_viewport().set_input_as_handled()
 		act_in_place()
+	elif event.is_action_pressed(&"status"):
+		get_viewport().set_input_as_handled()
+		var unit := level.unit_at(cursor.cell)
+		if unit != null:
+			open_status(unit, true)
 	else:
 		for action: StringName in CURSOR_DIRECTIONS:
 			# allow_echo so holding an arrow keeps the cursor moving.
@@ -188,7 +205,7 @@ func confirm() -> void:
 
 
 ## Backs out one step: deselect, undo a move, leave the item menu or the forecast,
-## or close the map menu.
+## or close the map menu or the status screen.
 func cancel() -> void:
 	match state:
 		State.UNIT_SELECTED:
@@ -206,6 +223,19 @@ func cancel() -> void:
 		State.MAP_MENU:
 			map_menu.close()
 			_on_map_menu_cancelled()
+		State.STATUS:
+			status_screen.close()
+			_on_status_closed()
+
+
+## Right click on `cell`: the status screen of a unit there while nothing is
+## selected (cancel does nothing then anyway), otherwise cancel.
+func right_click(cell: Vector2i) -> void:
+	var unit := level.unit_at(cell)
+	if state == State.FREE and unit != null:
+		open_status(unit, true)
+	else:
+		cancel()
 
 
 ## The unit key: open the unit menu for the unit under the cursor without moving it.
@@ -273,7 +303,7 @@ func _finish_action() -> void:
 func _open_unit_menu() -> void:
 	state = State.UNIT_MENU
 	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
-	var options: Array[StringName] = [&"wait"]
+	var options: Array[StringName] = [&"status", &"wait"]
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
 	if not targets.is_empty():
@@ -298,6 +328,8 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			state = State.ITEM_MENU
 			item_menu.open(selected_unit_items())
 			_update_panels()
+		&"status":
+			open_status(level.selected, false)
 		&"wait":
 			_finish_action()
 
@@ -477,6 +509,47 @@ func _on_forecast_cancelled() -> void:
 	_open_unit_menu()
 
 
+# --- Status screen -------------------------------------------------------------
+# Opened on any unit from the free cursor (cycling through its faction), or on the
+# acting unit from the unit menu (no cycling; closing goes back to that menu).
+
+
+func open_status(unit: LevelUnit, can_cycle: bool) -> void:
+	status_return_state = state
+	status_unit = unit
+	state = State.STATUS
+	status_screen.open(UnitInfo.from_level_unit(unit), can_cycle)
+	_update_panels()
+
+
+## Steps to the previous (-1) or next (1) unit on the shown unit's side, wrapping.
+func _on_status_cycle(step: int) -> void:
+	var units := _faction_units(status_unit.reference.faction)
+	var index := units.find(status_unit)
+	status_unit = units[posmod(index + step, units.size())]
+	status_screen.show_unit(UnitInfo.from_level_unit(status_unit))
+
+
+func _on_status_closed() -> void:
+	state = status_return_state
+	if state == State.UNIT_MENU:
+		_open_unit_menu()
+		return
+	# Leave the cursor on the last unit looked at, as Fire Emblem does.
+	cursor.set_cell(status_unit.state.cell)
+	_update_arrow()
+	_update_panels()
+
+
+## Units of `faction` still on the map, in map order.
+func _faction_units(faction: UnitReference.Faction) -> Array[LevelUnit]:
+	var units: Array[LevelUnit] = []
+	for unit: LevelUnit in level.unit_nodes.values():
+		if unit.reference.faction == faction:
+			units.append(unit)
+	return units
+
+
 # --- Map menu ----------------------------------------------------------------
 
 
@@ -565,13 +638,26 @@ func _update_arrow() -> void:
 	# Otherwise the cursor is outside the range: keep the arrow where it was.
 
 
-## The terrain panel is only for free-cursor play. It stays in its default
-## bottom-left corner; to flip it away from the cursor instead, call
-## terrain_panel.set_side(RIGHT if _is_left_half(cursor.cell) else LEFT).
+## The terrain and unit panels are only for free-cursor play. The terrain panel
+## stays in its default bottom-left corner; to flip it away from the cursor
+## instead, call terrain_panel.set_side(RIGHT if _is_left_half(cursor.cell) else LEFT).
+## The unit panel, top-left, keeps showing the last unit the cursor was on, and
+## hides during the enemy phase.
 func _update_panels() -> void:
 	terrain_panel.visible = _cursor_is_free()
 	if terrain_panel.visible:
 		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
+	if _cursor_is_free():
+		var hovered := level.unit_at(cursor.cell)
+		if hovered != null:
+			last_hovered = hovered
+	# A unit that fell is freed, so drop it rather than show a dead reference.
+	if not is_instance_valid(last_hovered):
+		last_hovered = null
+	var player_turn := turn_loop == null or turn_loop.is_player_turn()
+	unit_panel.visible = _cursor_is_free() and player_turn and last_hovered != null
+	if unit_panel.visible:
+		unit_panel.set_unit(UnitInfo.from_level_unit(last_hovered))
 
 
 ## Unused while the panels stay on the left; kept for flipping them with set_side.
@@ -610,3 +696,4 @@ func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 		music.play()
 	else:
 		music.stop()
+	_update_panels()
