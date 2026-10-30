@@ -21,6 +21,12 @@ func before_each() -> void:
 	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
 
 
+# Menus queue_free their old buttons, which only happens at the end of a frame.
+# Let one pass so GUT doesn't report them as orphans.
+func after_each() -> void:
+	await get_tree().process_frame
+
+
 func _select_lyn() -> void:
 	battle.cursor.set_cell(LYN_CELL)
 	battle.confirm()
@@ -231,7 +237,7 @@ func test_confirm_in_range_walks_then_opens_the_unit_menu() -> void:
 	await wait_seconds(Level.STEP_TIME * 2 + 0.2)
 	assert_eq(battle.state, Battle.State.UNIT_MENU)
 	assert_true(battle.unit_menu.visible)
-	assert_eq(battle.unit_menu.options, [&"item", &"wait"] as Array[StringName], "no enemy next to (8, 5)")
+	assert_eq(battle.unit_menu.options, [&"item", &"status", &"wait"] as Array[StringName], "no enemy next to (8, 5)")
 	assert_eq(lyn.cell, Vector2i(8, 5))
 	assert_true(lyn.has_moved)
 	assert_eq(battle.cursor.cell, Vector2i(8, 5))
@@ -290,7 +296,7 @@ func test_attack_is_offered_only_next_to_an_enemy() -> void:
 	bandit.cell = LYN_CELL + Vector2i.RIGHT
 	_select_lyn()
 	battle.confirm()
-	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"status", &"wait"] as Array[StringName])
 
 
 func test_attack_shows_the_forecast_on_the_target() -> void:
@@ -393,7 +399,7 @@ func test_an_archer_attacks_from_two_tiles() -> void:
 	bandit.cell = wil.cell + Vector2i(2, 0)
 	battle.cursor.set_cell(wil.cell)
 	battle.act_in_place()
-	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"status", &"wait"] as Array[StringName])
 	battle.unit_menu.option_selected.emit(&"attack")
 	assert_eq(battle.cursor.cell, bandit.cell)
 	assert_true(battle.attack_cells.has(wil.cell + Vector2i(2, 0)))
@@ -406,7 +412,7 @@ func test_no_attack_option_when_the_weapon_cant_reach() -> void:
 	bandit.cell = wil.cell + Vector2i(1, 0)
 	battle.cursor.set_cell(wil.cell)
 	battle.act_in_place()
-	assert_eq(battle.unit_menu.options, [&"item", &"wait"] as Array[StringName], "too close for the bow")
+	assert_eq(battle.unit_menu.options, [&"item", &"status", &"wait"] as Array[StringName], "too close for the bow")
 
 
 # --- Item hooks (for the Item menu Spencer will build) --------------------------
@@ -459,7 +465,7 @@ func test_equipping_keeps_the_action_and_refreshes_targets() -> void:
 	assert_eq(lyn.unit.equipped_weapon(), GameData.get_item(&"steel_sword"))
 	assert_false(lyn.has_acted, "equipping doesn't end the action")
 	assert_eq(battle.state, Battle.State.UNIT_MENU)
-	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"attack", &"item", &"status", &"wait"] as Array[StringName])
 
 
 func test_equipping_a_consumable_is_refused() -> void:
@@ -492,7 +498,7 @@ func test_no_item_option_with_an_empty_inventory() -> void:
 	lyn.unit.inventory.remove_at(1)
 	lyn.unit.inventory.remove_at(0)
 	_lyn_in_unit_menu()
-	assert_eq(battle.unit_menu.options, [&"wait"] as Array[StringName])
+	assert_eq(battle.unit_menu.options, [&"status", &"wait"] as Array[StringName])
 
 
 func test_item_opens_the_item_menu() -> void:
@@ -645,6 +651,119 @@ func test_the_terrain_panel_stays_bottom_left() -> void:
 	assert_eq(battle.terrain_panel.anchor_top, 1.0)
 
 
+# --- Unit panel and status screen ---------------------------------------------
+# Wil (6, 7) is a player unit in this fixture, so the player side is Lyn and Wil.
+
+
+func _press(action: StringName) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	battle._unhandled_input(event)
+
+
+func test_the_unit_panel_shows_the_unit_under_the_cursor() -> void:
+	battle.cursor.set_cell(LYN_CELL)
+	assert_true(battle.unit_panel.visible)
+	assert_eq((battle.unit_panel.get_node("%UnitName") as Label).text, "Lyn")
+	assert_eq(battle.unit_panel.theme_type_variation, &"UnitPanelPlayer")
+	battle.cursor.set_cell(bandit.cell)
+	assert_eq(battle.unit_panel.theme_type_variation, &"UnitPanelEnemy", "enemies show too")
+	battle.cursor.set_cell(LYN_CELL + Vector2i.UP)
+	assert_true(battle.unit_panel.visible, "nobody there: keeps the last unit")
+	assert_eq((battle.unit_panel.get_node("%UnitName") as Label).text, "Bandit")
+
+
+func test_the_unit_panel_hides_during_the_enemy_phase() -> void:
+	battle.cursor.set_cell(LYN_CELL)
+	battle.turn_loop.phase = TurnLoop.Phase.ENEMY
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
+	assert_false(battle.unit_panel.visible)
+	battle.turn_loop.phase = TurnLoop.Phase.PLAYER
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.PLAYER)
+	assert_true(battle.unit_panel.visible, "back for the player phase")
+
+
+func test_the_unit_panel_forgets_a_unit_that_fell() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	battle.level.remove_unit(battle.level.unit_nodes["bandit"])
+	battle.cursor.set_cell(LYN_CELL + Vector2i.UP)
+	assert_false(battle.unit_panel.visible)
+
+
+func test_the_unit_panel_hides_behind_menus() -> void:
+	_lyn_in_unit_menu()
+	assert_false(battle.unit_panel.visible)
+
+
+func test_the_unit_panel_shows_while_choosing_a_destination() -> void:
+	_select_lyn()
+	battle.cursor.set_cell(bandit.cell)
+	assert_true(battle.unit_panel.visible)
+	assert_eq((battle.unit_panel.get_node("%UnitName") as Label).text, "Bandit")
+
+
+func test_the_status_key_opens_the_status_screen() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	_press(&"status")
+	assert_eq(battle.state, Battle.State.STATUS)
+	assert_true(battle.status_screen.visible)
+	assert_true(battle.status_screen.can_cycle)
+	assert_false(battle.unit_panel.visible)
+	assert_false(battle.terrain_panel.visible)
+
+
+func test_the_status_key_on_empty_ground_does_nothing() -> void:
+	battle.cursor.set_cell(LYN_CELL + Vector2i.UP)
+	_press(&"status")
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_false(battle.status_screen.visible)
+
+
+func test_status_cycles_within_the_faction_and_closing_moves_the_cursor() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	battle.cursor.set_cell(LYN_CELL)
+	battle.open_status(battle.level.unit_nodes["lyn"], true)
+	battle.status_screen.cycle_requested.emit(1)
+	assert_eq(battle.status_unit.state, wil)
+	battle.status_screen.cycle_requested.emit(1)
+	assert_eq(battle.status_unit.state, lyn, "wraps around, skipping the bandit")
+	battle.status_screen.cycle_requested.emit(-1)
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_false(battle.status_screen.visible)
+	assert_eq(battle.cursor.cell, wil.cell)
+	assert_true(battle.unit_panel.visible)
+
+
+func test_right_click_on_a_unit_opens_status_when_nothing_is_selected() -> void:
+	battle.cursor.set_cell(LYN_CELL)
+	battle.right_click(bandit.cell)
+	assert_eq(battle.state, Battle.State.STATUS)
+	assert_eq(battle.status_unit.state, bandit)
+
+
+func test_right_click_still_cancels_a_selection() -> void:
+	_select_lyn()
+	battle.right_click(LYN_CELL)
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_false(battle.status_screen.visible)
+
+
+func test_status_from_the_unit_menu_returns_to_it() -> void:
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(8, 5))
+	battle.confirm()
+	await wait_seconds(Level.STEP_TIME * 2 + 0.2)
+	battle.unit_menu.option_selected.emit(&"status")
+	assert_eq(battle.state, Battle.State.STATUS)
+	assert_false(battle.status_screen.can_cycle)
+	battle.status_screen.closed.emit()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_true(battle.unit_menu.visible)
+	assert_eq(lyn.cell, Vector2i(8, 5), "the move is kept")
+
+
 # --- Map menu --------------------------------------------------------------
 
 
@@ -691,13 +810,6 @@ func _ranges(unit: LevelUnitState, stays_put := false) -> UnitRanges:
 
 func _make_bandit_aggressive() -> void:
 	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.AGGRESSIVE)
-
-
-func _press(action: StringName) -> void:
-	var event := InputEventAction.new()
-	event.action = action
-	event.pressed = true
-	battle._unhandled_input(event)
 
 
 func _ally_wil() -> LevelUnitState:

@@ -13,6 +13,8 @@
 [ext_resource type="Script" uid="uid://mwh67yusq8qf" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
 [ext_resource type="AudioStream" uid="uid://dk3c0vvmc4pnp" path="res://assets/audio/player_phase.ogg" id="12_u0ie0"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/item_menu.tscn" id="13_item_menu"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/unit_panel.tscn" id="14_unit_panel"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/status_screen.tscn" id="15_status_screen"]
 
 [node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
@@ -48,7 +50,7 @@ grow_horizontal = 2
 grow_vertical = 0
 theme = ExtResource("8_theme")
 theme_override_font_sizes/font_size = 22
-text = "Arrows / mouse: cursor    Z: confirm    X: cancel    A: act in place"
+text = "Arrows / mouse: cursor    Z: confirm    X: cancel    A: act in place    R: status"
 
 [node name="MapMenu" parent="UI" unique_id=273969409 instance=ExtResource("4_map_menu")]
 unique_name_in_owner = true
@@ -75,6 +77,13 @@ offset_bottom = 16.0
 unique_name_in_owner = true
 
 [node name="TerrainPanel" parent="UI" unique_id=717328038 instance=ExtResource("7_terrain_panel")]
+unique_name_in_owner = true
+
+[node name="UnitPanel" parent="UI" unique_id=1388422751 instance=ExtResource("14_unit_panel")]
+unique_name_in_owner = true
+visible = false
+
+[node name="StatusScreen" parent="UI" unique_id=1514398062 instance=ExtResource("15_status_screen")]
 unique_name_in_owner = true
 
 [node name="Music" type="AudioStreamPlayer" parent="." unique_id=97659043]

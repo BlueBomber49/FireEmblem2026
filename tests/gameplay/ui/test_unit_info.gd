@@ -91,3 +91,42 @@ func test_consumable_effect_text() -> void:
 	assert_eq(info.items[1].effect_text(), "Restores 10 HP")
 	assert_eq(info.items[2].effect_text(), "Restores all HP")
 	assert_eq(info.items[1].might, 0, "consumables have no weapon stats")
+
+
+func test_experience() -> void:
+	var unit := _lyn()
+	unit.experience = 42
+	assert_eq(UnitInfo.from_unit(unit).experience, 42)
+
+
+func test_from_level_unit_adds_faction_and_portrait() -> void:
+	var ref := UnitReference.fromJson("lyn", {"character": "lyn", "faction": "enemy", "start_cell": [1, 1]})
+	var node := LevelUnit.create(ref, LevelUnitState.from_reference(ref))
+	autofree(node)
+	var info := UnitInfo.from_level_unit(node)
+	assert_eq(info.unit_name, "Lyn")
+	assert_eq(info.faction, UnitReference.Faction.ENEMY)
+	assert_not_null(info.portrait, "the map sprite stands in for a portrait")
+
+
+func test_portrait_for_missing_character_is_null() -> void:
+	assert_null(UnitInfo.portrait_for("nobody"))
+
+
+func test_from_level_unit_prefers_portrait_art() -> void:
+	if not ResourceLoader.exists(UnitInfo.PORTRAIT_PATH % "rowland"):
+		pass_test("no rowland.png yet")
+		return
+	var ref := UnitReference.fromJson("rowland", {"character": "rowland", "start_cell": [1, 1]})
+	var node := LevelUnit.create(ref, LevelUnitState.from_reference(ref))
+	autofree(node)
+	var info := UnitInfo.from_level_unit(node)
+	assert_string_ends_with(info.portrait.resource_path, "portraits/rowland.png")
+
+
+func test_hp_color_thresholds() -> void:
+	assert_eq(UnitInfo.hp_color(20, 20), UnitInfo.HP_GREEN)
+	assert_eq(UnitInfo.hp_color(11, 20), UnitInfo.HP_GREEN)
+	assert_eq(UnitInfo.hp_color(10, 20), UnitInfo.HP_YELLOW, "half is yellow")
+	assert_eq(UnitInfo.hp_color(5, 20), UnitInfo.HP_YELLOW, "a quarter is still yellow")
+	assert_eq(UnitInfo.hp_color(4, 20), UnitInfo.HP_RED)
