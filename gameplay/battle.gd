@@ -6,10 +6,17 @@ extends Node2D
 ##
 ## Keyboard: arrows move the cursor, confirm (Z / Enter / Space) selects and
 ## commits, cancel (X / Esc) backs out, unit (A) acts without moving, status
-## (R / pad Y) opens the status screen of the unit under the cursor.
+## (R / pad Y) opens the status screen of the unit under the cursor, and
+## danger_zone (D / right shoulder) shows or hides every enemy's threat.
 ## Mouse: hovering moves the cursor (or picks the target in the forecast), left
 ## click confirms (anywhere, in the forecast), right click cancels, or opens the
 ## status screen of a unit when nothing is selected.
+##
+## Ranges: hovering a unit shows where it can move (blue) and attack (red), with
+## any weapon it carries; your units that have acted show nothing. Confirm on an
+## enemy marks it, so its threat stays drawn in a deeper red. The danger zone
+## follows a unit's projected move once its unit menu opens, and hides during
+## the enemy phase.
 
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
@@ -45,6 +52,11 @@ var state := State.FREE
 var reachable: Dictionary = {}
 ## cell -> true; the selected unit's attack range while picking a target.
 var attack_cells: Dictionary = {}
+## cell -> true; what the selected unit could attack after moving (its red fringe
+## while choosing a destination). Separate from attack_cells, the targeting cells.
+var selected_fringe: Dictionary = {}
+## Which enemy threat is shown: the global toggle and the marked enemies.
+var danger_zone := DangerZone.new()
 ## Where the selected unit stood before moving, so cancel can put it back.
 var move_origin := Vector2i.ZERO
 var origin_has_moved := false
@@ -95,7 +107,8 @@ func start() -> void:
 	var first := _first_player_unit()
 	cursor.set_cell(first.state.cell if first != null else bounds.get_center())
 	cursor.queue_redraw()
-	_update_panels()
+	_refresh_danger_zone()
+	_enter_free_state()
 
 
 # --- Input -------------------------------------------------------------------
@@ -158,6 +171,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var unit := level.unit_at(cursor.cell)
 		if unit != null:
 			open_status(unit, true)
+	elif event.is_action_pressed(&"danger_zone"):
+		get_viewport().set_input_as_handled()
+		toggle_danger_zone()
 	else:
 		for action: StringName in CURSOR_DIRECTIONS:
 			# allow_echo so holding an arrow keeps the cursor moving.
@@ -179,7 +195,8 @@ func move_cursor(direction: Vector2i) -> void:
 		cursor.move(direction)
 
 
-## Confirm on the cursor's cell: select a unit, pick a destination, or open the map menu.
+## Confirm on the cursor's cell: select a unit, mark an enemy's danger zone, pick
+## a destination, or open the map menu.
 func confirm() -> void:
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
@@ -188,6 +205,9 @@ func confirm() -> void:
 			var unit := level.unit_at(cursor.cell)
 			if _is_commandable(unit):
 				_select(unit)
+			elif unit != null and unit.reference.faction == UnitReference.Faction.ENEMY:
+				danger_zone.toggle_mark(unit.reference.id)
+				_refresh_danger_zone()
 			else:
 				_open_map_menu()
 		State.UNIT_SELECTED:
@@ -210,8 +230,7 @@ func cancel() -> void:
 	match state:
 		State.UNIT_SELECTED:
 			_deselect()
-			state = State.FREE
-			_update_panels()
+			_enter_free_state()
 		State.UNIT_MENU:
 			unit_menu.close()
 			_on_unit_menu_cancelled()
@@ -261,9 +280,11 @@ func _select(unit: LevelUnit) -> void:
 	level.select(unit)
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
-	reachable = level.pathfinding.reachable_cells(unit.state, unit.state.unit.stats.movement)
-	range_overlay.set_cells(reachable, attack_cells)
+	var ranges := _ranges_for(unit.state)
+	reachable = ranges.move_cells
+	selected_fringe = ranges.attack_cells
 	state = State.UNIT_SELECTED
+	_redraw_selection()
 	_update_arrow()
 	_update_panels()
 
@@ -272,15 +293,17 @@ func _deselect() -> void:
 	level.select(null)
 	reachable = {}
 	attack_cells = {}
+	selected_fringe = {}
 	targets = []
-	range_overlay.set_cells(reachable, attack_cells)
+	_redraw_selection()
 	arrow.set_path([])
 
 
 func _move_along(path: Array[Vector2i]) -> void:
 	state = State.MOVING
 	reachable = {}
-	range_overlay.set_cells(reachable, attack_cells)
+	selected_fringe = {}
+	_redraw_selection()
 	arrow.set_path([])
 	_update_panels()
 	await level.walk(level.selected, path)
@@ -292,8 +315,8 @@ func _finish_action() -> void:
 	level.selected.state.has_moved = true
 	level.selected.state.has_acted = true
 	_deselect()
-	state = State.FREE
-	_update_panels()
+	_refresh_danger_zone()
+	_enter_free_state()
 	turn_loop.on_player_action_completed()
 
 
@@ -310,8 +333,10 @@ func _open_unit_menu() -> void:
 		options.push_front(&"attack")
 	cursor.set_cell(level.selected.state.cell)
 	attack_cells = {}
-	range_overlay.set_cells(reachable, attack_cells)
+	_redraw_selection()
 	arrow.set_path([])
+	# The preview: enemy threat as if the unit stays where it now stands.
+	_refresh_danger_zone()
 	unit_menu.open(options)
 	_update_panels()
 
@@ -322,7 +347,7 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			state = State.TARGETING
 			target_index = 0
 			attack_cells = _cells_in_attack_range(level.selected.state)
-			range_overlay.set_cells(reachable, attack_cells)
+			_redraw_selection()
 			_show_forecast()
 		&"item":
 			state = State.ITEM_MENU
@@ -340,10 +365,14 @@ func _on_unit_menu_cancelled() -> void:
 	if unit.state.cell != move_origin:
 		level.place_unit(unit, move_origin)
 	unit.state.has_moved = origin_has_moved
-	reachable = level.pathfinding.reachable_cells(unit.state, unit.state.unit.stats.movement)
-	range_overlay.set_cells(reachable, attack_cells)
-	cursor.set_cell(move_origin)
+	var ranges := _ranges_for(unit.state)
+	reachable = ranges.move_cells
+	selected_fringe = ranges.attack_cells
 	state = State.UNIT_SELECTED
+	_redraw_selection()
+	cursor.set_cell(move_origin)
+	# Back where it started: the preview goes away.
+	_refresh_danger_zone()
 	_update_panels()
 
 
@@ -452,7 +481,8 @@ func _on_forecast_confirmed() -> void:
 func _fight(target: LevelUnitState) -> void:
 	state = State.COMBAT
 	attack_cells = {}
-	range_overlay.set_cells(reachable, attack_cells)
+	selected_fringe = {}
+	_redraw_selection()
 	_update_panels()
 	# Keep the state, not the node: a fallen attacker's node is gone by the end.
 	var attacker := level.selected.state
@@ -463,8 +493,8 @@ func _fight(target: LevelUnitState) -> void:
 		attacker.has_moved = true
 		attacker.has_acted = true
 	_deselect()
-	state = State.FREE
-	_update_panels()
+	_refresh_danger_zone()
+	_enter_free_state()
 	turn_loop.on_player_action_completed()
 
 
@@ -479,8 +509,7 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
-	state = State.FREE
-	_update_panels()
+	_enter_free_state()
 
 
 func _play_strike(strike: Combat.Strike) -> void:
@@ -539,6 +568,7 @@ func _on_status_closed() -> void:
 	cursor.set_cell(status_unit.state.cell)
 	_update_arrow()
 	_update_panels()
+	_update_hover()
 
 
 ## Units of `faction` still on the map, in map order.
@@ -555,21 +585,24 @@ func _faction_units(faction: UnitReference.Faction) -> Array[LevelUnit]:
 
 func _open_map_menu() -> void:
 	state = State.MAP_MENU
+	range_overlay.set_cells({}, {})  # the hover goes away behind the menu
 	map_menu.open()
 	_update_panels()
 
 
-## Only End does anything so far; the other options just close the menu.
+## Danger Zone toggles the enemy threat and End ends the turn; the other options
+## just close the menu.
 func _on_map_menu_option(option_id: StringName) -> void:
-	if option_id == &"end":
-		turn_loop.end_player_turn()
-	state = State.FREE
-	_update_panels()
+	match option_id:
+		&"danger_zone":
+			toggle_danger_zone()
+		&"end":
+			turn_loop.end_player_turn()
+	_enter_free_state()
 
 
 func _on_map_menu_cancelled() -> void:
-	state = State.FREE
-	_update_panels()
+	_enter_free_state()
 
 
 # --- Panels and drawing ------------------------------------------------------
@@ -599,6 +632,7 @@ func terrain_info_at(cell: Vector2i) -> TerrainInfo:
 func _on_cursor_moved(_cell: Vector2i) -> void:
 	_update_arrow()
 	_update_panels()
+	_update_hover()
 
 
 ## While choosing a destination the arrow traces the cursor, Fire Emblem style,
@@ -690,10 +724,96 @@ func _first_player_unit() -> LevelUnit:
 	return null
 	
 	
+# --- Hover ranges and the danger zone ------------------------------------------
+
+
+## Returns to free-cursor play, redrawing the panels and the hover even though
+## the cursor may not have moved. Every way back to State.FREE goes through here.
+func _enter_free_state() -> void:
+	state = State.FREE
+	_update_panels()
+	_update_hover()
+
+
+## Shows or hides every enemy's threat. Marked enemies show either way.
+func toggle_danger_zone() -> void:
+	danger_zone.toggle()
+	_refresh_danger_zone()
+
+
+## The move and attack ranges of `unit` on the current board. An enemy the AI
+## never moves only attacks from where it stands.
+func _ranges_for(unit: LevelUnitState) -> UnitRanges:
+	var stays_put := unit.unit_ref.faction == UnitReference.Faction.ENEMY \
+			and _enemy_stays_put(unit.unit_ref.id)
+	return UnitRanges.compute(level.pathfinding, unit, level.level_state.map_data.bounds(), stays_put)
+
+
+## True for an enemy the AI never moves (Stationary), so its danger zone is only
+## its weapon range from where it stands.
+func _enemy_stays_put(unit_id: String) -> bool:
+	var controller := turn_loop.enemy_controller
+	return controller != null and controller.strategy_for(unit_id) == EnemyAI.Strategy.STATIONARY
+
+
+## The selected unit's ranges, drawn by state: its blue and red fringe while
+## choosing a destination, the targeting cells while picking a target, and just
+## the blue otherwise. In State.FREE the layer belongs to the hover, so this
+## leaves it alone.
+func _redraw_selection() -> void:
+	match state:
+		State.FREE:
+			return
+		State.UNIT_SELECTED:
+			range_overlay.set_cells(reachable, selected_fringe)
+		State.TARGETING:
+			range_overlay.set_cells(reachable, attack_cells)
+		_:
+			range_overlay.set_cells(reachable, {})
+
+
+func _update_hover() -> void:
+	_update_hover_for(turn_loop.phase)
+
+
+## In free-cursor play, shows the range of the unit under the cursor: any enemy or
+## ally, or one of your units that hasn't acted. Clears it on anything else, and
+## outside the player phase. Other states own the layer, so it's left alone.
+func _update_hover_for(phase: TurnLoop.Phase) -> void:
+	if state != State.FREE:
+		return
+	var unit := level.unit_at(cursor.cell)
+	if phase != TurnLoop.Phase.PLAYER or unit == null \
+			or (unit.reference.faction == UnitReference.Faction.PLAYER and unit.state.has_acted):
+		range_overlay.set_cells({}, {})
+		return
+	var ranges := _ranges_for(unit.state)
+	range_overlay.set_cells(ranges.move_cells, ranges.attack_cells)
+
+
+func _refresh_danger_zone() -> void:
+	_refresh_danger_zone_for(turn_loop.phase)
+
+
+## Recomputes and draws the enemy threat from where everyone stands now. Hidden
+## outside the player phase; the toggle and marks are kept for the next one.
+func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
+	if phase != TurnLoop.Phase.PLAYER:
+		danger_zone.drop_dead_marks(level.level_state)
+		range_overlay.set_threat({}, {})
+		return
+	danger_zone.recompute(level.level_state, level.pathfinding, _enemy_stays_put)
+	range_overlay.set_threat(danger_zone.normal_cells, danger_zone.marked_cells)
+
+
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 	if phase == TurnLoop.Phase.PLAYER:
 		music.play()
 	else:
 		music.stop()
+	# Go by the phase given, not turn_loop.phase: they agree in play, and this
+	# way the ranges can't depend on when the turn loop updates its own value.
+	_refresh_danger_zone_for(phase)
+	_update_hover_for(phase)
 	_update_panels()
