@@ -29,6 +29,9 @@ var camera: Camera2D
 ## id -> LevelUnit; the views for `level_state.level_units`.
 var unit_nodes: Dictionary = {}
 var selected: LevelUnit = null
+## The side whose phase it is. Only its units are grayed once they've acted, so
+## enemies look normal again on your turn (and yours while enemies act), as in FE.
+var acting_faction := UnitReference.Faction.PLAYER
 var moving := false
 
 
@@ -178,7 +181,7 @@ func update_tints() -> void:
 	for unit: LevelUnit in unit_nodes.values():
 		if unit == selected:
 			unit.modulate = SELECTED_TINT
-		elif unit.state.has_acted:
+		elif unit.state.has_acted and unit.reference.faction == acting_faction:
 			unit.modulate = ACTED_TINT
 		else:
 			unit.modulate = Color.WHITE

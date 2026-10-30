@@ -80,11 +80,17 @@ func test_confirm_on_empty_ground_opens_the_map_menu() -> void:
 	assert_true(battle.terrain_panel.visible)
 
 
-func test_confirm_on_an_enemy_opens_the_map_menu() -> void:
+func test_confirm_on_an_enemy_marks_its_danger_zone() -> void:
 	battle.cursor.set_cell(bandit.cell)
 	battle.confirm()
-	assert_eq(battle.state, Battle.State.MAP_MENU)
+	assert_eq(battle.state, Battle.State.FREE, "no map menu on an enemy")
+	assert_false(battle.map_menu.visible)
 	assert_null(battle.level.selected)
+	assert_true(battle.danger_zone.is_marked("bandit"))
+	assert_false(battle.range_overlay.marked_threat_cells.is_empty())
+	battle.confirm()
+	assert_false(battle.danger_zone.is_marked("bandit"), "confirm again unmarks it")
+	assert_true(battle.range_overlay.marked_threat_cells.is_empty())
 
 
 # --- Selecting and moving --------------------------------------------------
@@ -667,3 +673,254 @@ func test_other_map_menu_options_just_close() -> void:
 	battle.map_menu.option_selected.emit(&"status")
 	assert_eq(battle.state, Battle.State.FREE)
 	assert_false(lyn.has_acted)
+
+
+# --- Hover ranges ------------------------------------------------------------
+# The fixture makes the bandit Stationary; tests that need it to move set it
+# back to Aggressive.
+
+
+func _overlay() -> RangeOverlay:
+	return battle.range_overlay
+
+
+func _ranges(unit: LevelUnitState, stays_put := false) -> UnitRanges:
+	return UnitRanges.compute(battle.level.pathfinding, unit,
+			battle.level.level_state.map_data.bounds(), stays_put)
+
+
+func _make_bandit_aggressive() -> void:
+	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.AGGRESSIVE)
+
+
+func _press(action: StringName) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	battle._unhandled_input(event)
+
+
+func _ally_wil() -> LevelUnitState:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.ALLY  # the fixture made it a player unit
+	return wil
+
+
+func test_hovering_an_aggressive_enemy_shows_its_move_and_attack_range() -> void:
+	_make_bandit_aggressive()
+	battle.cursor.set_cell(bandit.cell)
+	var expected := _ranges(bandit)
+	assert_true(_overlay().move_cells.size() > 1)
+	assert_eq(_overlay().move_cells, expected.move_cells)
+	assert_eq(_overlay().attack_cells, expected.attack_cells)
+
+
+func test_hovering_a_stationary_enemy_shows_only_where_it_stands() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	assert_eq(_overlay().move_cells, {bandit.cell: true}, "it never moves")
+	assert_eq(_overlay().attack_cells.size(), 4, "just its Iron Axe's reach")
+
+
+func test_the_cursor_starts_on_lyn_showing_her_range() -> void:
+	assert_eq(_overlay().move_cells, _ranges(lyn).move_cells, "no cursor move needed")
+	assert_eq(_overlay().attack_cells, _ranges(lyn).attack_cells)
+
+
+func test_hovering_a_player_unit_that_can_act_shows_its_range() -> void:
+	battle.cursor.set_cell(LYN_CELL + Vector2i.RIGHT)
+	battle.cursor.set_cell(LYN_CELL)
+	assert_eq(_overlay().move_cells, _ranges(lyn).move_cells)
+	assert_eq(_overlay().attack_cells, _ranges(lyn).attack_cells)
+
+
+func test_hovering_a_player_unit_that_has_acted_shows_nothing() -> void:
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"wait")
+	assert_eq(battle.cursor.cell, LYN_CELL)
+	assert_true(_overlay().move_cells.is_empty())
+	assert_true(_overlay().attack_cells.is_empty())
+
+
+func test_hovering_an_ally_shows_its_range() -> void:
+	var wil := _ally_wil()
+	battle.cursor.set_cell(wil.cell)
+	assert_eq(_overlay().move_cells, _ranges(wil).move_cells)
+	assert_false(_overlay().attack_cells.is_empty())
+
+
+func test_hovering_empty_ground_clears_the_range() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	battle.cursor.set_cell(LYN_CELL + Vector2i.DOWN)
+	assert_true(_overlay().move_cells.is_empty())
+	assert_true(_overlay().attack_cells.is_empty())
+
+
+func test_redrawing_the_selection_in_free_leaves_the_hover_alone() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	battle._redraw_selection()
+	assert_eq(_overlay().move_cells, {bandit.cell: true})
+
+
+# --- Hover redraws and the selected unit's own range --------------------------
+
+
+func test_moving_the_cursor_while_selected_keeps_the_selected_range() -> void:
+	_select_lyn()
+	battle.cursor.set_cell(bandit.cell)
+	assert_eq(_overlay().move_cells, battle.reachable, "the bandit's hover doesn't replace lyn's blue")
+
+
+func test_selecting_a_unit_shows_its_red_fringe() -> void:
+	_select_lyn()
+	assert_false(battle.selected_fringe.is_empty())
+	assert_eq(battle.selected_fringe, _ranges(lyn).attack_cells)
+	assert_eq(_overlay().attack_cells, battle.selected_fringe)
+	assert_true(battle.attack_cells.is_empty(), "targeting cells only come with Attack")
+
+
+func test_targeting_draws_the_attack_cells_after_the_cursor_moves() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	assert_eq(battle.cursor.cell, bandit.cell, "the forecast moved the cursor")
+	assert_eq(_overlay().attack_cells, battle.attack_cells)
+
+
+func test_after_a_move_the_unit_menu_shows_no_fringe() -> void:
+	bandit.cell = Vector2i(9, 4)
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(8, 4))
+	battle.confirm()
+	await wait_seconds(Level.STEP_TIME * 3 + 0.3)
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_true(battle.selected_fringe.is_empty())
+	assert_true(_overlay().attack_cells.is_empty(), "no red around the cell lyn left")
+	battle.unit_menu.option_selected.emit(&"attack")
+	assert_false(_overlay().attack_cells.is_empty())
+	battle.forecast.close()
+	battle.forecast.cancelled.emit()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_true(_overlay().attack_cells.is_empty(), "back from the forecast: still no red")
+
+
+func test_cancelling_a_selection_shows_the_hover_again() -> void:
+	_select_lyn()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_eq(battle.cursor.cell, LYN_CELL)
+	assert_eq(_overlay().move_cells, _ranges(lyn).move_cells, "without moving the cursor")
+	assert_eq(_overlay().attack_cells, _ranges(lyn).attack_cells)
+
+
+func test_opening_the_map_menu_clears_the_hover() -> void:
+	var wil := _ally_wil()
+	battle.cursor.set_cell(wil.cell)
+	assert_false(_overlay().move_cells.is_empty())
+	battle.confirm()
+	assert_eq(battle.state, Battle.State.MAP_MENU)
+	assert_true(_overlay().move_cells.is_empty())
+	assert_true(_overlay().attack_cells.is_empty())
+
+
+func test_ending_the_turn_on_an_ally_shows_no_range_in_the_enemy_phase() -> void:
+	var wil := _ally_wil()
+	battle.cursor.set_cell(wil.cell)
+	var seen := {"enemy_phase_cells": -1}
+	battle.turn_loop.phase_changed.connect(func(phase: TurnLoop.Phase) -> void:
+		if phase == TurnLoop.Phase.ENEMY:
+			seen["enemy_phase_cells"] = _overlay().move_cells.size() + _overlay().attack_cells.size())
+	battle.confirm()
+	battle.map_menu.option_selected.emit(&"end")
+	assert_eq(seen["enemy_phase_cells"], 0, "the ally's range is gone while enemies act")
+
+
+# --- Danger zone ---------------------------------------------------------------
+
+
+func test_the_danger_zone_starts_off() -> void:
+	assert_false(battle.danger_zone.enabled)
+	assert_true(_overlay().threat_cells.is_empty())
+
+
+func test_the_danger_zone_key_toggles_every_enemys_threat() -> void:
+	_press(&"danger_zone")
+	assert_true(battle.danger_zone.enabled)
+	assert_eq(_overlay().threat_cells, _ranges(bandit, true).threat_cells, "the Stationary bandit's reach")
+	_press(&"danger_zone")
+	assert_false(battle.danger_zone.enabled)
+	assert_true(_overlay().threat_cells.is_empty())
+
+
+func test_the_map_menu_toggles_the_danger_zone() -> void:
+	battle.cursor.set_cell(LYN_CELL + Vector2i.DOWN)
+	battle.confirm()
+	assert_true(battle.map_menu.options.has(&"danger_zone"))
+	battle.map_menu.option_selected.emit(&"danger_zone")
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_true(battle.danger_zone.enabled)
+	assert_false(_overlay().threat_cells.is_empty())
+
+
+func test_the_preview_follows_a_projected_move_and_cancel_reverts_it() -> void:
+	_make_bandit_aggressive()
+	bandit.unit.stats.movement = 1
+	_press(&"danger_zone")
+	assert_true(_overlay().threat_cells.has(Vector2i(8, 5)), "via (9, 5)")
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(9, 5))
+	battle.confirm()
+	await wait_seconds(Level.STEP_TIME * 3 + 0.3)
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_false(_overlay().threat_cells.has(Vector2i(8, 5)), "lyn on (9, 5) blocks the bandit")
+	battle.cancel()
+	assert_eq(lyn.cell, LYN_CELL)
+	assert_true(_overlay().threat_cells.has(Vector2i(8, 5)), "cancel puts the zone back")
+
+
+func test_waiting_makes_the_preview_final() -> void:
+	_make_bandit_aggressive()
+	bandit.unit.stats.movement = 1
+	_press(&"danger_zone")
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(9, 5))
+	battle.confirm()
+	await wait_seconds(Level.STEP_TIME * 3 + 0.3)
+	battle.unit_menu.option_selected.emit(&"wait")
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_false(_overlay().threat_cells.has(Vector2i(8, 5)))
+
+
+func test_the_danger_zone_hides_in_the_enemy_phase_and_comes_back() -> void:
+	_press(&"danger_zone")
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()  # marks the bandit
+	assert_false(_overlay().marked_threat_cells.is_empty())
+	# turn_loop.phase is left alone: the refresh must go by the phase it's given.
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
+	assert_true(_overlay().threat_cells.is_empty())
+	assert_true(_overlay().marked_threat_cells.is_empty())
+	assert_true(_overlay().move_cells.is_empty(), "no hover either")
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.PLAYER)
+	assert_true(battle.danger_zone.enabled)
+	assert_true(battle.danger_zone.is_marked("bandit"), "marks survive the enemy phase")
+	assert_false(_overlay().marked_threat_cells.is_empty())
+
+
+func test_a_killed_marked_enemy_loses_its_zone() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	bandit.current_hp = 1
+	battle.roll = _always(10)
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()  # marks the bandit
+	assert_true(battle.danger_zone.is_marked("bandit"))
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	battle.forecast.close()
+	battle.forecast.confirmed.emit()
+	await wait_seconds(FIGHT_TIME)
+	assert_false(bandit.is_alive())
+	assert_false(battle.danger_zone.is_marked("bandit"))
+	assert_true(_overlay().marked_threat_cells.is_empty())
