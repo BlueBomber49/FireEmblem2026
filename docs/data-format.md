@@ -103,7 +103,62 @@ or a **generic unit** defined right there:
 - `sprite_sheet` (optional) is a full sprite path. Without it the unit uses its character's or class's sprite in its faction's colour. The map editor fills it in.
 - A unit whose character or class id doesn't exist is kept in the file but skipped in play; the map editor lists it in its status line.
 
-The map editor writes all of this. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell.
+### Objective
+
+Optional `objective` at the top level of the level file: how the level is won or lost.
+
+```json
+"objective": {
+	"win":  [{ "type": "faction_defeated", "faction": "enemy" }],
+	"lose": [{ "type": "faction_defeated", "faction": "player" },
+	         { "type": "unit_defeated", "unit": "adelard" }]
+}
+```
+
+- The level is won when **any** `win` condition holds and lost when **any** `lose` condition holds. Losing is checked first, so a lord falling in the same fight as the last enemy is a defeat.
+- A list left out keeps its default: `win` is "every enemy defeated", `lose` is "every player unit defeated". So a level with only a lord adds both `lose` conditions, as above.
+- Condition types: `faction_defeated` (`faction`: `player`, `enemy` or `ally`) and `unit_defeated` (`unit`: a unit id from this level's `map_data.units`).
+- An unknown type, a bad faction or a missing `unit` is warned about ("Objective:") and dropped. A `unit` id not in the level is warned about and never counts as defeated.
+
+The map editor writes everything except the objective, which it keeps as it is. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell.
+
+## Campaign: `resources/campaign.json`
+
+The order the game plays in. `GameFlow` (an autoload) plays each chapter's intro, its level, then its outro; losing the battle replays it. Scenes don't know what comes after them, so reordering or adding chapters only changes this file.
+
+```json
+{ "chapters": [
+	{ "id": "prologue", "intro": "prologue_intro", "level": "prologue", "outro": "prologue_outro" }
+] }
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Unique among chapters |
+| `intro`, `outro` | Optional. Dialogue ids (`resources/dialogue/<id>.json`); empty or left out means no cutscene |
+| `level` | A level id (`resources/levels/<id>.json`) |
+
+A chapter naming a missing dialogue or level file is reported and skipped; `test_campaign.gd` fails on it.
+
+## Dialogue: `resources/dialogue/<id>.json`
+
+One cutscene's conversation.
+
+| Field | Meaning |
+|---|---|
+| `id` | Must match the file name |
+| `background` | Optional. An image id: `assets/cutscenes/<id>.png`. Empty is a plain dark background |
+| `lines` | The lines in order (below) |
+
+Each line:
+
+| Field | Meaning |
+|---|---|
+| `speaker` | A character id, or empty for narration (no name, both portraits dimmed). The portrait is `assets/portraits/<speaker>.png`; without one, the speaker just has no portrait |
+| `side` | Optional. `left` (default) or `right`. A portrait stays on its side until another speaker takes it |
+| `text` | What they say |
+
+A line with an unknown key, unknown speaker or bad side is reported and dropped; the rest still play.
 
 ## Saves
 

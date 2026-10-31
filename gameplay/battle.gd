@@ -18,6 +18,9 @@ extends Node2D
 ## follows a unit's projected move once its unit menu opens, and hides during
 ## the enemy phase.
 
+## The level is over; GameFlow decides what plays next.
+signal ended(won: bool)
+
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
 const CURSOR_DIRECTIONS := {
@@ -33,6 +36,12 @@ const TARGET_STEPS := {
 	&"ui_right": 1,
 	&"ui_down": 1,
 }
+
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
+
+
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
 @onready var arrow: PathArrow = $Arrow
@@ -46,6 +55,7 @@ const TARGET_STEPS := {
 @onready var status_screen: StatusScreen = %StatusScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -87,9 +97,11 @@ func _ready() -> void:
 	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
+	# Before setup: a level can be over at once (no enemies), ending inside it.
+	turn_loop.finished.connect(ended.emit)
 	if level.level_state != null:
 		start()
-		turn_loop.setup(self, level)
+		turn_loop.setup(self, level, level.level_state.objective)
 
 
 ## Resets the cursor and UI for the level currently built in `level`.
@@ -808,10 +820,14 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
-	if phase == TurnLoop.Phase.PLAYER:
-		music.play()
-	else:
-		music.stop()
+	match phase:
+		TurnLoop.Phase.PLAYER:
+			music.stream = PLAYER_MUSIC
+		TurnLoop.Phase.ENEMY:
+			music.stream = ENEMY_MUSIC
+		TurnLoop.Phase.COMPLETE:
+			music.stream = VICTORY_MUSIC
+	music.play()
 	# Go by the phase given, not turn_loop.phase: they agree in play, and this
 	# way the ranges can't depend on when the turn loop updates its own value.
 	_refresh_danger_zone_for(phase)

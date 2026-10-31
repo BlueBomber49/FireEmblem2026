@@ -1,0 +1,11 @@
+{
+	"id": "iron_knife",
+	"name": "Iron Knife",
+	"type": "knife",
+	"might": 4,
+	"hit": 95,
+	"crit": 0,
+	"weight": 3,
+	"min_range": 1,
+	"max_range": 1
+}

@@ -1,0 +1,11 @@
+{
+	"id": "prologue_intro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "", "text": "[Adelard and Rowland are preparing for their daily training in the sparring grounds.]" },
+		{ "speaker": "rowland", "side": "right", "text": "Come on, Adelard! How long does it take to put on your armor?" },
+		{ "speaker": "adelard", "side": "left", "text": "A wise general once told me 'A good soldier takes care of his equipment'.  I'm just trying to be safe, that's all." },
+		{ "speaker": "rowland", "side": "right", "text": "Adelard, the training dummy isn't going to hurt you.  You've always been too cautious." },
+		{ "speaker": "adelard", "side": "left", "text": "Yeah, well, one day, when I still have both my arms and you're missing one, maybe you'll feel differently.  I'm ready now, let's get out there!" }
+	]
+}
