@@ -25,7 +25,7 @@ layout_mode = 2
 
 [node name="PlayerIcon" type="TextureRect" parent="Sections/PlayerHeader/Rows/NameRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(28, 28)
+custom_minimum_size = Vector2(14, 14)
 layout_mode = 2
 size_flags_vertical = 4
 expand_mode = 1
@@ -59,7 +59,7 @@ layout_mode = 2
 theme_type_variation = &"ForecastPlayerStats"
 
 [node name="PlayerValues" type="VBoxContainer" parent="Sections/Stats/PlayerSide"]
-custom_minimum_size = Vector2(48, 0)
+custom_minimum_size = Vector2(24, 0)
 layout_mode = 2
 theme_override_constants/separation = 0
 
@@ -106,7 +106,7 @@ layout_mode = 2
 theme_type_variation = &"ForecastStatNamePanel"
 
 [node name="StatNames" type="VBoxContainer" parent="Sections/Stats/StatNamePanel"]
-custom_minimum_size = Vector2(44, 0)
+custom_minimum_size = Vector2(22, 0)
 layout_mode = 2
 theme_override_constants/separation = 0
 
@@ -140,7 +140,7 @@ size_flags_horizontal = 3
 theme_type_variation = &"ForecastEnemyStats"
 
 [node name="EnemyValues" type="VBoxContainer" parent="Sections/Stats/EnemySide"]
-custom_minimum_size = Vector2(48, 0)
+custom_minimum_size = Vector2(24, 0)
 layout_mode = 2
 theme_override_constants/separation = 0
 
@@ -202,7 +202,7 @@ text = "Bandit"
 
 [node name="EnemyIcon" type="TextureRect" parent="Sections/EnemyFooter/Rows/NameRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(28, 28)
+custom_minimum_size = Vector2(14, 14)
 layout_mode = 2
 size_flags_vertical = 4
 expand_mode = 1

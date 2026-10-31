@@ -14,7 +14,7 @@ const ACTED_TINT := Color(0.55, 0.55, 0.55)
 ## Loaded and built in _ready when set.
 @export_file("*.json") var level_path := ""
 @export var tile_size := Vector2i(16, 16)
-@export var camera_zoom := 2.0
+@export var camera_zoom := 1.0
 ## Off in the map editor, which brings its own camera.
 @export var create_camera := true
 

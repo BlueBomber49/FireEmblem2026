@@ -88,6 +88,10 @@ var _stroke_before: Dictionary = {}
 
 
 func _ready() -> void:
+	# The game stretches its 640x360 view (project.godot); the editor is a tool
+	# and draws at the window's real size, with its own camera zoom.
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	level.create_camera = false
 	path_edit.text = level_path
 	_fill_terrain_options()
