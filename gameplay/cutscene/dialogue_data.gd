@@ -8,6 +8,7 @@ extends RefCounted
 ## Nothing crashes. See docs/data-format.md.
 
 const DEFAULT_DIR := "res://resources/dialogue"
+const BACKGROUND_DIR := "res://assets/cutscenes"
 const SIDES: Array[StringName] = [&"left", &"back_left", &"right", &"back_right"]
 
 
@@ -29,7 +30,7 @@ class Line:
 
 
 var id: StringName
-## A texture path, or empty for a plain background.
+## An image id (assets/cutscenes/<id>.png), or empty for a plain background.
 var background := ""
 var lines: Array[Line] = []
 ## Problems found while reading, one line each, naming the file.
@@ -38,6 +39,13 @@ var errors := PackedStringArray()
 
 static func path_for(dialogue_id: StringName) -> String:
 	return DEFAULT_DIR.path_join("%s.json" % dialogue_id)
+
+
+## The background image's path, or "" when there's no background.
+func background_path() -> String:
+	if background.is_empty():
+		return ""
+	return BACKGROUND_DIR.path_join("%s.png" % background)
 
 
 ## Reads a dialogue file. Always returns a DialogueData; check `errors`.
@@ -50,8 +58,8 @@ static func read(path: String) -> DialogueData:
 		if String(d.id) != path.get_file().get_basename():
 			r.error("id '%s' doesn't match the file name." % d.id)
 		d.background = r.string("background", false)
-		if not d.background.is_empty() and not ResourceLoader.exists(d.background):
-			r.error("background '%s' doesn't exist." % d.background)
+		if not d.background.is_empty() and not ResourceLoader.exists(d.background_path()):
+			r.error("background '%s' has no image at %s." % [d.background, d.background_path()])
 		d._read_lines(r)
 	d.errors = r.errors
 	if not d.errors.is_empty():

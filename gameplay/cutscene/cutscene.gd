@@ -95,7 +95,8 @@ func _start() -> void:
 	_occupants.clear()
 	for slot: TextureRect in _slots.values():
 		slot.texture = null
-	_backdrop.texture = load(dialogue.background) if not dialogue.background.is_empty() else null
+	var backdrop_path := dialogue.background_path()
+	_backdrop.texture = load(backdrop_path) if ResourceLoader.exists(backdrop_path) else null
 	if dialogue.lines.is_empty():
 		_finish()
 	else:

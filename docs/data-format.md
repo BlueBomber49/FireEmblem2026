@@ -147,7 +147,7 @@ One cutscene's conversation.
 | Field | Meaning |
 |---|---|
 | `id` | Must match the file name |
-| `background` | Optional. A texture path; empty is a plain dark background |
+| `background` | Optional. An image id: `assets/cutscenes/<id>.png`. Empty is a plain dark background |
 | `lines` | The lines in order (below) |
 
 Each line:

@@ -27,6 +27,12 @@ const TARGET_STEPS := {
 	&"ui_right": 1,
 	&"ui_down": 1,
 }
+
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
+
+
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
 @onready var arrow: PathArrow = $Arrow
@@ -38,6 +44,7 @@ const TARGET_STEPS := {
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -611,7 +618,11 @@ func _first_player_unit() -> LevelUnit:
 	
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
-	if phase == TurnLoop.Phase.PLAYER:
-		music.play()
-	else:
-		music.stop()
+	match phase:
+		TurnLoop.Phase.PLAYER:
+			music.stream = PLAYER_MUSIC
+		TurnLoop.Phase.ENEMY:
+			music.stream = ENEMY_MUSIC
+		TurnLoop.Phase.COMPLETE:
+			music.stream = VICTORY_MUSIC
+	music.play()

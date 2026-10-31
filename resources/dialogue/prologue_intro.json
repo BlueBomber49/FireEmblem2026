@@ -1,6 +1,6 @@
 {
 	"id": "prologue_intro",
-	"background": "",
+	"background": "cutscene_background_1",
 	"lines": [
 		{ "speaker": "", "text": "[Adelard and Rowland are preparing for their daily training in the sparring grounds.]" },
 		{ "speaker": "rowland", "side": "right", "text": "Come on, Adelard! How long does it take to put on your armor?" },
