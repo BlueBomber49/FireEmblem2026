@@ -1,7 +1,14 @@
 class_name UnitInfo
 extends RefCounted
-## What an item menu or unit roster shows about one unit. Mechanics fill this in
-## (from_unit); the UI only reads it, like ForecastSide and TerrainInfo.
+## What the item menu, unit panel and status screen show about one unit.
+## Mechanics fill this in (from_unit, from_level_unit); the UI only reads it,
+## like ForecastSide and TerrainInfo.
+
+const HP_GREEN := Color(0.45, 0.8, 0.35)
+const HP_YELLOW := Color(0.95, 0.8, 0.25)
+const HP_RED := Color(0.9, 0.3, 0.25)
+## Portrait art for a named character, by character id.
+const PORTRAIT_PATH := "res://assets/portraits/%s.png"
 
 
 ## One inventory slot.
@@ -46,6 +53,7 @@ var unit_name: String = ""
 ## The class's display name ("class_name" is a GDScript keyword).
 var class_name_text: String = ""
 var level: int = 1
+var experience: int = 0
 var hp: int = 0
 var max_hp: int = 0
 ## The equipped weapon's name, or "--" without one.
@@ -54,6 +62,42 @@ var weapon_name: String = "--"
 var stats: Dictionary = {}
 ## Inventory slots in order (Array of ItemInfo).
 var items: Array[ItemInfo] = []
+## Whose side the unit is on; panels are tinted by it.
+var faction := UnitReference.Faction.PLAYER
+## The character's portrait art (see portrait_for), or the map sprite's first
+## idle frame when there isn't any. Null for a unit that isn't on a map.
+var portrait: Texture2D = null
+
+
+## Green above half HP, yellow down to a quarter, red below that.
+static func hp_color(current: int, maximum: int) -> Color:
+	if maximum <= 0 or current * 2 > maximum:
+		return HP_GREEN
+	if current * 4 >= maximum:
+		return HP_YELLOW
+	return HP_RED
+
+
+## from_unit plus what only the map knows: the unit's faction and sprite.
+static func from_level_unit(node: LevelUnit) -> UnitInfo:
+	var info := from_unit(node.state.unit)
+	info.faction = node.reference.faction
+	if node.reference.is_character():
+		info.portrait = portrait_for(node.reference.character_id)
+	if info.portrait == null and node.sprite_frames != null \
+			and node.sprite_frames.has_animation(&"idle_down"):
+		info.portrait = node.sprite_frames.get_frame_texture(&"idle_down", 0)
+	return info
+
+
+## A character's portrait art at PORTRAIT_PATH (keyed by character id, e.g.
+## "rowland" -> rowland.png), or null when there's none. Uses ResourceLoader
+## rather than FileAccess so it still finds imported images in exported builds.
+static func portrait_for(character_id: String) -> Texture2D:
+	var path := PORTRAIT_PATH % character_id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
 
 
 static func from_unit(unit: Unit) -> UnitInfo:
@@ -61,6 +105,7 @@ static func from_unit(unit: Unit) -> UnitInfo:
 	info.unit_name = unit.data.display_name
 	info.class_name_text = unit.class_data().display_name
 	info.level = unit.level
+	info.experience = unit.experience
 	info.hp = unit.current_hp
 	info.max_hp = unit.max_hp()
 	info.stats = unit.stats.to_dict()

@@ -127,3 +127,12 @@ func test_null_level_state_is_a_safe_empty_controller() -> void:
 	controller.begin_turn()
 	assert_null(controller.next_enemy())
 	assert_eq(controller.plan_action(null).type, EnemyAIAction.Type.WAIT)
+
+
+func test_strategy_for_reports_the_assigned_strategy() -> void:
+	_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
+	assert_eq(_controller.strategy_for("bandit"), EnemyAI.Strategy.STATIONARY)
+
+
+func test_strategy_for_an_unassigned_enemy_is_aggressive() -> void:
+	assert_eq(_controller.strategy_for("brigand"), EnemyAI.Strategy.AGGRESSIVE)

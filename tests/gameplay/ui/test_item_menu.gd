@@ -10,6 +10,11 @@ func before_each() -> void:
 	add_child_autofree(_menu)
 
 
+# Old rows are queue_freed, so let a frame pass before GUT counts orphans.
+func after_each() -> void:
+	await get_tree().process_frame
+
+
 ## Iron Sword (equipped), Iron Lance (Lyn can't wield it), Vulnerary.
 func _info(vulnerary_usable := true) -> UnitInfo:
 	var info := UnitInfo.new()

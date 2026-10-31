@@ -11,6 +11,11 @@ func before_each() -> void:
 	add_child_autofree(_menu)
 
 
+# Old buttons are queue_freed, so let a frame pass before GUT counts orphans.
+func after_each() -> void:
+	await get_tree().process_frame
+
+
 func _buttons() -> Array[Node]:
 	return _menu.get_node("%Options").get_children()
 
