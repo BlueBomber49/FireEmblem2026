@@ -26,7 +26,6 @@ const TRIANGLE_BEATS := {
 	Enums.WeaponType.DARK: Enums.WeaponType.ANIMA
 }
 
-
 ## One swing in a fight and what it did.
 class Strike:
 	extends RefCounted

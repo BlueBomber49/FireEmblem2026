@@ -37,10 +37,11 @@ const TARGET_STEPS := {
 	&"ui_down": 1,
 }
 
-const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
-const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
-const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
-
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/Music/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Music/Victory.mp3")
+const MELEE_SFX: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 13.wav")
+const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/Sword Swoosh/Swoosh 2.wav")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -55,6 +56,7 @@ const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
 @onready var status_screen: StatusScreen = %StatusScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SoundEffects
 
 
 var state := State.FREE
@@ -525,12 +527,22 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 
 
 func _play_strike(strike: Combat.Strike) -> void:
+
 	var striker: LevelUnit = level.unit_nodes[strike.attacker.unit_ref.id]
 	var target: LevelUnit = level.unit_nodes[strike.defender.unit_ref.id]
+	play_strike_sound_effect(strike)
 	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
 	strike.defender.current_hp = strike.hp_after
 	if not strike.defender.is_alive():
 		await level.fade_out_unit(target)
+		
+func play_strike_sound_effect(strike: Combat.Strike) -> void:
+	match strike.attacker.unit.equipped_weapon().weapon_type:
+		Enums.WeaponType.BOW:
+			sound_effects.stream = RANGED_SFX
+		_:
+			sound_effects.stream = MELEE_SFX
+	sound_effects.play()
 
 
 ## The straight direction to face for a strike along `offset`. A ranged strike can

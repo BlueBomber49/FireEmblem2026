@@ -11,7 +11,7 @@
 [ext_resource type="Script" uid="uid://dngpuv3leh5ku" path="res://gameplay/ui/path_arrow.gd" id="9_arrow"]
 [ext_resource type="Script" uid="uid://bw4e62eg8eu5e" path="res://gameplay/ui/range_overlay.gd" id="10_range"]
 [ext_resource type="Script" uid="uid://mwh67yusq8qf" path="res://gameplay/turn_loop.gd" id="11_turn_loop"]
-[ext_resource type="AudioStream" uid="uid://dk3c0vvmc4pnp" path="res://assets/audio/player_phase.ogg" id="12_u0ie0"]
+[ext_resource type="AudioStream" uid="uid://dk3c0vvmc4pnp" path="res://assets/audio/Music/player_phase.ogg" id="12_u0ie0"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/item_menu.tscn" id="13_item_menu"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/unit_panel.tscn" id="14_unit_panel"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/status_screen.tscn" id="15_status_screen"]
@@ -88,3 +88,5 @@ unique_name_in_owner = true
 
 [node name="Music" type="AudioStreamPlayer" parent="." unique_id=97659043]
 stream = ExtResource("12_u0ie0")
+
+[node name="SoundEffects" type="AudioStreamPlayer" parent="." unique_id=2079805346]
