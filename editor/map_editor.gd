@@ -85,20 +85,22 @@ var _shown_class_index := 0
 var _shown_items_text := ""
 
 ## Objective panel, built in code by _build_objective_panel.
-var win_list: ItemList
-var lose_list: ItemList
-var win_add_option: OptionButton
-var lose_add_option: OptionButton
-var settings_box: VBoxContainer
+var win_rows: VBoxContainer
+var lose_rows: VBoxContainer
+var win_add_menu: MenuButton
+var lose_add_menu: MenuButton
+## Summary of problems and notes at the top of the panel.
 var problems_label: Label
-## The selected condition's setting controls, or null when it has no such setting.
-var turns_spin: SpinBox
-var units_list: ItemList
-var seize_name_edit: LineEdit
-## The condition the settings show: its list (Objective.WIN / LOSE) and index in
-## that list, or an empty side for none.
-var _selected_side: StringName = &""
-var _selected_index := -1
+## Condition -> {key: control} for each row (see row_control).
+var _rows: Dictionary = {}
+var _fixed_loss_label: Label
+var lose_header: Label
+## A map pick in progress: the condition whose Choose button was pressed (a
+## seize cell or the commander), or null. A map click sets the pending cell;
+## Confirm applies it, Cancel or Esc drops it.
+var _pick_condition: Objective.Condition
+var _pending_cell := Vector2i.ZERO
+var _has_pending := false
 
 ## Level snapshots (toJson(false)) to restore on undo / redo.
 var undo_stack: Array[Dictionary] = []
@@ -180,12 +182,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	# never reach this.
 	if event.is_action_pressed(&"cancel") and not event is InputEventMouseButton:
 		get_viewport().set_input_as_handled()
-		_select_unit("")
+		if mode == Mode.OBJECTIVE and is_picking():
+			_cancel_pick()
+		else:
+			_select_unit("")
 		return
 
 	var click := event as InputEventMouseButton
 	if click == null:
 		return
+	# A click on the map lets go of any focused field (e.g. a turn count), so it
+	# applies its value and drops its highlight.
+	if click.pressed:
+		get_viewport().gui_release_focus()
 	match click.button_index:
 		MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT:
 			_update_hover()
@@ -214,6 +223,9 @@ func _update_hover() -> void:
 
 
 func _set_mode(new_mode: int) -> void:
+	if new_mode != Mode.OBJECTIVE and is_picking():
+		_stop_picking()  # a pick you can't see shouldn't linger
+		_refresh_objective_panel()
 	mode = new_mode
 	mode_option.selected = mode
 	terrain_box.visible = mode == Mode.TERRAIN
@@ -828,7 +840,8 @@ func _load() -> void:
 	_frame_camera()
 	_refresh_layer_list()
 	_select_unit("")
-	_select_condition(&"", -1)
+	_stop_picking()
+	_refresh_objective_panel()
 	_clear_history()
 	status.text = "Loaded %s" % level_path
 
@@ -850,7 +863,8 @@ func _new() -> void:
 	level.rebuild()
 	_refresh_layer_list()
 	_select_unit("")
-	_select_condition(&"", -1)
+	_stop_picking()
+	_refresh_objective_panel()
 	_clear_history()
 	status.text = "New empty map. Add a layer to start painting."
 
@@ -898,7 +912,8 @@ func _restore(snapshot: Dictionary) -> void:
 	level.rebuild()
 	_refresh_layer_list()
 	_select_unit(selected_unit_id)
-	_show_condition(_selected_side, _selected_index)
+	_stop_picking()  # the old conditions are gone
+	_refresh_objective_panel()
 	_update_history_buttons()
 
 
@@ -982,6 +997,8 @@ func _draw_overlay() -> void:
 
 	if mode == Mode.OBJECTIVE:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
+		if is_picking() and _has_pending:
+			overlay.draw_rect(_cell_rect(_pending_cell), PAINT_COLOR, false, 2.0)
 		return
 
 	if mode == Mode.UNITS:
@@ -1023,96 +1040,91 @@ func _on_commander_toggled(pressed: bool) -> void:
 
 
 # --- Objective -----------------------------------------------------------------
+# Each condition is a row: its text, its settings inline (from the registry's
+# "settings"), a remove button, and a warning line when it has a problem. The
+# "+ Add" menus offer each type once per list.
+
+
+## What the warning line asks for, by setting, when a condition has a problem.
+const SETTING_HINTS := {
+	&"commander": "Pick the commander from the list, or Choose on map.",
+	&"cells": "Press Choose cell, click a map cell, then Confirm.",
+	&"units": "Tick at least one unit.",
+	&"turns": "Set at least 1 turn.",
+}
+const WIN_COLOR := Color(0.55, 0.95, 0.55)
+const LOSE_COLOR := Color(1.0, 0.55, 0.5)
+const DIM_COLOR := Color(1, 1, 1, 0.55)
 
 
 func _build_objective_panel() -> void:
-	var win_label := Label.new()
-	win_label.text = "Win when any of these happens"
-	objective_box.add_child(win_label)
-	win_list = _condition_list(Objective.WIN)
-	win_add_option = _add_row(Objective.WIN)
-
-	var lose_label := Label.new()
-	lose_label.text = "Lose when any of these happens"
-	objective_box.add_child(lose_label)
-	lose_list = _condition_list(Objective.LOSE)
-	lose_add_option = _add_row(Objective.LOSE)
-
-	var remove := Button.new()
-	remove.text = "Remove selected condition"
-	remove.pressed.connect(_remove_selected_condition)
-	objective_box.add_child(remove)
-
-	settings_box = VBoxContainer.new()
-	objective_box.add_child(settings_box)
-
 	problems_label = Label.new()
 	problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
 	objective_box.add_child(problems_label)
 
-	var help := Label.new()
-	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.text = "Mark the enemy commander in Units mode. With a seize condition selected, click map cells to add or remove them."
-	objective_box.add_child(help)
+	objective_box.add_child(_section_header("WIN when any of these happens", WIN_COLOR))
+	win_rows = VBoxContainer.new()
+	objective_box.add_child(win_rows)
+	win_add_menu = _add_menu(Objective.WIN, "+ Add win condition")
+
+	objective_box.add_child(HSeparator.new())
+	lose_header = _section_header("LOSS when any of these happens", LOSE_COLOR)
+	objective_box.add_child(lose_header)
+	lose_rows = VBoxContainer.new()
+	objective_box.add_child(lose_rows)
+	lose_add_menu = _add_menu(Objective.LOSE, "+ Add loss condition")
 
 
-func _condition_list(side: StringName) -> ItemList:
-	var list := ItemList.new()
-	list.auto_height = true
-	list.item_selected.connect(func(i: int) -> void: _select_condition(side, i))
-	objective_box.add_child(list)
-	return list
+func _section_header(text: String, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_color_override("font_color", color)
+	return label
 
 
-## An "Add" dropdown of the types allowed on `side`, plus its button.
-func _add_row(side: StringName) -> OptionButton:
-	var row := HBoxContainer.new()
-	var option := OptionButton.new()
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for type_name in Objective.types_for(side):
-		option.add_item(Objective.title_of(type_name))
-		option.set_item_metadata(option.item_count - 1, type_name)
-	var add := Button.new()
-	add.text = "Add"
-	add.pressed.connect(func() -> void:
-		if option.selected >= 0:
-			_add_condition(side, option.get_item_metadata(option.selected)))
-	row.add_child(option)
-	row.add_child(add)
-	objective_box.add_child(row)
-	return option
+## A "+ Add" menu of the types allowed on `side`; picking one adds its row.
+func _add_menu(side: StringName, text: String) -> MenuButton:
+	var menu := MenuButton.new()
+	menu.text = text
+	menu.flat = false
+	var types := Objective.types_for(side)
+	var popup := menu.get_popup()
+	for i in types.size():
+		popup.add_item(Objective.title_of(types[i]), i)
+	popup.id_pressed.connect(func(id: int) -> void: _add_condition(side, types[id]))
+	objective_box.add_child(menu)
+	return menu
 
 
-## Adds a new `type_name` condition with default settings to `side`, and selects it.
+## Adds a `type_name` condition with default settings to `side`. Each type goes
+## in a list at most once (one seize holds many cells, one "falls" many units).
 func _add_condition(side: StringName, type_name: String) -> void:
+	if _has_type(side, type_name):
+		return
 	var before := _snapshot()
 	_conditions(side).append(Objective.create(type_name))
 	_commit(before)
-	_show_condition(side, _conditions(side).size() - 1)
-
-
-func _remove_selected_condition() -> void:
-	var list := _conditions(_selected_side)
-	if _selected_index < 0 or _selected_index >= list.size():
-		return  # nothing selected, or the built-in loss
-	var before := _snapshot()
-	list.remove_at(_selected_index)
-	_commit(before)
-	_show_condition(&"", -1)
-
-
-## Selects list item `list_item` of `side`'s list. In the lose list, item 0 is
-## the built-in "Your army is defeated", which selects nothing.
-func _select_condition(side: StringName, list_item: int) -> void:
-	_show_condition(side, list_item - 1 if side == Objective.LOSE else list_item)
-
-
-## Shows condition `index` of `side` in the settings (-1 or an empty side: none).
-func _show_condition(side: StringName, index: int) -> void:
-	_selected_side = side
-	_selected_index = index if index >= 0 and index < _conditions(side).size() else -1
 	_refresh_objective_panel()
+
+
+func _remove_condition(side: StringName, index: int) -> void:
+	var list := _conditions(side)
+	if index < 0 or index >= list.size():
+		return
+	var before := _snapshot()
+	if list[index] == _pick_condition:
+		_cancel_pick()
+	list.remove_at(index)
+	_commit(before)
+	_refresh_objective_panel()
+
+
+func _has_type(side: StringName, type_name: String) -> bool:
+	for condition in _conditions(side):
+		if condition.type == type_name:
+			return true
+	return false
 
 
 ## The level's conditions on `side` (the live arrays, edited in place).
@@ -1125,138 +1137,366 @@ func _conditions(side: StringName) -> Array[Objective.Condition]:
 	return [] as Array[Objective.Condition]
 
 
-func _selected_condition() -> Objective.Condition:
-	var conditions := _conditions(_selected_side)
-	return conditions[_selected_index] if _selected_index >= 0 and _selected_index < conditions.size() else null
-
-
-## Toggles `cell` in the selected seize condition's cells.
+## A map click in Objective mode: while a Choose is in progress, it picks the
+## pending cell (for the commander, it has to be an enemy). Nothing changes
+## until Confirm.
 func _objective_click(cell: Vector2i) -> void:
-	var seize := _selected_condition() as Objective.Seize
-	if seize == null:
-		status.text = "Select a seize condition to pick its cells."
+	if _pick_condition == null:
+		status.text = "To set a seize cell, press Choose cell on the Seize row, then click the map."
 		return
-	var before := _snapshot()
-	if seize.cells.has(cell):
-		seize.cells.erase(cell)
+	if _pick_condition is Objective.DefeatCommander:
+		var unit_id := _unit_id_at(cell)
+		var ref: UnitReference = level.level_state.map_data.units.get(unit_id)
+		if ref == null or ref.faction != UnitReference.Faction.ENEMY:
+			status.text = "Click an enemy unit to make it the commander."
+			return
+		status.text = "Commander: %s. Press Confirm to set it." % ref.display_name()
 	else:
+		# A seize cell has to be somewhere a unit can stand on the map.
+		if not level.level_state.map_data.bounds().has_point(cell) or level.pathfinding.terrain_at(cell) == null:
+			status.text = "That cell isn't on the map; pick a cell with terrain."
+			return
+		status.text = "Cell %s. Press Confirm to add it." % cell
+	_pending_cell = cell
+	_has_pending = true
+	_refresh_objective_panel()
+
+
+## Starts picking on the map for `condition` (its Choose button).
+func _start_pick(condition: Objective.Condition) -> void:
+	_pick_condition = condition
+	_has_pending = false
+	status.text = "Click an enemy on the map, then Confirm." if condition is Objective.DefeatCommander \
+			else "Click a map cell, then Confirm."
+	_refresh_objective_panel()
+
+
+## Applies the pending pick: adds the seize cell, or marks the commander.
+func _confirm_pick() -> void:
+	if _pick_condition == null or not _has_pending:
+		return
+	var condition := _pick_condition
+	var cell := _pending_cell
+	_cancel_pick()
+	if condition is Objective.DefeatCommander:
+		_on_commander_picked(_unit_id_at(cell))  # commits and redraws
+		return
+	var seize := condition as Objective.Seize
+	if not seize.cells.has(cell):
+		var before := _snapshot()
 		seize.cells.append(cell)
+		_commit(before)
+	_refresh_objective_panel()
+
+
+## Ends a pick without changing anything.
+func _cancel_pick() -> void:
+	_pick_condition = null
+	_has_pending = false
+	_refresh_objective_panel()
+
+
+func _remove_seize_cell(condition: Objective.Condition, cell: Vector2i) -> void:
+	var before := _snapshot()
+	(condition as Objective.Seize).cells.erase(cell)
 	_commit(before)
 	_refresh_objective_panel()
 
 
-## Redraws the lists, the selected condition's settings and the problems.
+## Stops any pick (the level changed under it: load, new, undo).
+func _stop_picking() -> void:
+	_pick_condition = null
+	_has_pending = false
+
+
+func is_picking() -> bool:
+	return _pick_condition != null
+
+
+func has_pending() -> bool:
+	return _has_pending
+
+
+func pending_cell() -> Vector2i:
+	return _pending_cell
+
+
+## Rebuilds every row from the level's objective, and the add menus.
 func _refresh_objective_panel() -> void:
-	if win_list == null:
+	if win_rows == null or level.level_state == null:
 		return
-	var state := level.level_state
-	win_list.clear()
-	for line in state.objective.win_lines(state):
-		win_list.add_item(line)
-	lose_list.clear()
-	for line in state.objective.lose_lines(state):
-		lose_list.add_item(line)
-	# The built-in wipe loss is shown but can't be selected or removed.
-	lose_list.set_item_selectable(0, false)
-	lose_list.set_item_custom_fg_color(0, Color(1, 1, 1, 0.6))
-	if _selected_index >= 0:
-		var list := win_list if _selected_side == Objective.WIN else lose_list
-		list.select(_selected_index + (1 if _selected_side == Objective.LOSE else 0))
-	_build_settings()
+	for rows in [win_rows, lose_rows]:
+		for child in rows.get_children():
+			rows.remove_child(child)
+			child.queue_free()
+	_rows.clear()
+	for i in level.level_state.objective.win.size():
+		_build_row(Objective.WIN, i)
+	_build_fixed_loss_row()
+	for i in level.level_state.objective.lose.size():
+		_build_row(Objective.LOSE, i)
+	for pair in [[win_add_menu, Objective.WIN], [lose_add_menu, Objective.LOSE]]:
+		var menu: MenuButton = pair[0]
+		var types := Objective.types_for(pair[1])
+		for i in types.size():
+			menu.get_popup().set_item_disabled(i, _has_type(pair[1], types[i]))
 	_update_problems()
 	overlay.queue_redraw()
 
 
-## Builds the controls the selected condition's registry "settings" ask for.
-func _build_settings() -> void:
-	for child in settings_box.get_children():
-		settings_box.remove_child(child)
-		child.queue_free()
-	turns_spin = null
-	units_list = null
-	seize_name_edit = null
-	var condition := _selected_condition()
-	if condition == null:
-		return
+func _build_fixed_loss_row() -> void:
+	_fixed_loss_label = Label.new()
+	_fixed_loss_label.text = "%s   (always)" % Objective.ARMY_DEFEATED_TEXT
+	_fixed_loss_label.add_theme_color_override("font_color", DIM_COLOR)
+	_fixed_loss_label.tooltip_text = "Built in: losing every player unit always loses."
+	lose_rows.add_child(_fixed_loss_label)
+
+
+## One condition's row, on up to three lines so it fits the narrow panel: its
+## text and remove button, then its settings, then a warning if it has a problem.
+func _build_row(side: StringName, index: int) -> void:
+	var condition: Objective.Condition = _conditions(side)[index]
+	var controls := {}
+	var row := VBoxContainer.new()
+	var title_line := HBoxContainer.new()
+	row.add_child(title_line)
+	var text := Label.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	controls[&"text"] = text
+	title_line.add_child(text)
+	# The settings wrap onto as many lines as the panel needs.
+	var line := HFlowContainer.new()
+	row.add_child(line)
+
 	for setting in Objective.settings_of(condition.type):
 		match setting:
 			&"turns":
-				turns_spin = SpinBox.new()
-				turns_spin.min_value = 1
-				turns_spin.max_value = 99
-				turns_spin.prefix = "turns"
-				turns_spin.value = (condition as Objective.TurnCount).turns
-				turns_spin.value_changed.connect(_on_turns_changed)
-				settings_box.add_child(turns_spin)
-			&"units":
-				units_list = ItemList.new()
-				units_list.select_mode = ItemList.SELECT_MULTI
-				units_list.auto_height = true
-				var fall := condition as Objective.UnitsFall
-				# In the map's own order, so picks read in the order units were placed.
+				var spin := SpinBox.new()
+				spin.min_value = 1
+				spin.max_value = 99
+				spin.value = (condition as Objective.TurnCount).turns
+				spin.value_changed.connect(func(v: float) -> void: _on_turns_changed(condition, v))
+				# Enter lets go of the box, so its outline goes and the value reads as set.
+				spin.get_line_edit().text_submitted.connect(func(_t: String) -> void: spin.get_line_edit().release_focus())
+				controls[&"turns"] = spin
+				line.add_child(spin)
+			&"commander":
+				var pick := OptionButton.new()
+				pick.add_item("choose...")
+				pick.set_item_metadata(0, "")
 				for id: String in level.level_state.map_data.units:
 					var ref: UnitReference = level.level_state.map_data.units[id]
-					units_list.add_item("%s (%s)" % [ref.display_name(), id])
-					units_list.set_item_metadata(units_list.item_count - 1, id)
-					if fall.units.has(id):
-						units_list.select(units_list.item_count - 1, false)
-				units_list.multi_selected.connect(func(_i: int, _on: bool) -> void: _on_units_picked())
-				settings_box.add_child(units_list)
+					if ref.faction == UnitReference.Faction.ENEMY:
+						pick.add_item("%s (%s)" % [ref.display_name(), id])
+						pick.set_item_metadata(pick.item_count - 1, id)
+						if ref.commander:
+							pick.select(pick.item_count - 1)
+				pick.item_selected.connect(func(i: int) -> void: _on_commander_picked(pick.get_item_metadata(i)))
+				controls[&"commander"] = pick
+				line.add_child(pick)
+				_add_pick_controls(condition, line, controls, "Choose on map")
 			&"cells":
-				var hint := Label.new()
-				hint.text = "%d cell(s): click the map to add or remove." % (condition as Objective.Seize).cells.size()
-				settings_box.add_child(hint)
+				# The chosen cells, each removable, then how to add one.
+				var cells_line := HFlowContainer.new()
+				var chips := {}
+				var cells_label := Label.new()
+				cells_label.text = "Cells:" if not (condition as Objective.Seize).cells.is_empty() else "Cells: none yet"
+				cells_line.add_child(cells_label)
+				for cell in (condition as Objective.Seize).cells:
+					var chip := Button.new()
+					chip.text = "(%d, %d)  x" % [cell.x, cell.y]
+					chip.tooltip_text = "Remove this seize cell"
+					chip.pressed.connect(func() -> void: _remove_seize_cell(condition, cell))
+					chips[cell] = chip
+					cells_line.add_child(chip)
+				controls[&"cells"] = chips
+				row.add_child(cells_line)
+				var choose_line := HFlowContainer.new()
+				row.add_child(choose_line)
+				_add_pick_controls(condition, choose_line, controls, "Choose cell")
 			&"name":
-				seize_name_edit = LineEdit.new()
-				seize_name_edit.placeholder_text = "name, e.g. the gate (blank: the marked cell)"
-				seize_name_edit.text = (condition as Objective.Seize).name
-				seize_name_edit.text_changed.connect(_on_seize_name_changed)
-				settings_box.add_child(seize_name_edit)
+				var name_line := HBoxContainer.new()
+				var shown := Label.new()
+				shown.text = "Shown as: Seize"
+				name_line.add_child(shown)
+				var edit := LineEdit.new()
+				edit.placeholder_text = "the marked cell"
+				edit.tooltip_text = "Optional: what the objective calls the seize point, e.g. the gate"
+				edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				edit.text = (condition as Objective.Seize).name
+				edit.text_changed.connect(func(t: String) -> void: _on_seize_name_changed(condition, t))
+				controls[&"name"] = edit
+				name_line.add_child(edit)
+				row.add_child(name_line)
+			&"units":
+				# Checkboxes below the line: your units and allies, never enemies.
+				var boxes := HFlowContainer.new()
+				var by_id := {}
+				for id: String in level.level_state.map_data.units:
+					var ref: UnitReference = level.level_state.map_data.units[id]
+					if ref.faction == UnitReference.Faction.ENEMY:
+						continue
+					var box := CheckBox.new()
+					box.text = ref.display_name()
+					box.tooltip_text = id
+					box.set_pressed_no_signal((condition as Objective.UnitsFall).units.has(id))
+					box.toggled.connect(func(_on: bool) -> void: _on_units_ticked(condition))
+					by_id[id] = box
+					boxes.add_child(box)
+				controls[&"units"] = by_id
+				row.add_child(boxes)
+
+	var remove := Button.new()
+	remove.text = "X"
+	remove.tooltip_text = "Remove this condition"
+	remove.pressed.connect(func() -> void: _remove_condition(side, _conditions(side).find(condition)))
+	controls[&"remove"] = remove
+	title_line.add_child(remove)
+	if line.get_child_count() == 0:
+		row.remove_child(line)
+		line.queue_free()
+
+	var problem := Label.new()
+	problem.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	problem.add_theme_color_override("font_color", PROBLEM_COLOR)
+	controls[&"problem"] = problem
+	row.add_child(problem)
+
+	_rows[condition] = controls
+	(win_rows if side == Objective.WIN else lose_rows).add_child(row)
+	_update_row(condition)
 
 
-func _on_turns_changed(value: float) -> void:
-	var count := _selected_condition() as Objective.TurnCount
-	if count == null or count.turns == int(value):
+## A Choose button, or while this row is picking: a prompt, Confirm and Cancel.
+func _add_pick_controls(condition: Objective.Condition, line: Container, controls: Dictionary,
+		choose_text: String) -> void:
+	if _pick_condition != condition:
+		var choose := Button.new()
+		choose.text = choose_text
+		choose.pressed.connect(func() -> void: _start_pick(condition))
+		controls[&"choose"] = choose
+		line.add_child(choose)
+		return
+	var prompt := Label.new()
+	if not _has_pending:
+		prompt.text = "Click the map..."
+	elif condition is Objective.DefeatCommander:
+		var ref: UnitReference = level.level_state.map_data.units.get(_unit_id_at(_pending_cell))
+		prompt.text = "Selected: %s" % (ref.display_name() if ref != null else "?")
+	else:
+		prompt.text = "Selected: (%d, %d)" % [_pending_cell.x, _pending_cell.y]
+	line.add_child(prompt)
+	var confirm := Button.new()
+	confirm.text = "Confirm"
+	confirm.disabled = not _has_pending
+	confirm.pressed.connect(_confirm_pick)
+	controls[&"confirm"] = confirm
+	line.add_child(confirm)
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.pressed.connect(_cancel_pick)
+	controls[&"cancel"] = cancel
+	line.add_child(cancel)
+
+
+## Refreshes a row's text, pick count and warning without rebuilding it, so a
+## field being typed in keeps its focus.
+func _update_row(condition: Objective.Condition) -> void:
+	var controls: Dictionary = _rows.get(condition, {})
+	if controls.is_empty():
+		return
+	(controls[&"text"] as Label).text = condition.describe(level.level_state)
+	var problems := condition.validate(level.level_state)
+	var hints := PackedStringArray()
+	if not problems.is_empty():
+		for setting in Objective.settings_of(condition.type):
+			if SETTING_HINTS.has(setting) and not hints.has(SETTING_HINTS[setting]):
+				hints.append(SETTING_HINTS[setting])
+		if hints.is_empty():
+			hints = problems
+	var problem := controls[&"problem"] as Label
+	problem.text = "! " + " ".join(hints) if not hints.is_empty() else ""
+	problem.visible = not hints.is_empty()
+	_update_problems()
+
+
+func _on_turns_changed(condition: Objective.Condition, value: float) -> void:
+	var count := condition as Objective.TurnCount
+	if count.turns == int(value):
 		return
 	var before := _snapshot()
 	count.turns = int(value)
 	_commit(before, "objective_turns")
-	_refresh_lists_and_problems()
+	_update_row(condition)
 
 
-## Sets the selected "units fall" condition's units to those picked in the list.
-func _on_units_picked() -> void:
-	var fall := _selected_condition() as Objective.UnitsFall
-	if fall == null:
-		return
+## A "falls" condition's units are the ticked boxes, in the map's order.
+func _on_units_ticked(condition: Objective.Condition) -> void:
+	var fall := condition as Objective.UnitsFall
 	var before := _snapshot()
 	var picked: Array[String] = []
-	for i in units_list.get_selected_items():
-		picked.append(units_list.get_item_metadata(i))
+	var boxes: Dictionary = _rows[condition][&"units"]
+	for id: String in boxes:
+		if (boxes[id] as CheckBox).button_pressed:
+			picked.append(id)
 	fall.units = picked
 	_commit(before)
-	_refresh_lists_and_problems()
+	_update_row(condition)
 
 
-func _on_seize_name_changed(text: String) -> void:
-	var seize := _selected_condition() as Objective.Seize
-	if seize == null:
-		return
+func _on_seize_name_changed(condition: Objective.Condition, text: String) -> void:
 	var before := _snapshot()
-	seize.name = text.strip_edges()
+	(condition as Objective.Seize).name = text.strip_edges()
 	_commit(before, "objective_name")
-	_refresh_lists_and_problems()
+	_update_row(condition)
 
 
-## Like _refresh_objective_panel, but keeps the settings controls (and their
-## focus) while one is being edited.
-func _refresh_lists_and_problems() -> void:
-	var state := level.level_state
-	var lines := state.objective.win_lines(state) if _selected_side == Objective.WIN else state.objective.lose_lines(state)
-	var list := win_list if _selected_side == Objective.WIN else lose_list
-	for i in mini(lines.size(), list.item_count):
-		list.set_item_text(i, lines[i])
-	_update_problems()
+## Marks `unit_id` as the commander (clearing any other), the same mark as the
+## Units mode checkbox. "" clears it.
+func _on_commander_picked(unit_id: String) -> void:
+	var before := _snapshot()
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		ref.commander = ref.id == unit_id
+	_commit(before)
+	_rebuild_units()  # the badge is drawn by the unit's node
+	_refresh_objective_panel()
+
+
+## Lookups for tests and tools: a row's control by key (&"text", &"remove",
+## &"turns", &"commander", &"choose", &"confirm", &"cancel", &"name",
+## &"problem"). Seize cell chips: cell_chip(); unit checkboxes: unit_checkbox().
+func row_control(side: StringName, index: int, key: StringName) -> Control:
+	var conditions := _conditions(side)
+	if index < 0 or index >= conditions.size():
+		return null
+	return _rows.get(conditions[index], {}).get(key)
+
+
+## The remove chip for `cell` in a seize row.
+func cell_chip(side: StringName, index: int, cell: Vector2i) -> Button:
+	var conditions := _conditions(side)
+	if index < 0 or index >= conditions.size():
+		return null
+	var chips: Dictionary = _rows.get(conditions[index], {}).get(&"cells", {})
+	return chips.get(cell)
+
+
+func row_text(side: StringName, index: int) -> String:
+	var label := row_control(side, index, &"text") as Label
+	return label.text if label != null else ""
+
+
+func unit_checkbox(side: StringName, index: int, unit_id: String) -> CheckBox:
+	var conditions := _conditions(side)
+	if index < 0 or index >= conditions.size():
+		return null
+	var boxes: Dictionary = _rows.get(conditions[index], {}).get(&"units", {})
+	return boxes.get(unit_id)
+
+
+func fixed_loss_text() -> String:
+	return _fixed_loss_label.text if _fixed_loss_label != null else ""
 
 
 ## What stops the level from being saved: Objective.validate's problems.
@@ -1273,13 +1513,23 @@ func objective_notes() -> PackedStringArray:
 	return notes
 
 
+## The summary at the top of the panel: blocking problems, then notes.
 func _update_problems() -> void:
 	if problems_label == null or level.level_state == null:
 		return  # before the first level loads
 	var problems := objective_problems()
 	var lines := PackedStringArray()
 	if not problems.is_empty():
-		lines.append("Fix before saving:\n- " + "\n- ".join(problems))
+		# Each row says what it needs; the summary only lists what no row shows
+		# (e.g. two commanders marked in Units mode).
+		var own := PackedStringArray()
+		for condition in level.level_state.objective.win + level.level_state.objective.lose:
+			own.append_array(condition.validate(level.level_state))
+		lines.append("Can't save yet: fix the rows marked with !" if not own.is_empty() else "Can't save yet:")
+		for problem in problems:
+			if not own.has(problem):
+				lines.append("- " + problem)
 	for note in objective_notes():
 		lines.append("Note: " + note)
 	problems_label.text = "\n".join(lines)
+	problems_label.visible = not lines.is_empty()

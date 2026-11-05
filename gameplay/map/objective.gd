@@ -233,10 +233,10 @@ class UnitsFall:
 
 ## Every condition type, by its JSON "type": the class, the editor's label, the
 ## lists it may sit in, and the settings the editor asks for (units, cells,
-## turns, name).
+## turns, name, commander: which enemy is marked as the commander).
 const CONDITION_TYPES := {
 	"faction_defeated": {"class": FactionDefeated, "title": "Rout the enemy", "sides": [WIN], "settings": []},
-	"defeat_commander": {"class": DefeatCommander, "title": "Defeat the enemy commander", "sides": [WIN], "settings": []},
+	"defeat_commander": {"class": DefeatCommander, "title": "Defeat the enemy commander", "sides": [WIN], "settings": [&"commander"]},
 	"seize": {"class": Seize, "title": "Seize", "sides": [WIN], "settings": [&"cells", &"name"]},
 	"survive": {"class": Survive, "title": "Survive N turns", "sides": [WIN], "settings": [&"turns"]},
 	"units_fall": {"class": UnitsFall, "title": "Units fall", "sides": [LOSE], "settings": [&"units"]},

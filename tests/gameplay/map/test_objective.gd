@@ -241,7 +241,8 @@ func test_the_registry_lists_types_by_side() -> void:
 	assert_eq(Objective.types_for(Objective.LOSE), ["units_fall", "turns_pass"] as Array[String])
 	assert_eq(Objective.title_of("seize"), "Seize")
 	assert_eq(Objective.settings_of("seize"), [&"cells", &"name"] as Array[StringName])
-	assert_eq(Objective.settings_of("defeat_commander"), [] as Array[StringName])
+	assert_eq(Objective.settings_of("defeat_commander"), [&"commander"] as Array[StringName], "the editor offers a commander pick")
+	assert_eq(Objective.settings_of("faction_defeated"), [] as Array[StringName])
 
 
 func test_create_makes_a_condition_with_defaults() -> void:

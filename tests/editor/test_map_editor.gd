@@ -331,116 +331,8 @@ func test_saved_level_reloads() -> void:
 
 # --- Objective mode ---------------------------------------------------------------
 # simple_level has no objective in its file: the default rout, plus the built-in
-# wipe loss.
-
-
-func _objective() -> Objective:
-	return editor.level.level_state.objective
-
-
-func _objective_mode() -> void:
-	editor._set_mode(MapEditor.Mode.OBJECTIVE)
-
-
-func test_objective_mode_shows_its_panel() -> void:
-	_objective_mode()
-	assert_true(editor.objective_box.visible)
-	assert_false(editor.units_box.visible)
-	assert_false(editor.terrain_box.visible)
-
-
-func test_the_lists_show_each_conditions_text() -> void:
-	_objective_mode()
-	assert_eq(editor.win_list.item_count, 1)
-	assert_eq(editor.win_list.get_item_text(0), "Rout the enemy")
-	assert_eq(editor.lose_list.item_count, 1, "just the built-in line")
-	assert_eq(editor.lose_list.get_item_text(0), "Your army is defeated")
-
-
-func test_the_add_menus_offer_only_types_allowed_on_that_side() -> void:
-	_objective_mode()
-	assert_eq(editor.win_add_option.item_count, Objective.types_for(Objective.WIN).size())
-	assert_eq(editor.lose_add_option.item_count, Objective.types_for(Objective.LOSE).size())
-	for i in editor.lose_add_option.item_count:
-		assert_ne(editor.lose_add_option.get_item_text(i), "Rout the enemy")
-
-
-func test_adding_and_removing_a_condition() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.WIN, "survive")
-	assert_eq(_objective().win.size(), 2)
-	assert_eq(editor.win_list.get_item_text(1), "Survive 1 turn")
-	editor._select_condition(Objective.WIN, 1)
-	editor._remove_selected_condition()
-	assert_eq(_objective().win.size(), 1)
-	assert_eq(_objective().win[0].type, "faction_defeated")
-
-
-func test_turns_are_set_from_the_number_box() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.WIN, "survive")
-	assert_not_null(editor.turns_spin, "the selected condition asks for turns")
-	editor.turns_spin.value = 3
-	assert_eq((_objective().win[1] as Objective.Survive).turns, 3)
-	assert_eq(editor.win_list.get_item_text(1), "Survive 3 turns")
-
-
-func test_objective_edits_can_be_undone() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.LOSE, "turns_pass")
-	assert_eq(_objective().lose.size(), 1)
-	editor.undo()
-	assert_eq(editor.level.level_state.objective.lose.size(), 0)
-	assert_eq(editor.lose_list.item_count, 1, "the panel follows the undo")
-
-
-func test_the_built_in_loss_cant_be_removed() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.LOSE, "turns_pass")
-	editor._select_condition(Objective.LOSE, 0)  # the fixed "Your army is defeated" line
-	editor._remove_selected_condition()
-	assert_eq(_objective().lose.size(), 1, "the turn limit is still there")
-	assert_eq(editor.lose_list.get_item_text(0), "Your army is defeated")
-
-
-func test_units_fall_picks_units_from_the_map() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.LOSE, "units_fall")
-	assert_not_null(editor.units_list)
-	assert_eq(editor.units_list.item_count, _map_units().size())
-	for i in editor.units_list.item_count:
-		if editor.units_list.get_item_metadata(i) in ["lyn", "kent"]:
-			editor.units_list.select(i, false)
-	editor._on_units_picked()
-	assert_eq((_objective().lose[0] as Objective.UnitsFall).units, ["lyn", "kent"] as Array[String])
-	assert_eq(editor.lose_list.get_item_text(1), "Lyn or Kent falls")
-
-
-func test_seize_cells_are_picked_by_clicking_the_map() -> void:
-	_objective_mode()
-	editor._add_condition(Objective.WIN, "seize")
-	editor._objective_click(FREE_CELL)
-	var seize := _objective().win[1] as Objective.Seize
-	assert_eq(seize.cells, [FREE_CELL] as Array[Vector2i])
-	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
-	assert_eq(seize.cells.size(), 2)
-	editor._objective_click(FREE_CELL)
-	assert_eq(seize.cells, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i], "clicking again removes it")
-	editor.seize_name_edit.text = "the gate"
-	editor.seize_name_edit.text_changed.emit("the gate")
-	assert_eq(seize.name, "the gate")
-	assert_eq(editor.win_list.get_item_text(1), "Seize the gate")
-
-
-func test_clicking_cells_without_a_seize_selected_changes_nothing() -> void:
-	_objective_mode()
-	editor._select_condition(Objective.WIN, 0)
-	var before := JSON.stringify(_objective().toJson())
-	editor._objective_click(FREE_CELL)
-	assert_eq(JSON.stringify(_objective().toJson()), before)
-
-
-# --- Problems block saving ----------------------------------------------------------
+# wipe loss. Units: lyn, wil, kent (players), bandit, brigand (enemies).
+# Each condition is a row with its settings inline and its own remove button.
 
 
 const SAVE_PATH := "user://test_map_editor_objective.json"
@@ -451,23 +343,283 @@ func after_each() -> void:
 		DirAccess.remove_absolute(SAVE_PATH)
 
 
-func test_a_commander_objective_without_a_commander_cant_be_saved() -> void:
+func _objective() -> Objective:
+	return editor.level.level_state.objective
+
+
+func _objective_mode() -> void:
+	editor._set_mode(MapEditor.Mode.OBJECTIVE)
+
+
+## Adds `type_name` to `side` and returns its index in that list.
+func _add(side: StringName, type_name: String) -> int:
+	editor._add_condition(side, type_name)
+	return editor._conditions(side).size() - 1
+
+
+func _menu_item(menu: MenuButton, title: String) -> int:
+	var popup := menu.get_popup()
+	for i in popup.item_count:
+		if popup.get_item_text(i) == title:
+			return i
+	return -1
+
+
+func test_objective_mode_shows_its_panel() -> void:
 	_objective_mode()
-	editor._add_condition(Objective.WIN, "defeat_commander")
-	assert_false(editor.objective_problems().is_empty())
-	assert_false(editor.problems_label.text.is_empty())
+	assert_true(editor.objective_box.visible)
+	assert_false(editor.units_box.visible)
+	assert_false(editor.terrain_box.visible)
+
+
+func test_each_condition_is_a_row() -> void:
+	_objective_mode()
+	assert_eq(editor.win_rows.get_child_count(), 1)
+	assert_string_contains(editor.row_text(Objective.WIN, 0), "Rout the enemy")
+	assert_not_null(editor.row_control(Objective.WIN, 0, &"remove"))
+
+
+func test_the_built_in_loss_is_a_fixed_row() -> void:
+	_objective_mode()
+	assert_eq(editor.lose_rows.get_child_count(), 1, "just the built-in row")
+	assert_string_contains(editor.fixed_loss_text(), "Your army is defeated")
+
+
+func test_the_add_menus_offer_each_type_once() -> void:
+	_objective_mode()
+	var win_popup := editor.win_add_menu.get_popup()
+	assert_eq(win_popup.item_count, Objective.types_for(Objective.WIN).size())
+	assert_true(win_popup.is_item_disabled(_menu_item(editor.win_add_menu, "Rout the enemy")), "already in the list")
+	assert_false(win_popup.is_item_disabled(_menu_item(editor.win_add_menu, "Seize")))
+	assert_eq(editor.lose_add_menu.get_popup().item_count, Objective.types_for(Objective.LOSE).size())
+	_add(Objective.WIN, "seize")
+	assert_true(win_popup.is_item_disabled(_menu_item(editor.win_add_menu, "Seize")), "once per list")
+
+
+func test_picking_from_the_add_menu_adds_the_row() -> void:
+	_objective_mode()
+	var popup := editor.win_add_menu.get_popup()
+	popup.id_pressed.emit(popup.get_item_id(_menu_item(editor.win_add_menu, "Survive N turns")))
+	assert_eq(_objective().win.size(), 2)
+	assert_eq(_objective().win[1].type, "survive")
+	assert_eq(editor.win_rows.get_child_count(), 2)
+
+
+func test_a_type_already_in_the_list_isnt_added_twice() -> void:
+	_objective_mode()
+	_add(Objective.WIN, "seize")
+	editor._add_condition(Objective.WIN, "seize")
+	assert_eq(_objective().win.size(), 2, "rout + one seize")
+
+
+func test_the_remove_button_removes_that_row() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "survive")
+	(editor.row_control(Objective.WIN, i, &"remove") as Button).pressed.emit()
+	assert_eq(_objective().win.size(), 1)
+	assert_eq(_objective().win[0].type, "faction_defeated")
+	assert_eq(editor.win_rows.get_child_count(), 1)
+
+
+func test_turns_are_set_inline() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "survive")
+	var spin := editor.row_control(Objective.WIN, i, &"turns") as SpinBox
+	assert_not_null(spin)
+	spin.value = 3
+	assert_eq((_objective().win[i] as Objective.Survive).turns, 3)
+	assert_same(editor.row_control(Objective.WIN, i, &"turns"), spin, "editing doesn't rebuild the row (keeps focus)")
+
+
+func test_objective_edits_can_be_undone() -> void:
+	_objective_mode()
+	_add(Objective.LOSE, "turns_pass")
+	assert_eq(editor.lose_rows.get_child_count(), 2)
+	editor.undo()
+	assert_eq(editor.level.level_state.objective.lose.size(), 0)
+	assert_eq(editor.lose_rows.get_child_count(), 1, "the panel follows the undo")
+
+
+func test_units_fall_ticks_player_and_ally_units_only() -> void:
+	_objective_mode()
+	var i := _add(Objective.LOSE, "units_fall")
+	for id in ["lyn", "wil", "kent"]:
+		assert_not_null(editor.unit_checkbox(Objective.LOSE, i, id), "%s can be picked" % id)
+	for id in ["bandit", "brigand"]:
+		assert_null(editor.unit_checkbox(Objective.LOSE, i, id), "no enemies")
+	editor.unit_checkbox(Objective.LOSE, i, "lyn").button_pressed = true
+	editor.unit_checkbox(Objective.LOSE, i, "kent").button_pressed = true
+	assert_eq((_objective().lose[i] as Objective.UnitsFall).units, ["lyn", "kent"] as Array[String])
+	assert_eq(_objective().lose_lines(editor.level.level_state)[1], "Lyn or Kent falls")
+	editor.unit_checkbox(Objective.LOSE, i, "lyn").button_pressed = false
+	assert_eq((_objective().lose[i] as Objective.UnitsFall).units, ["kent"] as Array[String])
+
+
+func test_the_loss_section_says_loss() -> void:
+	_objective_mode()
+	assert_string_contains(editor.lose_header.text, "LOSS")
+	assert_eq(editor.lose_add_menu.text, "+ Add loss condition")
+
+
+func test_clicking_the_map_without_choosing_explains_how() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	editor._objective_click(FREE_CELL)
+	assert_true((_objective().win[i] as Objective.Seize).cells.is_empty())
+	assert_string_contains(editor.status.text, "Choose cell")
+
+
+func test_a_seize_cell_is_chosen_clicked_then_confirmed() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	var seize := _objective().win[i] as Objective.Seize
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	assert_true(editor.is_picking())
+	editor._objective_click(FREE_CELL)
+	assert_true(seize.cells.is_empty(), "not set until confirmed")
+	assert_eq(editor.pending_cell(), FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq(seize.cells, [FREE_CELL] as Array[Vector2i])
+	assert_false(editor.is_picking(), "done after confirming")
+	assert_not_null(editor.cell_chip(Objective.WIN, i, FREE_CELL), "the chosen cell is listed")
+
+
+func test_a_second_seize_cell_can_be_added() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	for cell in [FREE_CELL, FREE_CELL + Vector2i.RIGHT]:
+		(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+		editor._objective_click(cell)
+		(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq((_objective().win[i] as Objective.Seize).cells.size(), 2)
+
+
+func test_a_chosen_seize_cell_can_be_removed() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	editor.cell_chip(Objective.WIN, i, FREE_CELL).pressed.emit()
+	assert_true((_objective().win[i] as Objective.Seize).cells.is_empty())
+
+
+func test_cancelling_a_pick_changes_nothing() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"cancel") as Button).pressed.emit()
+	assert_false(editor.is_picking())
+	assert_true((_objective().win[i] as Objective.Seize).cells.is_empty())
+
+
+func test_escape_cancels_a_pick() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	_press_key(KEY_ESCAPE)
+	assert_false(editor.is_picking())
+
+
+func test_the_seize_name_is_typed_inline() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	var name_edit := editor.row_control(Objective.WIN, i, &"name") as LineEdit
+	name_edit.text = "the gate"
+	name_edit.text_changed.emit("the gate")
+	assert_eq((_objective().win[i] as Objective.Seize).name, "the gate")
+	assert_same(editor.row_control(Objective.WIN, i, &"name"), name_edit, "typing doesn't rebuild the row")
+
+
+func test_the_commander_can_be_chosen_on_the_map() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(_map_units()["lyn"].start_cell)
+	assert_false(editor.has_pending(), "lyn isn't an enemy")
+	assert_string_contains(editor.status.text, "enemy")
+	editor._objective_click(_map_units()["bandit"].start_cell)
+	assert_true(editor.has_pending())
+	assert_false(_map_units()["bandit"].commander, "not until confirmed")
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_true(_map_units()["bandit"].commander)
+	assert_true(editor.objective_problems().is_empty())
+
+
+func test_clicking_the_map_releases_a_number_box() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "survive")
+	var spin := editor.row_control(Objective.WIN, i, &"turns") as SpinBox
+	spin.get_line_edit().grab_focus()
+	assert_eq(editor.get_viewport().gui_get_focus_owner(), spin.get_line_edit())
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	editor._unhandled_input(click)
+	assert_null(editor.get_viewport().gui_get_focus_owner(), "the box lets go, so its outline goes away")
+
+
+func test_enter_releases_a_number_box() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "survive")
+	var line := (editor.row_control(Objective.WIN, i, &"turns") as SpinBox).get_line_edit()
+	line.grab_focus()
+	line.text_submitted.emit("4")
+	assert_null(editor.get_viewport().gui_get_focus_owner())
+
+
+func test_the_commander_is_chosen_in_its_row() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
+	var pick := editor.row_control(Objective.WIN, i, &"commander") as OptionButton
+	var ids: Array = []
+	for k in pick.item_count:
+		ids.append(pick.get_item_metadata(k))
+	assert_true(ids.has("bandit") and ids.has("brigand"))
+	assert_false(ids.has("lyn"), "only enemies")
+	for k in pick.item_count:
+		if pick.get_item_metadata(k) == "brigand":
+			pick.select(k)
+			pick.item_selected.emit(k)
+	assert_true(_map_units()["brigand"].commander)
+	assert_true(editor.objective_problems().is_empty())
+	assert_not_null(editor.level.unit_nodes["brigand"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)), "badge")
+	editor._select_unit("brigand")
+	assert_true(editor.commander_check.button_pressed, "same mark as the Units mode checkbox")
+
+
+# --- Problems ------------------------------------------------------------------------
+
+
+func test_a_row_with_a_problem_says_so_and_saving_is_refused() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
+	var problem := editor.row_control(Objective.WIN, i, &"problem") as Label
+	assert_true(problem.visible)
+	assert_false(problem.text.is_empty())
+	assert_false(editor.problems_label.text.is_empty(), "summary at the top")
 	editor.path_edit.text = SAVE_PATH
 	editor._save()
 	assert_false(FileAccess.file_exists(SAVE_PATH), "refused")
 	assert_string_contains(editor.status.text, "commander")
 
 
-func test_marking_a_commander_lets_it_save() -> void:
+func test_a_seize_with_no_cells_cant_be_saved() -> void:
 	_objective_mode()
-	editor._add_condition(Objective.WIN, "defeat_commander")
+	_add(Objective.WIN, "seize")
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_false(FileAccess.file_exists(SAVE_PATH))
+
+
+func test_fixing_the_problem_lets_it_save() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
 	editor._select_unit("bandit")
 	editor.commander_check.button_pressed = true
 	assert_true(editor.objective_problems().is_empty())
+	assert_false((editor.row_control(Objective.WIN, i, &"problem") as Label).visible, "the row's warning clears")
 	editor.path_edit.text = SAVE_PATH
 	editor._save()
 	assert_true(FileAccess.file_exists(SAVE_PATH))
@@ -476,15 +628,18 @@ func test_marking_a_commander_lets_it_save() -> void:
 	assert_true(reloaded.objective.has_type("defeat_commander"))
 
 
-func test_a_seize_with_no_cells_cant_be_saved() -> void:
+func test_a_level_with_no_win_condition_gets_a_note_but_still_saves() -> void:
 	_objective_mode()
-	editor._add_condition(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, 0, &"remove") as Button).pressed.emit()
+	assert_eq(_objective().win.size(), 0)
+	assert_string_contains(editor.problems_label.text, "No win condition")
+	assert_true(editor.objective_problems().is_empty(), "a note, not a problem")
 	editor.path_edit.text = SAVE_PATH
 	editor._save()
-	assert_false(FileAccess.file_exists(SAVE_PATH))
+	assert_true(FileAccess.file_exists(SAVE_PATH))
 
 
-# --- The commander checkbox ------------------------------------------------------------
+# --- The commander checkbox (Units mode) ------------------------------------------------
 
 
 func test_only_enemies_can_be_marked_commander() -> void:
@@ -507,7 +662,7 @@ func test_marking_a_commander_clears_the_previous_one() -> void:
 	assert_false(_map_units()["bandit"].commander, "one commander per level")
 
 
-func test_the_commander_wears_the_crown_in_the_editor() -> void:
+func test_the_commander_wears_the_badge_in_the_editor() -> void:
 	editor._select_unit("bandit")
 	editor.commander_check.button_pressed = true
 	var node: LevelUnit = editor.level.unit_nodes["bandit"]
@@ -529,13 +684,24 @@ func test_unmarking_and_undo() -> void:
 	assert_false(editor.level.level_state.map_data.units["bandit"].commander)
 
 
-func test_a_level_with_no_win_condition_gets_a_note_but_still_saves() -> void:
+func test_leaving_objective_mode_stops_a_pick() -> void:
 	_objective_mode()
-	editor._select_condition(Objective.WIN, 0)
-	editor._remove_selected_condition()
-	assert_eq(_objective().win.size(), 0)
-	assert_string_contains(editor.problems_label.text, "No win condition")
-	assert_true(editor.objective_problems().is_empty(), "a note, not a problem: an event could end it later")
-	editor.path_edit.text = SAVE_PATH
-	editor._save()
-	assert_true(FileAccess.file_exists(SAVE_PATH))
+	var i := _add(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._set_mode(MapEditor.Mode.UNITS)
+	assert_false(editor.is_picking(), "a pick you can't see is dropped")
+	editor._select_unit("bandit")
+	_press_key(KEY_ESCAPE)
+	assert_eq(editor.selected_unit_id, "", "Esc deselects, as usual in Units mode")
+
+
+func test_a_seize_cell_must_be_on_the_map() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	var outside := editor.level.level_state.map_data.bounds().end + Vector2i(5, 5)
+	editor._objective_click(outside)
+	assert_false(editor.has_pending(), "off the map")
+	assert_string_contains(editor.status.text, "map")
+	editor._objective_click(FREE_CELL)
+	assert_true(editor.has_pending(), "a cell on the map is fine")
