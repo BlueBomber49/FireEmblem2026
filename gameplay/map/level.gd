@@ -1,8 +1,9 @@
 class_name Level
 extends Node2D
 ## A playable map. Shows a LevelState (an authored level or a save) as stacked
-## TileMapLayers and LevelUnits, built by rebuild(). Units stand on tile cells;
-## the vertex data in MapData only decides which tiles get drawn.
+## TileMapLayers, a walls layer above them, and LevelUnits on top, built by
+## rebuild(). Units stand on tile cells; the vertex data in MapData only decides
+## which tiles get drawn.
 
 ## Seconds a unit takes to cross one tile.
 const STEP_TIME := 0.15
@@ -24,6 +25,7 @@ var level_state: LevelState
 var pathfinding: Pathfinding
 var tiles: LevelTileSet
 var layers_root: Node2D
+var walls_layer: TileMapLayer
 var units_root: Node2D
 var camera: Camera2D
 ## id -> LevelUnit; the views for `level_state.level_units`.
@@ -52,18 +54,20 @@ func _ready() -> void:
 func rebuild() -> void:
 	clear_scene()
 	var max_z := _build_layers()
-	_spawn_units(max_z + 1)
+	_build_walls(max_z + 1)
+	_spawn_units(max_z + 2)
 	pathfinding = Pathfinding.new(level_state)
 	if create_camera:
 		_setup_camera()
 
 
 func clear_scene() -> void:
-	for node in [layers_root, units_root, camera]:
+	for node in [layers_root, walls_layer, units_root, camera]:
 		if node != null:
 			remove_child(node)
 			node.free()
 	layers_root = null
+	walls_layer = null
 	units_root = null
 	camera = null
 	unit_nodes.clear()
@@ -115,6 +119,33 @@ func _paint_layer(tile_layer: TileMapLayer, layer: MapLayer, terrain: TerrainTyp
 	var masks := layer.cell_masks()
 	for cell in masks:
 		tile_layer.set_cell(cell, source_id, terrain.atlas_coords(masks[cell]))
+
+
+func _build_walls(z: int) -> void:
+	walls_layer = TileMapLayer.new()
+	walls_layer.name = "Walls"
+	walls_layer.tile_set = tiles.tile_set
+	walls_layer.z_index = z
+	add_child(walls_layer)
+	_paint_walls()
+
+
+## Redraws the walls and doors after they changed (used by the map editor).
+func repaint_walls() -> void:
+	walls_layer.clear()
+	_paint_walls()
+	# A brush stroke changed which cells are walls.
+	level_state.map_data.invalidate_terrain_cache()
+
+
+func _paint_walls() -> void:
+	var map_data := level_state.map_data
+	var cell_tiles := WallTiles.cell_tiles(map_data.walls, map_data.doors)
+	if cell_tiles.is_empty():
+		return
+	var source_id := tiles.add_tiles(WallTiles.TEXTURE_PATH, WallTiles.TILE_SIZE, WallTiles.all_atlas_coords())
+	for cell in cell_tiles:
+		walls_layer.set_cell(cell, source_id, cell_tiles[cell])
 
 
 ## Rebuilds just the unit nodes from `level_state` (used by the map editor).

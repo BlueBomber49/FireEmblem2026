@@ -44,6 +44,7 @@ Add new scripts and scenes to the matching `gameplay/` subfolder, new data files
 - **Movement always comes from the class**, so leave it out of character stats.
 - **Strength and Magic are separate.** FE7 lists a single Str/Mag number: put it in `strength` for physical classes or `magic` for magic classes, and the other at 0.
 - **Placing units:** in the map editor's Units mode, pick a character (or None and a class), then click a cell. See `docs/data-format.md` for the level file format.
+- **Placing walls and doors:** in the map editor's Walls mode, pick Wall or Door, then left-drag to paint and right-drag to erase. Tiles are picked automatically from the neighbouring cells.
 
 ## Conventions
 
