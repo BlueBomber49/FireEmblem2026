@@ -5,9 +5,11 @@ extends Node2D
 ##
 ## Terrain mode: left mouse paints, right mouse erases.
 ## Units mode: left click places a unit, drag moves one, right click deletes.
+## Objective mode: edit the win and lose conditions; with a seize condition
+## selected, left click toggles seize cells. Problems block saving.
 ## Both: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
-enum Mode { TERRAIN, UNITS }
+enum Mode { TERRAIN, UNITS, OBJECTIVE }
 enum Brush { PAINT, ERASE }
 
 const PAN_SPEED := 400.0
@@ -19,6 +21,8 @@ const PAINT_COLOR := Color(1, 1, 0.3)
 const ERASE_COLOR := Color(1, 0.3, 0.3)
 const CELL_COLOR := Color(1, 1, 1, 0.5)
 const SELECTED_TINT := Color(1.0, 1.0, 0.5)
+const SEIZE_FILL := Color(0.2, 0.9, 0.3, 0.35)
+const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
 
 
 @export_file("*.json") var level_path := "res://resources/levels/simple_level.json"
@@ -30,6 +34,8 @@ const SELECTED_TINT := Color(1.0, 1.0, 0.5)
 @onready var mode_option: OptionButton = %ModeOption
 @onready var terrain_box: VBoxContainer = %TerrainBox
 @onready var units_box: VBoxContainer = %UnitsBox
+@onready var objective_box: VBoxContainer = %ObjectiveBox
+@onready var commander_check: CheckBox = %CommanderCheck
 @onready var layer_list: ItemList = %LayerList
 @onready var name_edit: LineEdit = %NameEdit
 @onready var terrain_option: OptionButton = %TerrainOption
@@ -78,6 +84,22 @@ var _shown_character_index := 0
 var _shown_class_index := 0
 var _shown_items_text := ""
 
+## Objective panel, built in code by _build_objective_panel.
+var win_list: ItemList
+var lose_list: ItemList
+var win_add_option: OptionButton
+var lose_add_option: OptionButton
+var settings_box: VBoxContainer
+var problems_label: Label
+## The selected condition's setting controls, or null when it has no such setting.
+var turns_spin: SpinBox
+var units_list: ItemList
+var seize_name_edit: LineEdit
+## The condition the settings show: its list (Objective.WIN / LOSE) and index in
+## that list, or an empty side for none.
+var _selected_side: StringName = &""
+var _selected_index := -1
+
 ## Level snapshots (toJson(false)) to restore on undo / redo.
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
@@ -93,6 +115,7 @@ func _ready() -> void:
 	_fill_terrain_options()
 	_fill_unit_options()
 	_build_stats_grid()
+	_build_objective_panel()
 	overlay.draw.connect(_draw_overlay)
 
 	%LoadButton.pressed.connect(_load)
@@ -115,6 +138,7 @@ func _ready() -> void:
 	items_edit.text_submitted.connect(func(_t: String) -> void: _apply_inspector())
 	items_edit.focus_exited.connect(_apply_inspector)
 	override_check.toggled.connect(_on_override_toggled)
+	commander_check.toggled.connect(_on_commander_toggled)
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
 	deselect_button.pressed.connect(_select_unit.bind(""))
 	%UndoButton.pressed.connect(undo)
@@ -165,10 +189,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	match click.button_index:
 		MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT:
 			_update_hover()
-			if mode == Mode.TERRAIN:
-				_terrain_click(click)
-			else:
-				_unit_click(click)
+			match mode:
+				Mode.TERRAIN:
+					_terrain_click(click)
+				Mode.UNITS:
+					_unit_click(click)
+				Mode.OBJECTIVE:
+					if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
+						_objective_click(hover_cell)
 		MOUSE_BUTTON_MIDDLE:
 			panning = click.pressed
 		MOUSE_BUTTON_WHEEL_UP:
@@ -190,6 +218,7 @@ func _set_mode(new_mode: int) -> void:
 	mode_option.selected = mode
 	terrain_box.visible = mode == Mode.TERRAIN
 	units_box.visible = mode == Mode.UNITS
+	objective_box.visible = mode == Mode.OBJECTIVE
 	_end_stroke()
 	overlay.queue_redraw()
 	_update_status()
@@ -528,6 +557,9 @@ func _fill_inspector() -> void:
 	level_spin.editable = fields_editable
 	items_edit.editable = fields_editable
 	%DeleteUnitButton.disabled = not editing
+	# Only an enemy that can be built can be the commander.
+	commander_check.disabled = not editing or broken or ref.faction != UnitReference.Faction.ENEMY
+	commander_check.set_pressed_no_signal(editing and ref.commander)
 	deselect_button.disabled = not editing
 	if editing:
 		var data := ref.build_unit_data()
@@ -649,6 +681,8 @@ func _apply_inspector(respawn := false) -> void:
 	var new_faction := faction_option.selected as UnitReference.Faction
 	var appearance_changed := new_faction != ref.faction
 	ref.faction = new_faction
+	if new_faction != UnitReference.Faction.ENEMY:
+		ref.commander = false  # only an enemy can command
 
 	var picked := String(_picked_character())
 	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
@@ -794,11 +828,16 @@ func _load() -> void:
 	_frame_camera()
 	_refresh_layer_list()
 	_select_unit("")
+	_select_condition(&"", -1)
 	_clear_history()
 	status.text = "Loaded %s" % level_path
 
 
 func _save() -> void:
+	var problems := objective_problems()
+	if not problems.is_empty():
+		status.text = "Can't save until the objective is fixed: " + " ".join(problems)
+		return
 	level_path = path_edit.text
 	if level.level_state.save_file(level_path, false) == OK:
 		status.text = "Saved %s" % level_path
@@ -811,6 +850,7 @@ func _new() -> void:
 	level.rebuild()
 	_refresh_layer_list()
 	_select_unit("")
+	_select_condition(&"", -1)
 	_clear_history()
 	status.text = "New empty map. Add a layer to start painting."
 
@@ -858,6 +898,7 @@ func _restore(snapshot: Dictionary) -> void:
 	level.rebuild()
 	_refresh_layer_list()
 	_select_unit(selected_unit_id)
+	_show_condition(_selected_side, _selected_index)
 	_update_history_buttons()
 
 
@@ -893,6 +934,7 @@ func _frame_camera() -> void:
 
 
 func _update_status() -> void:
+	_update_problems()  # unit edits (a deleted or unmarked commander) can change them
 	if mode == Mode.UNITS:
 		var here := _unit_id_at(hover_cell)
 		status.text = "cell %s   |   %s" % [hover_cell, "unit: " + here if not here.is_empty() else "%d units" % level.level_state.map_data.units.size()]
@@ -932,6 +974,16 @@ func _draw_overlay() -> void:
 	for y in range(int(first.y), int(last.y) + 1):
 		overlay.draw_line(Vector2(view.position.x, y * ts.y), Vector2(view.end.x, y * ts.y), GRID_COLOR)
 
+	# Seize cells, in every mode, the same green as in play.
+	var seize_cells: Array[Vector2i] = level.level_state.objective.seize_cells() if level.level_state != null else []
+	for cell in seize_cells:
+		overlay.draw_rect(_cell_rect(cell), SEIZE_FILL)
+		overlay.draw_rect(_cell_rect(cell), RangeOverlay.SEIZE_OUTLINE, false, 1.0)
+
+	if mode == Mode.OBJECTIVE:
+		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
+		return
+
 	if mode == Mode.UNITS:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
 		var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
@@ -947,3 +999,287 @@ func _draw_overlay() -> void:
 	var color := ERASE_COLOR if (dragging == Brush.ERASE or (dragging == -1 and brush == Brush.ERASE)) else PAINT_COLOR
 	for v in brush_verts():
 		overlay.draw_arc(vert_position(v), 3.5, 0, TAU, 12, color, 1.0)
+
+
+# --- Commander -----------------------------------------------------------------
+
+
+## Marks or unmarks the selected enemy as the commander. Only one per level, so
+## marking it clears any other.
+func _on_commander_toggled(pressed: bool) -> void:
+	if _syncing:
+		return
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
+	if ref == null:
+		return
+	var before := _snapshot()
+	if pressed:
+		for other: UnitReference in level.level_state.map_data.units.values():
+			other.commander = false
+	ref.commander = pressed
+	_commit(before)
+	_rebuild_units()  # the crown is drawn by the unit's node
+	_refresh_objective_panel()
+
+
+# --- Objective -----------------------------------------------------------------
+
+
+func _build_objective_panel() -> void:
+	var win_label := Label.new()
+	win_label.text = "Win when any of these happens"
+	objective_box.add_child(win_label)
+	win_list = _condition_list(Objective.WIN)
+	win_add_option = _add_row(Objective.WIN)
+
+	var lose_label := Label.new()
+	lose_label.text = "Lose when any of these happens"
+	objective_box.add_child(lose_label)
+	lose_list = _condition_list(Objective.LOSE)
+	lose_add_option = _add_row(Objective.LOSE)
+
+	var remove := Button.new()
+	remove.text = "Remove selected condition"
+	remove.pressed.connect(_remove_selected_condition)
+	objective_box.add_child(remove)
+
+	settings_box = VBoxContainer.new()
+	objective_box.add_child(settings_box)
+
+	problems_label = Label.new()
+	problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
+	objective_box.add_child(problems_label)
+
+	var help := Label.new()
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help.text = "Mark the enemy commander in Units mode. With a seize condition selected, click map cells to add or remove them."
+	objective_box.add_child(help)
+
+
+func _condition_list(side: StringName) -> ItemList:
+	var list := ItemList.new()
+	list.auto_height = true
+	list.item_selected.connect(func(i: int) -> void: _select_condition(side, i))
+	objective_box.add_child(list)
+	return list
+
+
+## An "Add" dropdown of the types allowed on `side`, plus its button.
+func _add_row(side: StringName) -> OptionButton:
+	var row := HBoxContainer.new()
+	var option := OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for type_name in Objective.types_for(side):
+		option.add_item(Objective.title_of(type_name))
+		option.set_item_metadata(option.item_count - 1, type_name)
+	var add := Button.new()
+	add.text = "Add"
+	add.pressed.connect(func() -> void:
+		if option.selected >= 0:
+			_add_condition(side, option.get_item_metadata(option.selected)))
+	row.add_child(option)
+	row.add_child(add)
+	objective_box.add_child(row)
+	return option
+
+
+## Adds a new `type_name` condition with default settings to `side`, and selects it.
+func _add_condition(side: StringName, type_name: String) -> void:
+	var before := _snapshot()
+	_conditions(side).append(Objective.create(type_name))
+	_commit(before)
+	_show_condition(side, _conditions(side).size() - 1)
+
+
+func _remove_selected_condition() -> void:
+	var list := _conditions(_selected_side)
+	if _selected_index < 0 or _selected_index >= list.size():
+		return  # nothing selected, or the built-in loss
+	var before := _snapshot()
+	list.remove_at(_selected_index)
+	_commit(before)
+	_show_condition(&"", -1)
+
+
+## Selects list item `list_item` of `side`'s list. In the lose list, item 0 is
+## the built-in "Your army is defeated", which selects nothing.
+func _select_condition(side: StringName, list_item: int) -> void:
+	_show_condition(side, list_item - 1 if side == Objective.LOSE else list_item)
+
+
+## Shows condition `index` of `side` in the settings (-1 or an empty side: none).
+func _show_condition(side: StringName, index: int) -> void:
+	_selected_side = side
+	_selected_index = index if index >= 0 and index < _conditions(side).size() else -1
+	_refresh_objective_panel()
+
+
+## The level's conditions on `side` (the live arrays, edited in place).
+func _conditions(side: StringName) -> Array[Objective.Condition]:
+	var objective := level.level_state.objective
+	if side == Objective.WIN:
+		return objective.win
+	if side == Objective.LOSE:
+		return objective.lose
+	return [] as Array[Objective.Condition]
+
+
+func _selected_condition() -> Objective.Condition:
+	var conditions := _conditions(_selected_side)
+	return conditions[_selected_index] if _selected_index >= 0 and _selected_index < conditions.size() else null
+
+
+## Toggles `cell` in the selected seize condition's cells.
+func _objective_click(cell: Vector2i) -> void:
+	var seize := _selected_condition() as Objective.Seize
+	if seize == null:
+		status.text = "Select a seize condition to pick its cells."
+		return
+	var before := _snapshot()
+	if seize.cells.has(cell):
+		seize.cells.erase(cell)
+	else:
+		seize.cells.append(cell)
+	_commit(before)
+	_refresh_objective_panel()
+
+
+## Redraws the lists, the selected condition's settings and the problems.
+func _refresh_objective_panel() -> void:
+	if win_list == null:
+		return
+	var state := level.level_state
+	win_list.clear()
+	for line in state.objective.win_lines(state):
+		win_list.add_item(line)
+	lose_list.clear()
+	for line in state.objective.lose_lines(state):
+		lose_list.add_item(line)
+	# The built-in wipe loss is shown but can't be selected or removed.
+	lose_list.set_item_selectable(0, false)
+	lose_list.set_item_custom_fg_color(0, Color(1, 1, 1, 0.6))
+	if _selected_index >= 0:
+		var list := win_list if _selected_side == Objective.WIN else lose_list
+		list.select(_selected_index + (1 if _selected_side == Objective.LOSE else 0))
+	_build_settings()
+	_update_problems()
+	overlay.queue_redraw()
+
+
+## Builds the controls the selected condition's registry "settings" ask for.
+func _build_settings() -> void:
+	for child in settings_box.get_children():
+		settings_box.remove_child(child)
+		child.queue_free()
+	turns_spin = null
+	units_list = null
+	seize_name_edit = null
+	var condition := _selected_condition()
+	if condition == null:
+		return
+	for setting in Objective.settings_of(condition.type):
+		match setting:
+			&"turns":
+				turns_spin = SpinBox.new()
+				turns_spin.min_value = 1
+				turns_spin.max_value = 99
+				turns_spin.prefix = "turns"
+				turns_spin.value = (condition as Objective.TurnCount).turns
+				turns_spin.value_changed.connect(_on_turns_changed)
+				settings_box.add_child(turns_spin)
+			&"units":
+				units_list = ItemList.new()
+				units_list.select_mode = ItemList.SELECT_MULTI
+				units_list.auto_height = true
+				var fall := condition as Objective.UnitsFall
+				# In the map's own order, so picks read in the order units were placed.
+				for id: String in level.level_state.map_data.units:
+					var ref: UnitReference = level.level_state.map_data.units[id]
+					units_list.add_item("%s (%s)" % [ref.display_name(), id])
+					units_list.set_item_metadata(units_list.item_count - 1, id)
+					if fall.units.has(id):
+						units_list.select(units_list.item_count - 1, false)
+				units_list.multi_selected.connect(func(_i: int, _on: bool) -> void: _on_units_picked())
+				settings_box.add_child(units_list)
+			&"cells":
+				var hint := Label.new()
+				hint.text = "%d cell(s): click the map to add or remove." % (condition as Objective.Seize).cells.size()
+				settings_box.add_child(hint)
+			&"name":
+				seize_name_edit = LineEdit.new()
+				seize_name_edit.placeholder_text = "name, e.g. the gate (blank: the marked cell)"
+				seize_name_edit.text = (condition as Objective.Seize).name
+				seize_name_edit.text_changed.connect(_on_seize_name_changed)
+				settings_box.add_child(seize_name_edit)
+
+
+func _on_turns_changed(value: float) -> void:
+	var count := _selected_condition() as Objective.TurnCount
+	if count == null or count.turns == int(value):
+		return
+	var before := _snapshot()
+	count.turns = int(value)
+	_commit(before, "objective_turns")
+	_refresh_lists_and_problems()
+
+
+## Sets the selected "units fall" condition's units to those picked in the list.
+func _on_units_picked() -> void:
+	var fall := _selected_condition() as Objective.UnitsFall
+	if fall == null:
+		return
+	var before := _snapshot()
+	var picked: Array[String] = []
+	for i in units_list.get_selected_items():
+		picked.append(units_list.get_item_metadata(i))
+	fall.units = picked
+	_commit(before)
+	_refresh_lists_and_problems()
+
+
+func _on_seize_name_changed(text: String) -> void:
+	var seize := _selected_condition() as Objective.Seize
+	if seize == null:
+		return
+	var before := _snapshot()
+	seize.name = text.strip_edges()
+	_commit(before, "objective_name")
+	_refresh_lists_and_problems()
+
+
+## Like _refresh_objective_panel, but keeps the settings controls (and their
+## focus) while one is being edited.
+func _refresh_lists_and_problems() -> void:
+	var state := level.level_state
+	var lines := state.objective.win_lines(state) if _selected_side == Objective.WIN else state.objective.lose_lines(state)
+	var list := win_list if _selected_side == Objective.WIN else lose_list
+	for i in mini(lines.size(), list.item_count):
+		list.set_item_text(i, lines[i])
+	_update_problems()
+
+
+## What stops the level from being saved: Objective.validate's problems.
+func objective_problems() -> PackedStringArray:
+	return level.level_state.objective.validate(level.level_state)
+
+
+## Worth a look but not blocking: an empty win list means "never" (a level an
+## event will end later), which is easy to do by accident.
+func objective_notes() -> PackedStringArray:
+	var notes := PackedStringArray()
+	if level.level_state.objective.win.is_empty():
+		notes.append("No win condition: the level can only be lost.")
+	return notes
+
+
+func _update_problems() -> void:
+	if problems_label == null or level.level_state == null:
+		return  # before the first level loads
+	var problems := objective_problems()
+	var lines := PackedStringArray()
+	if not problems.is_empty():
+		lines.append("Fix before saving:\n- " + "\n- ".join(problems))
+	for note in objective_notes():
+		lines.append("Note: " + note)
+	problems_label.text = "\n".join(lines)

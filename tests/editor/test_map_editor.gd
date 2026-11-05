@@ -327,3 +327,215 @@ func test_saved_level_reloads() -> void:
 	assert_not_null(reloaded)
 	assert_eq(reloaded.level_units.size(), _map_units().size())
 	DirAccess.remove_absolute(path)
+
+
+# --- Objective mode ---------------------------------------------------------------
+# simple_level has no objective in its file: the default rout, plus the built-in
+# wipe loss.
+
+
+func _objective() -> Objective:
+	return editor.level.level_state.objective
+
+
+func _objective_mode() -> void:
+	editor._set_mode(MapEditor.Mode.OBJECTIVE)
+
+
+func test_objective_mode_shows_its_panel() -> void:
+	_objective_mode()
+	assert_true(editor.objective_box.visible)
+	assert_false(editor.units_box.visible)
+	assert_false(editor.terrain_box.visible)
+
+
+func test_the_lists_show_each_conditions_text() -> void:
+	_objective_mode()
+	assert_eq(editor.win_list.item_count, 1)
+	assert_eq(editor.win_list.get_item_text(0), "Rout the enemy")
+	assert_eq(editor.lose_list.item_count, 1, "just the built-in line")
+	assert_eq(editor.lose_list.get_item_text(0), "Your army is defeated")
+
+
+func test_the_add_menus_offer_only_types_allowed_on_that_side() -> void:
+	_objective_mode()
+	assert_eq(editor.win_add_option.item_count, Objective.types_for(Objective.WIN).size())
+	assert_eq(editor.lose_add_option.item_count, Objective.types_for(Objective.LOSE).size())
+	for i in editor.lose_add_option.item_count:
+		assert_ne(editor.lose_add_option.get_item_text(i), "Rout the enemy")
+
+
+func test_adding_and_removing_a_condition() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "survive")
+	assert_eq(_objective().win.size(), 2)
+	assert_eq(editor.win_list.get_item_text(1), "Survive 1 turn")
+	editor._select_condition(Objective.WIN, 1)
+	editor._remove_selected_condition()
+	assert_eq(_objective().win.size(), 1)
+	assert_eq(_objective().win[0].type, "faction_defeated")
+
+
+func test_turns_are_set_from_the_number_box() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "survive")
+	assert_not_null(editor.turns_spin, "the selected condition asks for turns")
+	editor.turns_spin.value = 3
+	assert_eq((_objective().win[1] as Objective.Survive).turns, 3)
+	assert_eq(editor.win_list.get_item_text(1), "Survive 3 turns")
+
+
+func test_objective_edits_can_be_undone() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.LOSE, "turns_pass")
+	assert_eq(_objective().lose.size(), 1)
+	editor.undo()
+	assert_eq(editor.level.level_state.objective.lose.size(), 0)
+	assert_eq(editor.lose_list.item_count, 1, "the panel follows the undo")
+
+
+func test_the_built_in_loss_cant_be_removed() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.LOSE, "turns_pass")
+	editor._select_condition(Objective.LOSE, 0)  # the fixed "Your army is defeated" line
+	editor._remove_selected_condition()
+	assert_eq(_objective().lose.size(), 1, "the turn limit is still there")
+	assert_eq(editor.lose_list.get_item_text(0), "Your army is defeated")
+
+
+func test_units_fall_picks_units_from_the_map() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.LOSE, "units_fall")
+	assert_not_null(editor.units_list)
+	assert_eq(editor.units_list.item_count, _map_units().size())
+	for i in editor.units_list.item_count:
+		if editor.units_list.get_item_metadata(i) in ["lyn", "kent"]:
+			editor.units_list.select(i, false)
+	editor._on_units_picked()
+	assert_eq((_objective().lose[0] as Objective.UnitsFall).units, ["lyn", "kent"] as Array[String])
+	assert_eq(editor.lose_list.get_item_text(1), "Lyn or Kent falls")
+
+
+func test_seize_cells_are_picked_by_clicking_the_map() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "seize")
+	editor._objective_click(FREE_CELL)
+	var seize := _objective().win[1] as Objective.Seize
+	assert_eq(seize.cells, [FREE_CELL] as Array[Vector2i])
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
+	assert_eq(seize.cells.size(), 2)
+	editor._objective_click(FREE_CELL)
+	assert_eq(seize.cells, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i], "clicking again removes it")
+	editor.seize_name_edit.text = "the gate"
+	editor.seize_name_edit.text_changed.emit("the gate")
+	assert_eq(seize.name, "the gate")
+	assert_eq(editor.win_list.get_item_text(1), "Seize the gate")
+
+
+func test_clicking_cells_without_a_seize_selected_changes_nothing() -> void:
+	_objective_mode()
+	editor._select_condition(Objective.WIN, 0)
+	var before := JSON.stringify(_objective().toJson())
+	editor._objective_click(FREE_CELL)
+	assert_eq(JSON.stringify(_objective().toJson()), before)
+
+
+# --- Problems block saving ----------------------------------------------------------
+
+
+const SAVE_PATH := "user://test_map_editor_objective.json"
+
+
+func after_each() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+
+
+func test_a_commander_objective_without_a_commander_cant_be_saved() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "defeat_commander")
+	assert_false(editor.objective_problems().is_empty())
+	assert_false(editor.problems_label.text.is_empty())
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_false(FileAccess.file_exists(SAVE_PATH), "refused")
+	assert_string_contains(editor.status.text, "commander")
+
+
+func test_marking_a_commander_lets_it_save() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "defeat_commander")
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	assert_true(editor.objective_problems().is_empty())
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_true(FileAccess.file_exists(SAVE_PATH))
+	var reloaded := LevelState.load_file(SAVE_PATH)
+	assert_eq(reloaded.commander_id(), "bandit")
+	assert_true(reloaded.objective.has_type("defeat_commander"))
+
+
+func test_a_seize_with_no_cells_cant_be_saved() -> void:
+	_objective_mode()
+	editor._add_condition(Objective.WIN, "seize")
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_false(FileAccess.file_exists(SAVE_PATH))
+
+
+# --- The commander checkbox ------------------------------------------------------------
+
+
+func test_only_enemies_can_be_marked_commander() -> void:
+	editor._select_unit("lyn")
+	assert_true(editor.commander_check.disabled)
+	editor._select_unit("bandit")
+	assert_false(editor.commander_check.disabled)
+	editor._select_unit("")
+	assert_true(editor.commander_check.disabled, "nothing selected")
+
+
+func test_marking_a_commander_clears_the_previous_one() -> void:
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	assert_true(_map_units()["bandit"].commander)
+	editor._select_unit("brigand")
+	assert_false(editor.commander_check.button_pressed)
+	editor.commander_check.button_pressed = true
+	assert_true(_map_units()["brigand"].commander)
+	assert_false(_map_units()["bandit"].commander, "one commander per level")
+
+
+func test_the_commander_wears_the_crown_in_the_editor() -> void:
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	var node: LevelUnit = editor.level.unit_nodes["bandit"]
+	assert_not_null(node.get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
+
+
+func test_a_unit_that_stops_being_an_enemy_loses_the_mark() -> void:
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	editor.faction_option.selected = UnitReference.Faction.PLAYER
+	editor._apply_inspector(true)
+	assert_false(_map_units()["bandit"].commander)
+
+
+func test_unmarking_and_undo() -> void:
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	editor.undo()
+	assert_false(editor.level.level_state.map_data.units["bandit"].commander)
+
+
+func test_a_level_with_no_win_condition_gets_a_note_but_still_saves() -> void:
+	_objective_mode()
+	editor._select_condition(Objective.WIN, 0)
+	editor._remove_selected_condition()
+	assert_eq(_objective().win.size(), 0)
+	assert_string_contains(editor.problems_label.text, "No win condition")
+	assert_true(editor.objective_problems().is_empty(), "a note, not a problem: an event could end it later")
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_true(FileAccess.file_exists(SAVE_PATH))
