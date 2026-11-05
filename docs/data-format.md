@@ -99,6 +99,7 @@ or a **generic unit** defined right there:
 ```
 
 - `faction` is `player`, `enemy` or `ally` (green, on the player's side).
+- `"commander": true` (optional) marks the enemy commander that `defeat_commander` targets. One per level, enemies only. It's drawn with a crown in play and in the editor.
 - A generic unit's `stats` are optional **overrides**: any stat left out uses the class's base stat.
 - `sprite_sheet` (optional) is a full sprite path. Without it the unit uses its character's or class's sprite in its faction's colour. The map editor fills it in.
 - A unit whose character or class id doesn't exist is kept in the file but skipped in play; the map editor lists it in its status line.
@@ -109,18 +110,32 @@ Optional `objective` at the top level of the level file: how the level is won or
 
 ```json
 "objective": {
-	"win":  [{ "type": "faction_defeated", "faction": "enemy" }],
-	"lose": [{ "type": "faction_defeated", "faction": "player" },
-	         { "type": "unit_defeated", "unit": "adelard" }]
+	"win":  [{ "type": "seize", "cells": [[12, 4]], "name": "the gate" }],
+	"lose": [{ "type": "units_fall", "units": ["adelard"] },
+	         { "type": "turns_pass", "turns": 10 }]
 }
 ```
 
 - The level is won when **any** `win` condition holds and lost when **any** `lose` condition holds. Losing is checked first, so a lord falling in the same fight as the last enemy is a defeat.
-- A list left out keeps its default: `win` is "every enemy defeated", `lose` is "every player unit defeated". So a level with only a lord adds both `lose` conditions, as above.
-- Condition types: `faction_defeated` (`faction`: `player`, `enemy` or `ally`) and `unit_defeated` (`unit`: a unit id from this level's `map_data.units`).
-- An unknown type, a bad faction or a missing `unit` is warned about ("Objective:") and dropped. A `unit` id not in the level is warned about and never counts as defeated.
+- **Losing every player unit always loses**, whatever `lose` says. It's built in, so `lose` only lists a level's extra conditions (an old file that lists `faction_defeated` for `player` still loads; that entry is dropped as redundant).
+- `win` left out is a rout. `lose` left out (or empty) adds nothing beyond the built-in wipe.
 
-The map editor writes everything except the objective, which it keeps as it is. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell.
+| Type | List | Settings | Met when | Shown as |
+|---|---|---|---|---|
+| `faction_defeated` | win | `faction`: `enemy` | every enemy is defeated | Rout the enemy |
+| `defeat_commander` | win | none | the unit marked `"commander": true` is defeated | Defeat the enemy commander |
+| `seize` | win | `cells`: list of `[x, y]`; optional `name` | a unit uses the **Seize** command on one of the cells | Seize the gate (or "Seize the marked cell") |
+| `survive` | win | `turns` (1+) | that many enemy phases are over | Survive 3 turns |
+| `units_fall` | lose | `units`: list of unit ids | any of them is defeated | Adelard falls / Adelard or Rowland falls |
+| `turns_pass` | lose | `turns` (1+) | that many enemy phases are over without a win | 10 turns pass |
+| *(built in)* | lose | none | every player unit is defeated | Your army is defeated |
+
+- Turns count from 1 (the first player phase) and go up after each enemy phase, so "survive 3" and "3 turns pass" both resolve right after the third enemy phase.
+- The older `{"type": "unit_defeated", "unit": "adelard"}` still reads, as `units_fall`.
+- An unknown type, a condition in the wrong list (e.g. `seize` under `lose`), or missing settings are warned about ("Objective:") and dropped. Problems that need the level's units (no commander marked for `defeat_commander`, a `seize` with no cells, a `units_fall` id that isn't in the level, more than one commander, a commander that isn't an enemy) are warned about when the level loads, and **the map editor won't save** until they're fixed. A missing commander or unit never counts as defeated.
+- **Adding a condition type** (code): a `Condition` subclass in `gameplay/map/objective.gd` plus one `CONDITION_TYPES` entry (its class, editor title, allowed lists and settings). The map editor builds its fields from the settings.
+
+The map editor edits all of it in **Objective** mode: add or remove conditions in each list, set turns, pick units, name a seize point, and click map cells to toggle seize cells (shown in green, as in play). Mark the enemy commander with the **Enemy commander** checkbox in Units mode. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell.
 
 ## Campaign: `resources/campaign.json`
 
