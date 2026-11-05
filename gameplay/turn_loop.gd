@@ -1,19 +1,34 @@
 class_name TurnLoop
 extends Node
-## Coordinates player and enemy phases for one loaded Level.
+## Coordinates player and enemy phases for one loaded Level, counts turns, and
+## ends the level when its objective says so.
+##
+## Hooks for UI and events: turn() and turn_changed for a turn display,
+## objective and objective_changed for an objective display, set_objective() to
+## change the goal mid-level, and mark_seized() for the Seize command.
 
 enum Phase { PLAYER, ENEMY, COMPLETE }
 
 signal phase_changed(phase: Phase)
-## The level is over: [param won] is true when every enemy fell.
+## The level is over: [param won] is true for a win. Emitted at most once.
 signal finished(won: bool)
+## A new turn began (after an enemy phase); [param turn] starts at 1.
+signal turn_changed(turn: int)
+## set_objective() replaced the level's objective.
+signal objective_changed(objective: Objective)
 
 var phase := Phase.COMPLETE
 var battle: Battle
 var level: Level
 var enemy_controller: EnemyController
-## What ends the level; checked after every action.
-var objective: Objective
+## What ends the level; checked after every action. It's the level's own
+## objective (LevelState.objective), so a save and set_objective() agree.
+var objective: Objective:
+	get:
+		return level.level_state.objective if _has_level() else _objective
+
+## Only used before a level is set up (or without one).
+var _objective := Objective.new()
 
 
 ## Connected by Battle after its Level has loaded and built its unit nodes.
@@ -21,8 +36,9 @@ var objective: Objective
 func setup(p_battle: Battle, p_level: Level, p_objective: Objective = null) -> void:
 	battle = p_battle
 	level = p_level
-	objective = p_objective if p_objective != null else Objective.new()
-	if level == null or level.level_state == null:
+	if p_objective != null:
+		_store_objective(p_objective)
+	if not _has_level():
 		return
 	enemy_controller = EnemyController.new(level.level_state, level.pathfinding)
 	_begin_player_phase()
@@ -31,6 +47,27 @@ func setup(p_battle: Battle, p_level: Level, p_objective: Objective = null) -> v
 
 func is_player_turn() -> bool:
 	return phase == Phase.PLAYER
+
+
+## The current turn: 1 for the first player phase, +1 after each enemy phase.
+func turn() -> int:
+	return level.level_state.turn if _has_level() else 1
+
+
+## Replaces the level's objective (an event changing the goal mid-level) and
+## checks it at once, so an objective that's already met ends the level.
+func set_objective(new_objective: Objective) -> void:
+	_store_objective(new_objective)
+	objective_changed.emit(new_objective)
+	if phase == Phase.PLAYER or phase == Phase.ENEMY:
+		_check_end()
+
+
+## Records that a unit used Seize. The action's normal completion check
+## (on_player_action_completed) then ends the level if seizing wins it.
+func mark_seized() -> void:
+	if _has_level():
+		level.level_state.seized = true
 
 
 ## Called after a player attack, item use, or wait action has resolved.
@@ -62,6 +99,9 @@ func _run_enemy_phase() -> void:
 		# action has changed the board and possibly defeated a player unit.
 		var action := enemy_controller.plan_action(enemy)
 		await _execute_enemy_action(enemy, action)
+		# The level may have ended while this enemy acted (set_objective from an event).
+		if _is_complete():
+			return
 		enemy.has_acted = true
 		if not enemy.has_moved:
 			enemy.has_moved = true
@@ -70,6 +110,12 @@ func _run_enemy_phase() -> void:
 		if _check_end():
 			return
 
+	# N enemy phases are over: survive and turn-limit conditions are met now,
+	# before the next player phase starts.
+	level.level_state.turn += 1
+	turn_changed.emit(level.level_state.turn)
+	if _check_end():
+		return
 	_begin_player_phase()
 
 
@@ -98,6 +144,8 @@ func _execute_enemy_action(enemy: LevelUnitState, action: EnemyAIAction) -> void
 			await _move_enemy(enemy, node, action.destination)
 		EnemyAIAction.Type.ATTACK:
 			await _move_enemy(enemy, node, action.destination)
+			if _is_complete():
+				return  # the level ended during the walk
 			var target := enemy_controller.state_for(action.target)
 			if target != null and target.is_alive() \
 					and Combat.can_strike(enemy.unit, Combat.distance(enemy, target)):
@@ -125,8 +173,11 @@ func _begin_player_phase() -> void:
 	level.update_tints()
 
 
-## Finishes the level if the objective says it's over. True when it did.
+## Finishes the level if the objective says it's over. True when it did, or when
+## the level was already over.
 func _check_end() -> bool:
+	if _is_complete():
+		return true
 	match objective.outcome(level.level_state):
 		Objective.Outcome.WON:
 			_finish(true)
@@ -150,7 +201,22 @@ func _is_complete() -> bool:
 	return phase == Phase.COMPLETE
 
 
+## Ends the level, once: a second call (say, an objective met mid-enemy-phase
+## and then checked again) does nothing, so GameFlow advances only once.
 func _finish(won: bool) -> void:
+	if _is_complete():
+		return
 	phase = Phase.COMPLETE
 	phase_changed.emit(phase)
 	finished.emit(won)
+
+
+func _has_level() -> bool:
+	return level != null and level.level_state != null
+
+
+func _store_objective(new_objective: Objective) -> void:
+	if _has_level():
+		level.level_state.objective = new_objective
+	else:
+		_objective = new_objective

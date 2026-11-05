@@ -12,6 +12,11 @@ var level_units: Dictionary = {}
 var events: Dictionary = {}
 ## How the level is won or lost. Rout by default.
 var objective := Objective.new()
+## The turn number: 1 is the first player phase, and it goes up after each enemy
+## phase. Saved only with play state, so an authored level starts on turn 1.
+var turn := 1
+## Whether a unit has used the Seize command (Objective's seize condition).
+var seized := false
 
 
 static func fromJson(d: Dictionary) -> LevelState:
@@ -24,7 +29,17 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.objective = Objective.fromJson(objective_json if objective_json is Dictionary else {})
 	for problem in state.objective.validate(state):
 		push_warning("Objective: %s" % problem)
+	state.turn = maxi(SaveUtil.read_int(d, "turn", 1), 1) if d.has("turn") else 1
+	state.seized = d.get("seized", false) == true
 	return state
+
+
+## The id of the unit marked as the enemy commander, or "" when none is.
+func commander_id() -> String:
+	for ref: UnitReference in map_data.units.values():
+		if ref.commander:
+			return ref.id
+	return ""
 
 
 ## With `include_state` off this is an authored level (no level_units), so
@@ -41,6 +56,8 @@ func toJson(include_state := true) -> Dictionary:
 		for id in level_units:
 			saved_units[id] = level_units[id].toJson()
 		d["level_units"] = saved_units
+		d["turn"] = turn
+		d["seized"] = seized
 	return d
 
 

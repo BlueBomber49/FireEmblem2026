@@ -173,3 +173,16 @@ func test_missing_sprite_uses_class_default_without_scanning_folders() -> void:
 func test_missing_sprite_uses_character_class_default() -> void:
 	var ref := UnitReference.fromJson("wil", {"character": "wil", "faction": "player"})
 	assert_eq(ref.resolved_sprite(), SHEETS + "Archer/Archer_Blue1.png")
+
+
+# --- Commander -----------------------------------------------------------------
+
+
+func test_commander_is_written_only_when_set() -> void:
+	var ref := _bandit_placement()
+	assert_false(ref.commander)
+	assert_false(ref.toJson().has("commander"))
+	ref.commander = true
+	assert_eq(ref.toJson()["commander"], true)
+	assert_true(UnitReference.fromJson("bandit", ref.toJson()).commander)
+	assert_false(UnitReference.fromJson("bandit", ref.toJson()).toJson().has("_extra"))
