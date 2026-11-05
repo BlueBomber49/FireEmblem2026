@@ -5,8 +5,9 @@ extends Node2D
 ##
 ## Terrain mode: left mouse paints, right mouse erases.
 ## Units mode: left click places a unit, drag moves one, right click deletes.
-## Objective mode: edit the win and lose conditions; with a seize condition
-## selected, left click toggles seize cells. Problems block saving.
+## Objective mode: edit the win and loss conditions row by row; seize cells and
+## the commander are set with Choose, a map click, then Confirm. Problems block
+## saving.
 ## Both: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE }
