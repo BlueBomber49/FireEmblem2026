@@ -65,3 +65,17 @@ func test_outline_edges_are_in_cell_corner_coordinates() -> void:
 	assert_eq(corners.size(), 4)
 	for corner in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
 		assert_true(corners.has(corner))
+
+
+# --- Seize cells -------------------------------------------------------------------
+
+
+func test_set_seize_cells_stores_them() -> void:
+	overlay.set_seize_cells([Vector2i(2, 3), Vector2i(4, 4)] as Array[Vector2i])
+	assert_eq(overlay.seize_cells, {Vector2i(2, 3): true, Vector2i(4, 4): true})
+
+
+func test_seize_cells_alone_keep_the_shimmer_animating() -> void:
+	overlay.set_seize_cells([Vector2i(2, 3)] as Array[Vector2i])
+	overlay._process(1.0 / RangeOverlay.FPS)
+	assert_eq(overlay.frame, 1)
