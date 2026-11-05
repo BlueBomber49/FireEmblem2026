@@ -15,15 +15,17 @@ const EFFECTIVE_MULTIPLIER := 2
 ## Weapon triangle: damage and hit bonus with advantage (the reverse at disadvantage).
 const TRIANGLE_DAMAGE := 1
 const TRIANGLE_HIT := 15
-## Who beats whom: physical swords > axes > lances > swords; magic anima > light > dark > anima.
-## Knives lose to all physical weapons but are strong against magic
+## Who beats whom: physical swords > axes > lances > swords; magic anima > light >
+## dark > anima. Knives lose to swords, lances and axes but beat all magic; bows
+## and staves sit outside the triangle. Each type maps to every type it beats.
 const TRIANGLE_BEATS := {
-	Enums.WeaponType.SWORD: Enums.WeaponType.AXE,
-	Enums.WeaponType.AXE: Enums.WeaponType.LANCE,
-	Enums.WeaponType.LANCE: Enums.WeaponType.SWORD,
-	Enums.WeaponType.ANIMA: Enums.WeaponType.LIGHT,
-	Enums.WeaponType.LIGHT: Enums.WeaponType.DARK,
-	Enums.WeaponType.DARK: Enums.WeaponType.ANIMA
+	Enums.WeaponType.SWORD: [Enums.WeaponType.AXE, Enums.WeaponType.KNIFE],
+	Enums.WeaponType.AXE: [Enums.WeaponType.LANCE, Enums.WeaponType.KNIFE],
+	Enums.WeaponType.LANCE: [Enums.WeaponType.SWORD, Enums.WeaponType.KNIFE],
+	Enums.WeaponType.KNIFE: [Enums.WeaponType.ANIMA, Enums.WeaponType.LIGHT, Enums.WeaponType.DARK],
+	Enums.WeaponType.ANIMA: [Enums.WeaponType.LIGHT],
+	Enums.WeaponType.LIGHT: [Enums.WeaponType.DARK],
+	Enums.WeaponType.DARK: [Enums.WeaponType.ANIMA],
 }
 
 
@@ -151,9 +153,9 @@ static func attack_speed(unit: Unit) -> int:
 static func triangle(weapon: WeaponData, other: WeaponData) -> int:
 	if weapon == null or other == null:
 		return 0
-	if TRIANGLE_BEATS.get(weapon.weapon_type, -1) == other.weapon_type:
+	if other.weapon_type in TRIANGLE_BEATS.get(weapon.weapon_type, []):
 		return 1
-	if TRIANGLE_BEATS.get(other.weapon_type, -1) == weapon.weapon_type:
+	if weapon.weapon_type in TRIANGLE_BEATS.get(other.weapon_type, []):
 		return -1
 	return 0
 

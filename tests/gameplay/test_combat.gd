@@ -55,6 +55,22 @@ func test_weapon_triangle() -> void:
 	assert_eq(Combat.triangle(null, w.call(&"iron_sword")), 0)
 
 
+func test_knives_lose_to_physical_weapons_and_beat_magic() -> void:
+	var w := func(id: StringName) -> WeaponData: return GameData.get_item(id)
+	var knife: WeaponData = w.call(&"iron_knife")
+	for id: StringName in [&"iron_sword", &"iron_lance", &"iron_axe"]:
+		assert_eq(Combat.triangle(knife, w.call(id)), -1, "knife vs %s" % id)
+		assert_eq(Combat.triangle(w.call(id), knife), 1, "%s vs knife" % id)
+	assert_eq(Combat.triangle(knife, w.call(&"iron_bow")), 0, "bows are neutral")
+	assert_eq(Combat.triangle(w.call(&"iron_bow"), knife), 0)
+	assert_eq(Combat.triangle(knife, w.call(&"iron_knife")), 0, "same type")
+	for magic_type in [Enums.WeaponType.ANIMA, Enums.WeaponType.LIGHT, Enums.WeaponType.DARK]:
+		var tome := WeaponData.new()
+		tome.weapon_type = magic_type
+		assert_eq(Combat.triangle(knife, tome), 1, "knife beats %s" % Enums.weapon_type_name(magic_type))
+		assert_eq(Combat.triangle(tome, knife), -1)
+
+
 func test_magic_triangle() -> void:
 	var anima := WeaponData.new()
 	anima.weapon_type = Enums.WeaponType.ANIMA
