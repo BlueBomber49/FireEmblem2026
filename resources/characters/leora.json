@@ -1,0 +1,20 @@
+{
+	"id": "leora",
+	"name": "Leora",
+	"class": "nomad",
+	"level": 1,
+	"stats": {
+		"hp": 22,
+		"strength": 7,
+		"magic": 0,
+		"skill": 6,
+		"speed": 8,
+		"luck": 2,
+		"defense": 5,
+		"resistance": 1,
+		"constitution": 9
+	},
+	"items": [
+		"iron_bow", "iron_knife"
+	]
+}

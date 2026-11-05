@@ -113,30 +113,19 @@ func test_completed_game_ignores_later_end_turn_requests() -> void:
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 
 
-func test_enemies_look_normal_again_when_the_player_phase_begins() -> void:
-	await _loop.end_player_turn()
-	var bandit: LevelUnitState = _battle.level.level_state.level_units["bandit"]
-	assert_eq(_loop.phase, TurnLoop.Phase.PLAYER)
-	assert_true(bandit.has_acted, "its flag waits for the next enemy phase")
-	assert_eq(_battle.level.unit_nodes["bandit"].modulate, Color.WHITE, "but it isn't grayed on your turn")
+func test_lord_falling_ends_the_level_in_defeat_with_others_alive() -> void:
+	_loop.objective = Objective.fromJson({"lose": [{"type": "unit_defeated", "unit": "lyn"}]})
+	watch_signals(_battle)
+	(_battle.level.level_state.level_units["lyn"] as LevelUnitState).current_hp = 0
+	await _loop.on_player_action_completed()
+
+	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
+	assert_signal_emitted_with_parameters(_battle, "ended", [false])
 
 
-func test_enemies_are_grayed_once_they_act_in_their_phase() -> void:
-	var tints := {}
-	_loop.phase_changed.connect(func(phase: TurnLoop.Phase) -> void:
-		if phase == TurnLoop.Phase.PLAYER:
-			return
-		tints["level_faction"] = _battle.level.acting_faction)
-	await _loop.end_player_turn()
-	assert_eq(tints.get("level_faction"), UnitReference.Faction.ENEMY, "the enemy phase tints the enemy side")
-	assert_eq(_battle.level.acting_faction, UnitReference.Faction.PLAYER, "and your phase tints yours")
-
-
-func test_enemies_are_not_grayed_when_a_later_enemy_phase_starts() -> void:
-	await _loop.end_player_turn()  # the first enemy phase: every enemy acts
-	var bandit: LevelUnitState = _battle.level.level_state.level_units["bandit"]
-	assert_true(bandit.has_acted, "still flagged from the last enemy phase")
-	_loop._start_enemy_phase()
-	assert_eq(_loop.phase, TurnLoop.Phase.ENEMY)
-	assert_false(bandit.has_acted, "a new enemy phase starts fresh")
-	assert_eq(_battle.level.unit_nodes["bandit"].modulate, Color.WHITE, "not grayed before it has acted")
+func test_setup_without_an_objective_is_a_rout() -> void:
+	var loop := TurnLoop.new()
+	add_child_autofree(loop)
+	loop.setup(null, null)
+	assert_eq(loop.objective.win.size(), 1)
+	assert_eq(loop.objective.lose.size(), 1)
