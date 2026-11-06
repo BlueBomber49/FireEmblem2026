@@ -5,6 +5,8 @@ extends Node
 enum Phase { PLAYER, ENEMY, COMPLETE }
 
 signal phase_changed(phase: Phase)
+## Emitted once, after the last phase_changed (COMPLETE), when a side has won.
+signal finished(won: bool)
 
 var phase := Phase.COMPLETE
 var battle: Battle
@@ -19,6 +21,7 @@ func setup(p_battle: Battle, p_level: Level) -> void:
 	if level == null or level.level_state == null:
 		return
 	enemy_controller = EnemyController.new(level.level_state, level.pathfinding)
+	# Not awaited: setup runs from Battle._ready, so the opening banner plays on.
 	_begin_player_phase()
 	_check_initial_end_condition()
 
@@ -32,10 +35,10 @@ func on_player_action_completed() -> void:
 	if phase != Phase.PLAYER or _is_complete():
 		return
 	if _all_units_defeated(UnitReference.Faction.ENEMY):
-		_finish("win")
+		_finish(true)
 		return
 	if _all_units_defeated(UnitReference.Faction.PLAYER):
-		_finish("defeat")
+		_finish(false)
 		return
 	if _all_units_acted(UnitReference.Faction.PLAYER):
 		await _run_enemy_phase()
@@ -50,7 +53,7 @@ func end_player_turn() -> void:
 func _run_enemy_phase() -> void:
 	if phase != Phase.PLAYER or _is_complete():
 		return
-	_start_enemy_phase()
+	await _start_enemy_phase()
 
 	while true:
 		var enemy := enemy_controller.next_enemy()
@@ -66,24 +69,27 @@ func _run_enemy_phase() -> void:
 		level.update_tints()
 
 		if _all_units_defeated(UnitReference.Faction.PLAYER):
-			_finish("defeat")
+			_finish(false)
 			return
 		if _all_units_defeated(UnitReference.Faction.ENEMY):
-			_finish("win")
+			_finish(true)
 			return
 
-	_begin_player_phase()
+	await _begin_player_phase()
 
 
 ## Switches to the enemy phase: enemies' turn flags reset, then the tints redraw
 ## for the enemy side. Tinting after the reset matters: until then every enemy
-## still carries has_acted from its last phase and would show as gray.
+## still carries has_acted from its last phase and would show as gray. Returns
+## once Battle's phase banner is gone, so no enemy moves under it.
 func _start_enemy_phase() -> void:
 	phase = Phase.ENEMY
 	level.acting_faction = UnitReference.Faction.ENEMY
 	phase_changed.emit(phase)
 	enemy_controller.begin_turn()
 	level.update_tints()
+	if battle != null:
+		await battle.announce_phase(phase)
 
 
 func _execute_enemy_action(enemy: LevelUnitState, action: EnemyAIAction) -> void:
@@ -125,13 +131,15 @@ func _begin_player_phase() -> void:
 	level.acting_faction = UnitReference.Faction.PLAYER
 	phase_changed.emit(phase)
 	level.update_tints()
+	if battle != null:
+		await battle.announce_phase(phase)
 
 
 func _check_initial_end_condition() -> void:
 	if _all_units_defeated(UnitReference.Faction.ENEMY):
-		_finish("win")
+		_finish(true)
 	elif _all_units_defeated(UnitReference.Faction.PLAYER):
-		_finish("defeat")
+		_finish(false)
 
 
 func _all_units_defeated(faction: int) -> bool:
@@ -155,7 +163,7 @@ func _is_complete() -> bool:
 	return phase == Phase.COMPLETE
 
 
-func _finish(message: String) -> void:
+func _finish(won: bool) -> void:
 	phase = Phase.COMPLETE
 	phase_changed.emit(phase)
-	print(message)
+	finished.emit(won)

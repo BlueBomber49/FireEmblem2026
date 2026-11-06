@@ -13,6 +13,7 @@ var _loop: TurnLoop
 func before_each() -> void:
 	_battle = BattleScene.instantiate()
 	(_battle.get_node("Level") as Level).level_path = LEVEL_PATH
+	_battle.show_banners = false
 	add_child_autofree(_battle)
 	_loop = _battle.turn_loop
 	# Keep enemy actions instantaneous and predictable in phase-transition tests.
@@ -71,21 +72,25 @@ func test_end_player_turn_can_start_enemy_phase_early() -> void:
 func test_defeating_last_enemy_completes_game_with_win_state() -> void:
 	(_battle.level.level_state.level_units["bandit"] as LevelUnitState).current_hp = 0
 	(_battle.level.level_state.level_units["brigand"] as LevelUnitState).current_hp = 0
+	watch_signals(_loop)
 
 	await _loop.on_player_action_completed()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_false(_loop.is_player_turn())
+	assert_signal_emitted_with_parameters(_loop, "finished", [true])
 
 
 func test_enemy_phase_completes_with_defeat_when_all_players_are_dead() -> void:
 	for id in ["lyn", "wil", "kent"]:
 		(_battle.level.level_state.level_units[id] as LevelUnitState).current_hp = 0
+	watch_signals(_loop)
 
 	await _loop.end_player_turn()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_false(_loop.is_player_turn())
+	assert_signal_emitted_with_parameters(_loop, "finished", [false])
 
 
 func test_dead_players_do_not_prevent_the_remaining_players_from_ending_the_phase() -> void:

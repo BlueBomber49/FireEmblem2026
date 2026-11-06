@@ -44,8 +44,14 @@ const TARGET_STEPS := {
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var unit_panel: UnitPanel = %UnitPanel
 @onready var status_screen: StatusScreen = %StatusScreen
+@onready var phase_banner: PhaseBanner = %PhaseBanner
+@onready var end_screen: EndScreen = %EndScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+
+## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
+## adding the scene, so phases change instantly.
+@export var show_banners := true
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -87,6 +93,8 @@ func _ready() -> void:
 	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
+	turn_loop.finished.connect(_on_battle_finished)
+	end_screen.restart_requested.connect(_on_restart_requested)
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level)
@@ -117,6 +125,8 @@ func start() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if phase_banner.is_playing():
+		return
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
 	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
@@ -678,6 +688,10 @@ func _update_arrow() -> void:
 ## The unit panel, top-left, keeps showing the last unit the cursor was on, and
 ## hides during the enemy phase.
 func _update_panels() -> void:
+	if _banner_up():
+		terrain_panel.hide()
+		unit_panel.hide()
+		return
 	terrain_panel.visible = _cursor_is_free()
 	if terrain_panel.visible:
 		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
@@ -782,6 +796,9 @@ func _update_hover() -> void:
 func _update_hover_for(phase: TurnLoop.Phase) -> void:
 	if state != State.FREE:
 		return
+	if _banner_up():
+		range_overlay.set_cells({}, {})
+		return
 	var unit := level.unit_at(cursor.cell)
 	if phase != TurnLoop.Phase.PLAYER or unit == null \
 			or (unit.reference.faction == UnitReference.Faction.PLAYER and unit.state.has_acted):
@@ -817,3 +834,33 @@ func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 	_refresh_danger_zone_for(phase)
 	_update_hover_for(phase)
 	_update_panels()
+
+
+# --- Phase banner and end screen ---------------------------------------------
+
+
+## Plays the banner for a new phase; TurnLoop awaits this before anyone acts.
+## The panels and hover ranges stay hidden until the banner has gone.
+func announce_phase(phase: TurnLoop.Phase) -> void:
+	if not show_banners:
+		return
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	await phase_banner.play(phase)
+	_update_panels()
+	_update_hover()
+
+
+func _banner_up() -> bool:
+	return phase_banner.is_playing() or end_screen.visible
+
+
+func _on_battle_finished(won: bool) -> void:
+	range_overlay.set_cells({}, {})
+	end_screen.show_result(won)
+	_update_panels()
+
+
+func _on_restart_requested() -> void:
+	get_tree().reload_current_scene()
