@@ -115,3 +115,53 @@ func test_losing_every_player_unit_shows_defeat() -> void:
 func test_the_end_screen_is_hidden_during_play() -> void:
 	await _wait_for_banner()
 	assert_false(battle.end_screen.visible)
+
+
+func test_the_end_screen_waits_for_confirm_before_the_battle_ends() -> void:
+	await _wait_for_banner()
+	battle.ended.connect(func(_won: bool) -> void: pass)  # as GameFlow would
+	watch_signals(battle)
+	for enemy in _units(UnitReference.Faction.ENEMY):
+		enemy.current_hp = 0
+	await battle.turn_loop.on_player_action_completed()
+	assert_signal_not_emitted(battle, "ended", "not while Stage Clear is up")
+
+	battle.end_screen.continue_requested.emit()
+	assert_signal_emitted_with_parameters(battle, "ended", [true])
+
+
+func test_a_defeat_hands_on_a_loss() -> void:
+	await _wait_for_banner()
+	battle.ended.connect(func(_won: bool) -> void: pass)
+	watch_signals(battle)
+	for unit in _units(UnitReference.Faction.PLAYER):
+		unit.current_hp = 0
+	await battle.turn_loop.on_player_action_completed()
+
+	battle.end_screen.continue_requested.emit()
+	assert_signal_emitted_with_parameters(battle, "ended", [false])
+
+
+func test_the_prompt_says_continue_or_retry() -> void:
+	var prompt := battle.end_screen.get_node("%Prompt") as Label
+	battle.end_screen.show_result(true)
+	assert_eq(prompt.text, "Press Z to continue")
+	battle.end_screen.show_result(false)
+	assert_eq(prompt.text, "Press Z to retry")
+
+
+func test_victory_music_plays_only_on_a_win() -> void:
+	await _wait_for_banner()
+	for enemy in _units(UnitReference.Faction.ENEMY):
+		enemy.current_hp = 0
+	await battle.turn_loop.on_player_action_completed()
+	assert_eq(battle.music.stream, Battle.VICTORY_MUSIC)
+	assert_true(battle.music.playing)
+
+
+func test_a_defeat_stops_the_music() -> void:
+	await _wait_for_banner()
+	for unit in _units(UnitReference.Faction.PLAYER):
+		unit.current_hp = 0
+	await battle.turn_loop.on_player_action_completed()
+	assert_false(battle.music.playing)

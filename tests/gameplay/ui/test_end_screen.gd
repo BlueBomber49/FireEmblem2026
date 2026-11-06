@@ -46,13 +46,13 @@ func test_confirm_asks_for_a_restart() -> void:
 	watch_signals(_screen)
 	_screen.show_result(true)
 	_confirm()
-	assert_signal_emitted(_screen, "restart_requested")
+	assert_signal_emitted(_screen, "continue_requested")
 
 
 func test_confirm_does_nothing_while_hidden() -> void:
 	watch_signals(_screen)
 	_confirm()
-	assert_signal_not_emitted(_screen, "restart_requested")
+	assert_signal_not_emitted(_screen, "continue_requested")
 
 
 func test_a_click_asks_for_a_restart() -> void:
@@ -62,4 +62,4 @@ func test_a_click_asks_for_a_restart() -> void:
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true
 	_screen._gui_input(click)
-	assert_signal_emitted(_screen, "restart_requested")
+	assert_signal_emitted(_screen, "continue_requested")

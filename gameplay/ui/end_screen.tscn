@@ -57,6 +57,7 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="Prompt" type="Label" parent="Rows"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Press Z to restart"
+text = "Press Z to continue"
 horizontal_alignment = 1

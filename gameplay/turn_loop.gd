@@ -5,25 +5,30 @@ extends Node
 enum Phase { PLAYER, ENEMY, COMPLETE }
 
 signal phase_changed(phase: Phase)
-## Emitted once, after the last phase_changed (COMPLETE), when a side has won.
+## The level is over: [param won] is true when the objective is met. Emitted
+## once, after the last phase_changed (COMPLETE).
 signal finished(won: bool)
 
 var phase := Phase.COMPLETE
 var battle: Battle
 var level: Level
 var enemy_controller: EnemyController
+## What ends the level; checked after every action.
+var objective: Objective
 
 
 ## Connected by Battle after its Level has loaded and built its unit nodes.
-func setup(p_battle: Battle, p_level: Level) -> void:
+## Without [param p_objective], the level is a rout (Objective's defaults).
+func setup(p_battle: Battle, p_level: Level, p_objective: Objective = null) -> void:
 	battle = p_battle
 	level = p_level
+	objective = p_objective if p_objective != null else Objective.new()
 	if level == null or level.level_state == null:
 		return
 	enemy_controller = EnemyController.new(level.level_state, level.pathfinding)
 	# Not awaited: setup runs from Battle._ready, so the opening banner plays on.
 	_begin_player_phase()
-	_check_initial_end_condition()
+	_check_end()
 
 
 func is_player_turn() -> bool:
@@ -34,11 +39,7 @@ func is_player_turn() -> bool:
 func on_player_action_completed() -> void:
 	if phase != Phase.PLAYER or _is_complete():
 		return
-	if _all_units_defeated(UnitReference.Faction.ENEMY):
-		_finish(true)
-		return
-	if _all_units_defeated(UnitReference.Faction.PLAYER):
-		_finish(false)
+	if _check_end():
 		return
 	if _all_units_acted(UnitReference.Faction.PLAYER):
 		await _run_enemy_phase()
@@ -68,11 +69,7 @@ func _run_enemy_phase() -> void:
 			enemy.has_moved = true
 		level.update_tints()
 
-		if _all_units_defeated(UnitReference.Faction.PLAYER):
-			_finish(false)
-			return
-		if _all_units_defeated(UnitReference.Faction.ENEMY):
-			_finish(true)
+		if _check_end():
 			return
 
 	await _begin_player_phase()
@@ -135,19 +132,16 @@ func _begin_player_phase() -> void:
 		await battle.announce_phase(phase)
 
 
-func _check_initial_end_condition() -> void:
-	if _all_units_defeated(UnitReference.Faction.ENEMY):
-		_finish(true)
-	elif _all_units_defeated(UnitReference.Faction.PLAYER):
-		_finish(false)
-
-
-func _all_units_defeated(faction: int) -> bool:
-	for value: Variant in level.level_state.level_units.values():
-		var state := value as LevelUnitState
-		if state != null and state.unit_ref.faction == faction and state.is_alive():
-			return false
-	return true
+## Finishes the level if the objective says it's over. True when it did.
+func _check_end() -> bool:
+	match objective.outcome(level.level_state):
+		Objective.Outcome.WON:
+			_finish(true)
+			return true
+		Objective.Outcome.LOST:
+			_finish(false)
+			return true
+	return false
 
 
 func _all_units_acted(faction: int) -> bool:

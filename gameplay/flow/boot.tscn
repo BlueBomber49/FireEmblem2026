@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bcv2a86kneu4"]
+
+[ext_resource type="Script" uid="uid://6t4mxjr1dim4" path="res://gameplay/flow/boot.gd" id="1_boot"]
+
+[node name="Boot" type="Node" unique_id=934876812]
+script = ExtResource("1_boot")

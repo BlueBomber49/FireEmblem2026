@@ -16,13 +16,14 @@ const EFFECTIVE_MULTIPLIER := 2
 const TRIANGLE_DAMAGE := 1
 const TRIANGLE_HIT := 15
 ## Who beats whom: physical swords > axes > lances > swords; magic anima > light > dark > anima.
+## Knives lose to all physical weapons but are strong against magic
 const TRIANGLE_BEATS := {
 	Enums.WeaponType.SWORD: Enums.WeaponType.AXE,
 	Enums.WeaponType.AXE: Enums.WeaponType.LANCE,
 	Enums.WeaponType.LANCE: Enums.WeaponType.SWORD,
 	Enums.WeaponType.ANIMA: Enums.WeaponType.LIGHT,
 	Enums.WeaponType.LIGHT: Enums.WeaponType.DARK,
-	Enums.WeaponType.DARK: Enums.WeaponType.ANIMA,
+	Enums.WeaponType.DARK: Enums.WeaponType.ANIMA
 }
 
 

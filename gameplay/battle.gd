@@ -18,6 +18,9 @@ extends Node2D
 ## follows a unit's projected move once its unit menu opens, and hides during
 ## the enemy phase.
 
+## The level is over; GameFlow decides what plays next.
+signal ended(won: bool)
+
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
 const CURSOR_DIRECTIONS := {
@@ -33,6 +36,12 @@ const TARGET_STEPS := {
 	&"ui_right": 1,
 	&"ui_down": 1,
 }
+
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
+
+
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
 @onready var arrow: PathArrow = $Arrow
@@ -93,11 +102,12 @@ func _ready() -> void:
 	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
+	# Before setup: a level can be over at once (no enemies), ending inside it.
 	turn_loop.finished.connect(_on_battle_finished)
-	end_screen.restart_requested.connect(_on_restart_requested)
+	end_screen.continue_requested.connect(_on_end_screen_continue)
 	if level.level_state != null:
 		start()
-		turn_loop.setup(self, level)
+		turn_loop.setup(self, level, level.level_state.objective)
 
 
 ## Resets the cursor and UI for the level currently built in `level`.
@@ -825,10 +835,14 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
-	if phase == TurnLoop.Phase.PLAYER:
-		music.play()
-	else:
-		music.stop()
+	# COMPLETE is left to _on_battle_finished, which knows who won.
+	match phase:
+		TurnLoop.Phase.PLAYER:
+			music.stream = PLAYER_MUSIC
+			music.play()
+		TurnLoop.Phase.ENEMY:
+			music.stream = ENEMY_MUSIC
+			music.play()
 	# Go by the phase given, not turn_loop.phase: they agree in play, and this
 	# way the ranges can't depend on when the turn loop updates its own value.
 	_refresh_danger_zone_for(phase)
@@ -856,11 +870,23 @@ func _banner_up() -> bool:
 	return phase_banner.is_playing() or end_screen.visible
 
 
+## Victory music on a win, silence on a defeat; the end screen waits for the
+## player, then hands the result on through [signal ended].
 func _on_battle_finished(won: bool) -> void:
+	if won:
+		music.stream = VICTORY_MUSIC
+		music.play()
+	else:
+		music.stop()
 	range_overlay.set_cells({}, {})
 	end_screen.show_result(won)
 	_update_panels()
 
 
-func _on_restart_requested() -> void:
-	get_tree().reload_current_scene()
+## GameFlow listens to [signal ended] (outro on a win, a retry on a loss). Run on
+## its own (F6) nothing listens, so the scene reloads instead.
+func _on_end_screen_continue() -> void:
+	if ended.get_connections().is_empty():
+		get_tree().reload_current_scene()
+		return
+	ended.emit(end_screen.won)

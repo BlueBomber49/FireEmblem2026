@@ -5,7 +5,7 @@ class_name Enums
 ## stay stable. Code and saves may still hold the int values, so only ever
 ## append new values.
 
-enum WeaponType { SWORD, LANCE, AXE, BOW, ANIMA, LIGHT, DARK, STAFF }
+enum WeaponType { SWORD, LANCE, AXE, BOW, ANIMA, LIGHT, DARK, STAFF, KNIFE }
 
 ## Units in the same group pay the same terrain movement costs.
 enum MovementType { FOOT, ARMORED, MOUNTED, FLIER, MAGE }

@@ -3,7 +3,7 @@
 	"name": "Nomad",
 	"movement_type": "mounted",
 	"weapon_types": [
-		"bow"
+		"bow", "knife"
 	],
 	"base_stats": {
 		"hp": 16,

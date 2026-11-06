@@ -14,6 +14,6 @@ dest_files=["res://.godot/imported/player_phase.ogg-d3a114f61767c5bb2ba6d4c0c77f
 
 loop=true
 loop_offset=3.56
-bpm=0.0
-beat_count=0
+bpm=138.0
+beat_count=128
 bar_beats=4
