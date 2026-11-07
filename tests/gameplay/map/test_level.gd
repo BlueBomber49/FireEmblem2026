@@ -140,3 +140,16 @@ func test_acted_enemies_are_gray_in_the_enemy_phase() -> void:
 	level.update_tints()
 	assert_eq(level.unit_nodes["bandit"].modulate, Level.ACTED_TINT)
 	assert_eq(level.unit_nodes["lyn"].modulate, Color.WHITE, "your units look normal while enemies act")
+
+
+# --- The commander's crown ------------------------------------------------------------
+
+
+func test_only_the_commander_wears_the_crown() -> void:
+	var state := LevelState.load_file(LEVEL_PATH)
+	state.map_data.units["bandit"].commander = true
+	var level := Level.new()
+	level.level_state = state
+	add_child_autofree(level)
+	assert_not_null(level.unit_nodes["bandit"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
+	assert_null(level.unit_nodes["lyn"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))

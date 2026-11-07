@@ -1037,3 +1037,68 @@ func test_a_killed_marked_enemy_loses_its_zone() -> void:
 	assert_false(bandit.is_alive())
 	assert_false(battle.danger_zone.is_marked("bandit"))
 	assert_true(_overlay().marked_threat_cells.is_empty())
+
+
+# --- Seize and the end of the level ----------------------------------------------
+
+
+func _seize_at(cell: Vector2i) -> void:
+	battle.turn_loop.set_objective(Objective.fromJson({"win": [{"type": "seize", "cells": [[cell.x, cell.y]]}]}))
+
+
+func test_seize_is_offered_first_on_a_seize_cell() -> void:
+	_seize_at(LYN_CELL)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_eq(battle.unit_menu.options[0], &"seize")
+
+
+func test_seize_is_not_offered_off_the_seize_cell() -> void:
+	_seize_at(LYN_CELL + Vector2i.RIGHT)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.unit_menu.options.has(&"seize"))
+
+
+func test_choosing_seize_wins_through_the_normal_action_end() -> void:
+	_seize_at(LYN_CELL)
+	watch_signals(battle.turn_loop)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	battle.unit_menu.option_selected.emit(&"seize")
+	assert_true(lyn.has_acted, "the action ended normally")
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_null(battle.level.selected)
+	assert_eq(battle.turn_loop.phase, TurnLoop.Phase.COMPLETE)
+	assert_signal_emitted_with_parameters(battle.turn_loop, "finished", [true])
+	assert_true(battle.end_screen.visible, "Stage Clear waits for the player")
+
+
+func test_seize_cells_are_highlighted_in_the_player_phase_only() -> void:
+	_seize_at(LYN_CELL + Vector2i.RIGHT)
+	assert_eq(battle.range_overlay.seize_cells, {LYN_CELL + Vector2i.RIGHT: true}, "objective_changed redraws it")
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
+	assert_true(battle.range_overlay.seize_cells.is_empty())
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.PLAYER)
+	assert_false(battle.range_overlay.seize_cells.is_empty())
+
+
+func test_a_level_without_seize_highlights_nothing() -> void:
+	assert_true(battle.range_overlay.seize_cells.is_empty())
+
+
+func test_a_win_plays_the_victory_music() -> void:
+	_seize_at(LYN_CELL)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	battle.unit_menu.option_selected.emit(&"seize")
+	assert_eq(battle.music.stream, Battle.VICTORY_MUSIC)
+	assert_true(battle.music.playing)
+
+
+func test_a_loss_stops_the_music_instead() -> void:
+	lyn.current_hp = 0
+	battle.turn_loop.set_objective(Objective.fromJson({"lose": [{"type": "units_fall", "units": ["lyn"]}]}))
+	assert_eq(battle.turn_loop.phase, TurnLoop.Phase.COMPLETE)
+	assert_false(battle.music.playing, "no victory music after a defeat")
+	assert_ne(battle.music.stream, Battle.VICTORY_MUSIC)

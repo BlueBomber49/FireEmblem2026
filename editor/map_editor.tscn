@@ -103,11 +103,13 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
-item_count = 2
+item_count = 3
 popup/item_0/text = "Terrain"
 popup/item_0/id = 0
 popup/item_1/text = "Units"
 popup/item_1/id = 1
+popup/item_2/text = "Objective"
+popup/item_2/id = 2
 
 [node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
 unique_name_in_owner = true
@@ -282,6 +284,13 @@ layout_mode = 2
 text = "Override class stats"
 tooltip_text = "Off: the unit uses its class's base stats. On: edit the stats below (movement always comes from the class)."
 
+[node name="CommanderCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Enemy commander"
+tooltip_text = "The unit \"Defeat the enemy commander\" targets. Enemies only, one per level; marking one clears the last."
+
 [node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -305,6 +314,12 @@ text = "Left: place / click to select / drag to move
 Right: delete
 X / Esc: deselect, to place a different unit"
 autowrap_mode = 3
+
+[node name="ObjectiveBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]
 layout_mode = 2

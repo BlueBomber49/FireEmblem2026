@@ -38,6 +38,7 @@ All results round down unless noted.
 - **Hit roll (FE7 "true hit")**: hits when the average of two rolls from 0–99 is below the displayed hit. Crits use a single roll.
 - Fliers get no terrain avoid or defense bonus, only HP recovery.
 - Weapon triangle: Sword beats Axe, Axe beats Lance, Lance beats Sword. Anima beats Light, Light beats Dark, Dark beats Anima.
+- **Not FE7 (our addition):** knives lose to swords, lances and axes, beat anima, light and dark, and are neutral against bows, staves and other knives.
 - Staff accuracy = 30 + 5 × Mag + Skl; staff avoid = 5 × Res + 2 × distance (later)
 
 ## Experience and levels

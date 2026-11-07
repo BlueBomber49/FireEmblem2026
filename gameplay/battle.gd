@@ -112,6 +112,7 @@ func _ready() -> void:
 	# Before setup: a level can be over at once (no enemies), ending inside it.
 	turn_loop.finished.connect(_on_battle_finished)
 	end_screen.continue_requested.connect(_on_end_screen_continue)
+	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level, level.level_state.objective)
@@ -360,6 +361,9 @@ func _open_unit_menu() -> void:
 		options.push_front(&"item")
 	if not targets.is_empty():
 		options.push_front(&"attack")
+	# Seize comes first, as in FE: on a seize cell it's what the player came for.
+	if level.level_state.objective.seize_cells().has(level.selected.state.cell):
+		options.push_front(&"seize")
 	cursor.set_cell(level.selected.state.cell)
 	attack_cells = {}
 	_redraw_selection()
@@ -385,6 +389,10 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
+			_finish_action()
+		&"seize":
+			# Ends like any action: the completion check then sees the seize and wins.
+			turn_loop.mark_seized()
 			_finish_action()
 
 
@@ -856,6 +864,14 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 	range_overlay.set_threat(danger_zone.normal_cells, danger_zone.marked_cells)
 
 
+## The seize cells are highlighted during the player phase, like the danger zone.
+func _refresh_seize_cells(phase: TurnLoop.Phase) -> void:
+	var cells: Array[Vector2i] = []
+	if phase == TurnLoop.Phase.PLAYER:
+		cells = level.level_state.objective.seize_cells()
+	range_overlay.set_seize_cells(cells)
+
+
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 	# COMPLETE is left to _on_battle_finished, which knows who won.
@@ -869,6 +885,7 @@ func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 	# Go by the phase given, not turn_loop.phase: they agree in play, and this
 	# way the ranges can't depend on when the turn loop updates its own value.
 	_refresh_danger_zone_for(phase)
+	_refresh_seize_cells(phase)
 	_update_hover_for(phase)
 	_update_panels()
 

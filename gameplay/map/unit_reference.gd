@@ -24,7 +24,7 @@ const FACTION_COLORS := {
 }
 ## Keys this class reads; anything else in the JSON is carried through untouched.
 const KNOWN_KEYS := ["character", "class", "name", "level", "items", "stats", "faction",
-	"sprite_sheet", "start_cell", "facing"]
+	"sprite_sheet", "start_cell", "facing", "commander"]
 
 
 static func are_hostile(ref_a: UnitReference, ref_b: UnitReference) -> bool:
@@ -41,6 +41,10 @@ var facing := Vector2i.DOWN
 ## Full res:// path to the sprite sheet. Empty uses the character's or class's
 ## default sprite in this faction's colour (see resolved_sprite).
 var sprite_sheet: String
+
+## The enemy commander (Objective's "Defeat the enemy commander"). At most one
+## per level, and only an enemy; the map editor enforces both.
+var commander := false
 
 ## A named character's id (resources/characters/<id>.json), or "" for a generic unit.
 var character_id: String
@@ -176,6 +180,7 @@ static func fromJson(p_id: String, d: Dictionary) -> UnitReference:
 	ref.sprite_sheet = str(d.get("sprite_sheet", ""))
 	ref.start_cell = JsonUtil.vec2i_from_json(d.get("start_cell"))
 	ref.facing = JsonUtil.vec2i_from_json(d.get("facing"), Vector2i.DOWN)
+	ref.commander = d.get("commander", false) == true
 	for key in d:
 		if not key in KNOWN_KEYS:
 			ref._extra[key] = d[key]
@@ -199,5 +204,7 @@ func toJson() -> Dictionary:
 		d["sprite_sheet"] = sprite_sheet
 	d["start_cell"] = JsonUtil.vec2i_to_json(start_cell)
 	d["facing"] = JsonUtil.vec2i_to_json(facing)
+	if commander:
+		d["commander"] = true
 	d.merge(_extra.duplicate(true))
 	return d

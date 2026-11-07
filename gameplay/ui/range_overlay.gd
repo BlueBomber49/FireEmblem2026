@@ -19,6 +19,13 @@ const THREAT_OUTLINE := Color(0.9, 0.1, 0.1, 0.4)
 const MARKED_FILL := Color(0.7, 0.0, 0.05, 0.45)
 const MARKED_OUTLINE := Color(0.6, 0.0, 0.05, 0.6)
 const OUTLINE_WIDTH := 1.0
+## Seize cells: the green shimmer under everything, plus an outline that can sit
+## on top of every other layer so the cell stays obvious under blue or red. Tune
+## these by eye; the 50% green tile was nearly invisible on grass.
+const SEIZE_SHEET := preload("res://assets/battle_pack/UI Elements/RangerFinderTile_Green_Solid.png")
+const SEIZE_OUTLINE := Color(0.35, 1.0, 0.45, 1.0)
+const SEIZE_OUTLINE_WIDTH := 2.0
+const SEIZE_OUTLINE_ON_TOP := true
 const DRAW_OUTLINES := true
 
 ## cell -> true for each set. Both may be shown at once.
@@ -27,6 +34,8 @@ var attack_cells: Dictionary = {}
 ## cell -> true: enemy threat, and the part of it from marked enemies.
 var threat_cells: Dictionary = {}
 var marked_threat_cells: Dictionary = {}
+## cell -> true: where the Seize command wins the level.
+var seize_cells: Dictionary = {}
 var tile_size := Vector2i(16, 16)
 var frame := 0
 
@@ -47,8 +56,16 @@ func set_threat(new_normal: Dictionary, new_marked: Dictionary) -> void:
 	queue_redraw()
 
 
+## The objective's seize cells (Objective.seize_cells), or none to hide them.
+func set_seize_cells(cells: Array[Vector2i]) -> void:
+	seize_cells = {}
+	for cell in cells:
+		seize_cells[cell] = true
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
-	if move_cells.is_empty() and attack_cells.is_empty():
+	if move_cells.is_empty() and attack_cells.is_empty() and seize_cells.is_empty():
 		return
 	_time += delta
 	var next_frame := int(_time * FPS) % FRAME_COUNT
@@ -58,6 +75,11 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	var seize_region := Rect2(Vector2(frame * FRAME_SIZE.x, 0), FRAME_SIZE)
+	for cell in seize_cells:
+		draw_texture_rect_region(SEIZE_SHEET, _cell_rect(cell), seize_region)
+	if not SEIZE_OUTLINE_ON_TOP:
+		_draw_seize_outline()
 	_draw_threat(threat_cells, THREAT_FILL, THREAT_OUTLINE)
 	_draw_threat(marked_threat_cells, MARKED_FILL, MARKED_OUTLINE)
 	var region := Rect2(Vector2(frame * FRAME_SIZE.x, 0), FRAME_SIZE)
@@ -65,6 +87,14 @@ func _draw() -> void:
 		draw_texture_rect_region(MOVE_SHEET, _cell_rect(cell), region)
 	for cell in attack_cells:
 		draw_texture_rect_region(ATTACK_SHEET, _cell_rect(cell), region)
+	if SEIZE_OUTLINE_ON_TOP:
+		_draw_seize_outline()
+
+
+func _draw_seize_outline() -> void:
+	var cell_scale := Vector2(tile_size)
+	for edge: Array in outline_edges(seize_cells):
+		draw_line(Vector2(edge[0]) * cell_scale, Vector2(edge[1]) * cell_scale, SEIZE_OUTLINE, SEIZE_OUTLINE_WIDTH)
 
 
 func _draw_threat(cells: Dictionary, fill: Color, outline: Color) -> void:

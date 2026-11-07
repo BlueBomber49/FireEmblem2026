@@ -100,3 +100,33 @@ func test_load_file_returns_null_when_not_a_json_object() -> void:
 	assert_null(LevelState.load_file(path))
 	assert_push_error("is not a JSON object")
 	DirAccess.remove_absolute(path)
+
+
+# --- Turn, seize and commander --------------------------------------------------
+
+
+func test_an_authored_level_starts_on_turn_one_unseized() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	assert_eq(state.turn, 1)
+	assert_false(state.seized)
+
+
+func test_turn_and_seize_are_saved_only_with_state() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	state.turn = 4
+	state.seized = true
+	var authored := state.toJson(false)
+	assert_false(authored.has("turn"), "an authored level always starts on turn 1")
+	assert_false(authored.has("seized"))
+	var again := LevelState.fromJson(state.toJson())
+	assert_eq(again.turn, 4)
+	assert_true(again.seized)
+	assert_eq(LevelState.fromJson(authored).turn, 1)
+
+
+func test_commander_id_finds_the_marked_unit() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	assert_eq(state.commander_id(), "")
+	var id: String = state.map_data.units.keys()[0]
+	state.map_data.units[id].commander = true
+	assert_eq(state.commander_id(), id)
