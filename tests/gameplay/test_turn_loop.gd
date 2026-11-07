@@ -13,6 +13,7 @@ var _loop: TurnLoop
 func before_each() -> void:
 	_battle = BattleScene.instantiate()
 	(_battle.get_node("Level") as Level).level_path = LEVEL_PATH
+	_battle.show_banners = false
 	add_child_autofree(_battle)
 	_loop = _battle.turn_loop
 	# Keep enemy actions instantaneous and predictable in phase-transition tests.
@@ -71,21 +72,25 @@ func test_end_player_turn_can_start_enemy_phase_early() -> void:
 func test_defeating_last_enemy_completes_game_with_win_state() -> void:
 	(_battle.level.level_state.level_units["bandit"] as LevelUnitState).current_hp = 0
 	(_battle.level.level_state.level_units["brigand"] as LevelUnitState).current_hp = 0
+	watch_signals(_loop)
 
 	await _loop.on_player_action_completed()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_false(_loop.is_player_turn())
+	assert_signal_emitted_with_parameters(_loop, "finished", [true])
 
 
 func test_enemy_phase_completes_with_defeat_when_all_players_are_dead() -> void:
 	for id in ["lyn", "wil", "kent"]:
 		(_battle.level.level_state.level_units[id] as LevelUnitState).current_hp = 0
+	watch_signals(_loop)
 
 	await _loop.end_player_turn()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_false(_loop.is_player_turn())
+	assert_signal_emitted_with_parameters(_loop, "finished", [false])
 
 
 func test_dead_players_do_not_prevent_the_remaining_players_from_ending_the_phase() -> void:
@@ -115,12 +120,12 @@ func test_completed_game_ignores_later_end_turn_requests() -> void:
 
 func test_lord_falling_ends_the_level_in_defeat_with_others_alive() -> void:
 	_loop.set_objective(Objective.fromJson({"lose": [{"type": "units_fall", "units": ["lyn"]}]}))
-	watch_signals(_battle)
+	watch_signals(_loop)
 	(_battle.level.level_state.level_units["lyn"] as LevelUnitState).current_hp = 0
 	await _loop.on_player_action_completed()
 
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(_battle, "ended", [false])
+	assert_signal_emitted_with_parameters(_loop, "finished", [false])
 
 
 func test_setup_without_an_objective_is_a_rout() -> void:
@@ -154,20 +159,20 @@ func _objective(d: Dictionary) -> Objective:
 
 func test_survive_wins_after_that_many_enemy_phases() -> void:
 	_loop.set_objective(_objective({"win": [{"type": "survive", "turns": 2}]}))
-	watch_signals(_battle)
+	watch_signals(_loop)
 	await _loop.end_player_turn()
 	assert_eq(_loop.phase, TurnLoop.Phase.PLAYER, "one enemy phase isn't enough")
 	await _loop.end_player_turn()
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(_battle, "ended", [true])
+	assert_signal_emitted_with_parameters(_loop, "finished", [true])
 
 
 func test_turns_pass_loses_after_that_many_enemy_phases() -> void:
 	_loop.set_objective(_objective({"lose": [{"type": "turns_pass", "turns": 1}]}))
-	watch_signals(_battle)
+	watch_signals(_loop)
 	await _loop.end_player_turn()
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(_battle, "ended", [false])
+	assert_signal_emitted_with_parameters(_loop, "finished", [false])
 
 
 # --- Changing the objective ---------------------------------------------------------
@@ -184,11 +189,11 @@ func test_set_objective_announces_the_change() -> void:
 
 
 func test_an_objective_already_met_ends_the_level_at_once() -> void:
-	watch_signals(_battle)
+	watch_signals(_loop)
 	_battle.level.level_state.seized = true
 	_loop.set_objective(_objective({"win": [{"type": "seize", "cells": [[0, 0]]}]}))
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(_battle, "ended", [true])
+	assert_signal_emitted_with_parameters(_loop, "finished", [true])
 
 
 ## The bandit (made Aggressive) starts 3 cells from lyn: it walks over, then would
@@ -224,11 +229,30 @@ func test_the_level_ends_only_once_when_won_mid_enemy_phase() -> void:
 	assert_eq(_player_hp(), hp, "the bandit doesn't attack once the level is over")
 
 
+func test_no_enemy_acts_when_the_level_ends_during_the_enemy_banner() -> void:
+	_bandit_walks_toward_lyn()
+	var bandit_cell: Vector2i = _battle.level.level_state.level_units["bandit"].cell
+	var hp := _player_hp()
+	_battle.show_banners = true
+	watch_signals(_loop)
+	_loop.end_player_turn()  # not awaited: the Enemy Phase banner is now playing
+	await wait_process_frames(2)
+	assert_true(_battle.phase_banner.is_playing())
+	_battle.level.level_state.seized = true
+	_loop.set_objective(_objective({"win": [{"type": "seize", "cells": [[0, 0]]}]}))
+	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
+	await wait_seconds(_battle.phase_banner.slide_time * 2 + _battle.phase_banner.hold_time + 0.5)
+	assert_false(_battle.phase_banner.is_playing())
+	assert_signal_emit_count(_loop, "finished", 1)
+	assert_eq(_battle.level.level_state.level_units["bandit"].cell, bandit_cell, "the bandit stays put")
+	assert_eq(_player_hp(), hp)
+
+
 func test_seize_wins_through_the_normal_action_check() -> void:
 	_loop.set_objective(_objective({"win": [{"type": "seize", "cells": [[0, 0]]}]}))
-	watch_signals(_battle)
+	watch_signals(_loop)
 	_loop.mark_seized()
 	assert_eq(_loop.phase, TurnLoop.Phase.PLAYER, "marking alone doesn't end it")
 	await _loop.on_player_action_completed()
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(_battle, "ended", [true])
+	assert_signal_emitted_with_parameters(_loop, "finished", [true])

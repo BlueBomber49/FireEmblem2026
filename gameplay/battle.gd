@@ -53,9 +53,14 @@ const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var unit_panel: UnitPanel = %UnitPanel
 @onready var status_screen: StatusScreen = %StatusScreen
+@onready var phase_banner: PhaseBanner = %PhaseBanner
+@onready var end_screen: EndScreen = %EndScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
 
+## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
+## adding the scene, so phases change instantly.
+@export var show_banners := true
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -98,8 +103,8 @@ func _ready() -> void:
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
 	# Before setup: a level can be over at once (no enemies), ending inside it.
-	turn_loop.finished.connect(_on_level_finished)
-	turn_loop.finished.connect(ended.emit)
+	turn_loop.finished.connect(_on_battle_finished)
+	end_screen.continue_requested.connect(_on_end_screen_continue)
 	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
 	if level.level_state != null:
 		start()
@@ -131,6 +136,8 @@ func start() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if phase_banner.is_playing():
+		return
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
 	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
@@ -699,6 +706,10 @@ func _update_arrow() -> void:
 ## The unit panel, top-left, keeps showing the last unit the cursor was on, and
 ## hides during the enemy phase.
 func _update_panels() -> void:
+	if _banner_up():
+		terrain_panel.hide()
+		unit_panel.hide()
+		return
 	terrain_panel.visible = _cursor_is_free()
 	if terrain_panel.visible:
 		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
@@ -803,6 +814,9 @@ func _update_hover() -> void:
 func _update_hover_for(phase: TurnLoop.Phase) -> void:
 	if state != State.FREE:
 		return
+	if _banner_up():
+		range_overlay.set_cells({}, {})
+		return
 	var unit := level.unit_at(cursor.cell)
 	if phase != TurnLoop.Phase.PLAYER or unit == null \
 			or (unit.reference.faction == UnitReference.Faction.PLAYER and unit.state.has_acted):
@@ -837,6 +851,7 @@ func _refresh_seize_cells(phase: TurnLoop.Phase) -> void:
 
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
+	# COMPLETE is left to _on_battle_finished, which knows who won.
 	match phase:
 		TurnLoop.Phase.PLAYER:
 			music.stream = PLAYER_MUSIC
@@ -844,7 +859,6 @@ func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 		TurnLoop.Phase.ENEMY:
 			music.stream = ENEMY_MUSIC
 			music.play()
-		# COMPLETE: the music follows how the level ended (_on_level_finished).
 	# Go by the phase given, not turn_loop.phase: they agree in play, and this
 	# way the ranges can't depend on when the turn loop updates its own value.
 	_refresh_danger_zone_for(phase)
@@ -853,10 +867,43 @@ func _on_phase_changed(phase: TurnLoop.Phase) -> void:
 	_update_panels()
 
 
-## The victory music for a win; a loss just stops the music.
-func _on_level_finished(won: bool) -> void:
+# --- Phase banner and end screen ---------------------------------------------
+
+
+## Plays the banner for a new phase; TurnLoop awaits this before anyone acts.
+## The panels and hover ranges stay hidden until the banner has gone.
+func announce_phase(phase: TurnLoop.Phase) -> void:
+	if not show_banners:
+		return
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	await phase_banner.play(phase)
+	_update_panels()
+	_update_hover()
+
+
+func _banner_up() -> bool:
+	return phase_banner.is_playing() or end_screen.visible
+
+
+## Victory music on a win, silence on a defeat; the end screen waits for the
+## player, then hands the result on through [signal ended].
+func _on_battle_finished(won: bool) -> void:
 	if won:
 		music.stream = VICTORY_MUSIC
 		music.play()
 	else:
 		music.stop()
+	range_overlay.set_cells({}, {})
+	end_screen.show_result(won)
+	_update_panels()
+
+
+## GameFlow listens to [signal ended] (outro on a win, a retry on a loss). Run on
+## its own (F6) nothing listens, so the scene reloads instead.
+func _on_end_screen_continue() -> void:
+	if ended.get_connections().is_empty():
+		get_tree().reload_current_scene()
+		return
+	ended.emit(end_screen.won)

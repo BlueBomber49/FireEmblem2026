@@ -14,6 +14,7 @@ var bandit: LevelUnitState
 func before_each() -> void:
 	battle = BattleScene.instantiate()
 	(battle.get_node("Level") as Level).level_path = LEVEL_PATH
+	battle.show_banners = false
 	add_child_autofree(battle)
 	lyn = battle.level.level_state.level_units["lyn"]
 	bandit = battle.level.level_state.level_units["bandit"]
@@ -1061,7 +1062,7 @@ func test_seize_is_not_offered_off_the_seize_cell() -> void:
 
 func test_choosing_seize_wins_through_the_normal_action_end() -> void:
 	_seize_at(LYN_CELL)
-	watch_signals(battle)
+	watch_signals(battle.turn_loop)
 	battle.cursor.set_cell(LYN_CELL)
 	battle.act_in_place()
 	battle.unit_menu.option_selected.emit(&"seize")
@@ -1069,7 +1070,8 @@ func test_choosing_seize_wins_through_the_normal_action_end() -> void:
 	assert_eq(battle.state, Battle.State.FREE)
 	assert_null(battle.level.selected)
 	assert_eq(battle.turn_loop.phase, TurnLoop.Phase.COMPLETE)
-	assert_signal_emitted_with_parameters(battle, "ended", [true])
+	assert_signal_emitted_with_parameters(battle.turn_loop, "finished", [true])
+	assert_true(battle.end_screen.visible, "Stage Clear waits for the player")
 
 
 func test_seize_cells_are_highlighted_in_the_player_phase_only() -> void:
