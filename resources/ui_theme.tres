@@ -205,6 +205,38 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner_player"]
+content_margin_top = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.12, 0.2, 0.52, 0.95)
+border_width_top = 4
+border_width_bottom = 4
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner_enemy"]
+content_margin_top = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.55, 0.14, 0.14, 0.95)
+border_width_top = 4
+border_width_bottom = 4
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner_clear"]
+content_margin_top = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.72, 0.55, 0.15, 0.95)
+border_width_top = 4
+border_width_bottom = 4
+border_color = Color(0.85, 0.9, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner_defeat"]
+content_margin_top = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.32, 0.05, 0.05, 0.95)
+border_width_top = 4
+border_width_bottom = 4
+border_color = Color(0.85, 0.9, 1, 1)
+
 [resource]
 default_font = ExtResource("1_0hks0")
 default_font_size = 40
@@ -218,6 +250,10 @@ Button/styles/focus = SubResource("StyleBoxFlat_highlight")
 Button/styles/hover = SubResource("StyleBoxEmpty_normal")
 Button/styles/normal = SubResource("StyleBoxEmpty_normal")
 Button/styles/pressed = SubResource("StyleBoxFlat_highlight")
+EndBannerClear/base_type = &"PanelContainer"
+EndBannerClear/styles/panel = SubResource("StyleBoxFlat_banner_clear")
+EndBannerDefeat/base_type = &"PanelContainer"
+EndBannerDefeat/styles/panel = SubResource("StyleBoxFlat_banner_defeat")
 ForecastEnemyPanel/base_type = &"PanelContainer"
 ForecastEnemyPanel/styles/panel = SubResource("StyleBoxFlat_forecast_enemy")
 ForecastEnemyStats/base_type = &"PanelContainer"
@@ -247,6 +283,10 @@ Label/colors/font_color = Color(1, 1, 1, 1)
 Label/colors/font_outline_color = Color(0, 0, 0, 1)
 Label/constants/outline_size = 10
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_panel")
+PhaseBannerEnemy/base_type = &"PanelContainer"
+PhaseBannerEnemy/styles/panel = SubResource("StyleBoxFlat_banner_enemy")
+PhaseBannerPlayer/base_type = &"PanelContainer"
+PhaseBannerPlayer/styles/panel = SubResource("StyleBoxFlat_banner_player")
 PortraitFrame/base_type = &"PanelContainer"
 PortraitFrame/styles/panel = SubResource("StyleBoxFlat_status_portrait")
 StatusBox/base_type = &"PanelContainer"
