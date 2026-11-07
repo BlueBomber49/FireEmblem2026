@@ -40,8 +40,12 @@ const TARGET_STEPS := {
 const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
 const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/Music/enemy_phase.ogg")
 const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Music/Victory.mp3")
-const MELEE_SFX: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 13.wav")
-const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/Sword Swoosh/Swoosh 2.wav")
+const MELEE_SFX_1: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 1.wav")
+const MELEE_SFX_2: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 5.wav")
+const MELEE_SFX_3: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 6.wav")
+const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack Short 1.wav")
+const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
+const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -533,15 +537,19 @@ func _play_strike(strike: Combat.Strike) -> void:
 	play_strike_sound_effect(strike)
 	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
 	strike.defender.current_hp = strike.hp_after
+	
 	if not strike.defender.is_alive():
 		await level.fade_out_unit(target)
 		
 func play_strike_sound_effect(strike: Combat.Strike) -> void:
-	match strike.attacker.unit.equipped_weapon().weapon_type:
-		Enums.WeaponType.BOW:
-			sound_effects.stream = RANGED_SFX
-		_:
-			sound_effects.stream = MELEE_SFX
+	if strike.hit:
+		match strike.attacker.unit.equipped_weapon().weapon_type:
+			Enums.WeaponType.BOW:
+				sound_effects.stream = RANGED_SFX
+			_:
+				sound_effects.stream = [MELEE_SFX_1, MELEE_SFX_2, MELEE_SFX_3, MELEE_SFX_4].pick_random()
+	else:
+		sound_effects.stream = MISS_SFX
 	sound_effects.play()
 
 
