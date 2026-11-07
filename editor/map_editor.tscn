@@ -103,11 +103,13 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
-item_count = 2
+item_count = 3
 popup/item_0/text = "Terrain"
 popup/item_0/id = 0
 popup/item_1/text = "Units"
 popup/item_1/id = 1
+popup/item_2/text = "Walls"
+popup/item_2/id = 2
 
 [node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
 unique_name_in_owner = true
@@ -304,6 +306,35 @@ layout_mode = 2
 text = "Left: place / click to select / drag to move
 Right: delete
 X / Esc: deselect, to place a different unit"
+autowrap_mode = 3
+
+[node name="WallsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="WallPieceRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/WallsBox"]
+layout_mode = 2
+
+[node name="WallPieceLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow"]
+layout_mode = 2
+text = "Piece"
+
+[node name="WallPieceOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 2
+popup/item_0/text = "Wall"
+popup/item_0/id = 0
+popup/item_1/text = "Door"
+popup/item_1/id = 1
+
+[node name="WallsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox"]
+layout_mode = 2
+text = "Left: paint   Right: erase"
 autowrap_mode = 3
 
 [node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]

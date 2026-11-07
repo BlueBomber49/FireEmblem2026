@@ -256,3 +256,44 @@ func test_unknown_tile_counts_as_plains() -> void:
 	assert_eq(finder.move_cost(fighter, Vector2i(1, 0)), 1)
 	assert_true(finder.reachable_cells(fighter, 5).has(Vector2i(1, 0)))
 	assert_push_warning("magma")
+
+
+# --- Walls and doors -------------------------------------------------------
+
+
+## _strip with a line of wall across the whole map at x = 3 and one cell of it
+## swapped for a door at DOOR, or solid when `with_door` is off.
+const DOOR := Vector2i(3, 2)
+
+
+func _walled_strip(with_door: bool) -> LevelState:
+	var level_state := _strip()
+	var bounds := level_state.map_data.bounds()
+	for y in range(bounds.position.y, bounds.end.y):
+		var cell := Vector2i(3, y)
+		if with_door and cell == DOOR:
+			level_state.map_data.doors.append(cell)
+		else:
+			level_state.map_data.walls.append(cell)
+	return level_state
+
+
+func test_wall_blocks_ground_units_but_not_fliers() -> void:
+	var level_state := _walled_strip(false)
+	var soldier := _put(level_state, "knight", Vector2i(2, 2))
+	var pegasus := _put(level_state, "pegasus_knight", Vector2i(2, 1))
+	var finder := Pathfinding.new(level_state)
+	assert_eq(finder.move_cost(soldier, DOOR), TerrainData.IMPASSABLE)
+	assert_false(finder.is_passable(soldier, DOOR))
+	assert_eq(finder.move_cost(pegasus, DOOR), 1)
+	assert_true(finder.is_passable(pegasus, DOOR))
+	assert_true(finder.find_path(soldier, Vector2i(4, 2)).is_empty(), "the wall spans the map")
+
+
+func test_ground_units_walk_through_doors_with_gate_rules() -> void:
+	var level_state := _walled_strip(true)
+	var soldier := _put(level_state, "knight", Vector2i(2, 2))
+	var finder := Pathfinding.new(level_state)
+	assert_eq(finder.terrain_at(DOOR).id, &"gate")
+	assert_eq(finder.move_cost(soldier, DOOR), 1)
+	assert_eq(finder.find_path(soldier, Vector2i(4, 2)).size(), 3, "straight through the door")

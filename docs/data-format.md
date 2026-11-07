@@ -103,6 +103,19 @@ or a **generic unit** defined right there:
 - `sprite_sheet` (optional) is a full sprite path. Without it the unit uses its character's or class's sprite in its faction's colour. The map editor fills it in.
 - A unit whose character or class id doesn't exist is kept in the file but skipped in play; the map editor lists it in its status line.
 
+### Walls and doors
+
+Under `map_data`, `walls` and `doors` are lists of cells. Both are optional.
+
+```json
+"walls": [[3, 2], [5, 2]],
+"doors": [[4, 2]]
+```
+
+- A wall cell always plays as the Wall terrain rules and a door cell as Gate, whatever terrain is painted under them. They work on cells with no terrain too. Their tile ids in the terrain rules' `tiles` lists are `wall` and `door`.
+- Tiles are picked automatically from `assets/tilesets/wall_tileset.png` by the neighbouring cells: a wall with wall below it draws its flat top, otherwise its brick front face, and the walls to its left and right pick the end or middle piece. Doors count as wall for their neighbours.
+- A cell holds a wall or a door, not both. If a hand-edited file lists a cell in both, it's a door.
+
 ### Objective
 
 Optional `objective` at the top level of the level file: how the level is won or lost.
@@ -120,7 +133,7 @@ Optional `objective` at the top level of the level file: how the level is won or
 - Condition types: `faction_defeated` (`faction`: `player`, `enemy` or `ally`) and `unit_defeated` (`unit`: a unit id from this level's `map_data.units`).
 - An unknown type, a bad faction or a missing `unit` is warned about ("Objective:") and dropped. A `unit` id not in the level is warned about and never counts as defeated.
 
-The map editor writes everything except the objective, which it keeps as it is. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell.
+The map editor writes everything except the objective, which it keeps as it is. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell. In Walls mode, pick Wall or Door, then left-drag to paint and right-drag to erase.
 
 ## Campaign: `resources/campaign.json`
 

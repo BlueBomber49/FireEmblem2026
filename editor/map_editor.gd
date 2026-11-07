@@ -1,14 +1,17 @@
 class_name MapEditor
 extends Node2D
-## Paints terrain vertices onto a Level's layers, places units, and saves the
-## result as a level JSON. Run this scene directly (not the main scene).
+## Paints terrain vertices onto a Level's layers, paints walls and doors, places
+## units, and saves the result as a level JSON. Run this scene directly (not the main scene).
 ##
 ## Terrain mode: left mouse paints, right mouse erases.
 ## Units mode: left click places a unit, drag moves one, right click deletes.
-## Both: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
+## Walls mode: left mouse paints the picked piece (wall or door), right mouse erases.
+## All: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
-enum Mode { TERRAIN, UNITS }
+enum Mode { TERRAIN, UNITS, WALLS }
 enum Brush { PAINT, ERASE }
+## What Walls mode paints, in the order WallPieceOption lists them.
+enum WallPiece { WALL, DOOR }
 
 const PAN_SPEED := 400.0
 const MAX_UNDO := 200
@@ -30,6 +33,8 @@ const SELECTED_TINT := Color(1.0, 1.0, 0.5)
 @onready var mode_option: OptionButton = %ModeOption
 @onready var terrain_box: VBoxContainer = %TerrainBox
 @onready var units_box: VBoxContainer = %UnitsBox
+@onready var walls_box: VBoxContainer = %WallsBox
+@onready var wall_piece_option: OptionButton = %WallPieceOption
 @onready var layer_list: ItemList = %LayerList
 @onready var name_edit: LineEdit = %NameEdit
 @onready var terrain_option: OptionButton = %TerrainOption
@@ -88,6 +93,10 @@ var _stroke_before: Dictionary = {}
 
 
 func _ready() -> void:
+	# The game stretches its 640x360 view (project.godot); the editor is a tool
+	# and draws at the window's real size, with its own camera zoom.
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	level.create_camera = false
 	path_edit.text = level_path
 	_fill_terrain_options()
@@ -165,10 +174,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	match click.button_index:
 		MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT:
 			_update_hover()
-			if mode == Mode.TERRAIN:
-				_terrain_click(click)
-			else:
-				_unit_click(click)
+			match mode:
+				Mode.TERRAIN:
+					_terrain_click(click)
+				Mode.WALLS:
+					_wall_click(click)
+				_:
+					_unit_click(click)
 		MOUSE_BUTTON_MIDDLE:
 			panning = click.pressed
 		MOUSE_BUTTON_WHEEL_UP:
@@ -190,6 +202,7 @@ func _set_mode(new_mode: int) -> void:
 	mode_option.selected = mode
 	terrain_box.visible = mode == Mode.TERRAIN
 	units_box.visible = mode == Mode.UNITS
+	walls_box.visible = mode == Mode.WALLS
 	_end_stroke()
 	overlay.queue_redraw()
 	_update_status()
@@ -235,6 +248,9 @@ func brush_verts() -> Array[Vector2i]:
 
 
 func _apply_brush(brush_mode: int) -> void:
+	if mode == Mode.WALLS:
+		_apply_wall_brush(brush_mode)
+		return
 	var layer := selected_layer()
 	if layer == null:
 		return
@@ -329,6 +345,38 @@ func _fill_terrain_options() -> void:
 	ids.sort()
 	for id in ids:
 		terrain_option.add_item(id)
+
+
+# --- Walls ------------------------------------------------------------------
+
+
+func _wall_click(click: InputEventMouseButton) -> void:
+	if click.pressed:
+		if dragging == -1:
+			_stroke_before = _snapshot()
+		dragging = Brush.PAINT if click.button_index == MOUSE_BUTTON_LEFT else Brush.ERASE
+		_apply_wall_brush(dragging)
+	else:
+		_end_stroke()
+
+
+## A cell holds one piece: painting a wall replaces a door and vice versa.
+func _apply_wall_brush(brush_mode: int) -> void:
+	var map_data := level.level_state.map_data
+	var had_wall := map_data.walls.has(hover_cell)
+	var had_door := map_data.doors.has(hover_cell)
+	var want_wall := brush_mode == Brush.PAINT and wall_piece_option.selected == WallPiece.WALL
+	var want_door := brush_mode == Brush.PAINT and wall_piece_option.selected == WallPiece.DOOR
+	if want_wall == had_wall and want_door == had_door:
+		return
+	map_data.walls.erase(hover_cell)
+	map_data.doors.erase(hover_cell)
+	if want_wall:
+		map_data.walls.append(hover_cell)
+	elif want_door:
+		map_data.doors.append(hover_cell)
+	level.repaint_walls()
+	overlay.queue_redraw()
 
 
 # --- Units ------------------------------------------------------------------
@@ -900,6 +948,10 @@ func _update_status() -> void:
 		if not broken.is_empty():
 			status.text += "   |   NOT SHOWN: " + "; ".join(broken)
 		return
+	if mode == Mode.WALLS:
+		var map_data := level.level_state.map_data
+		status.text = "cell %s   |   %d walls, %d doors" % [hover_cell, map_data.walls.size(), map_data.doors.size()]
+		return
 	var layer := selected_layer()
 	var layer_text := "no layer selected" if layer == null else "%s: %d verts" % [layer.name, layer.verts.size()]
 	status.text = "vert %s   |   %s" % [hover_vert, layer_text]
@@ -937,6 +989,10 @@ func _draw_overlay() -> void:
 		var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
 		if ref != null:
 			overlay.draw_rect(_cell_rect(ref.start_cell), PAINT_COLOR, false, 1.0)
+		return
+
+	if mode == Mode.WALLS:
+		overlay.draw_rect(_cell_rect(hover_cell), ERASE_COLOR if dragging == Brush.ERASE else PAINT_COLOR, false, 1.0)
 		return
 
 	var layer := selected_layer()

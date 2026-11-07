@@ -327,3 +327,100 @@ func test_saved_level_reloads() -> void:
 	assert_not_null(reloaded)
 	assert_eq(reloaded.level_units.size(), _map_units().size())
 	DirAccess.remove_absolute(path)
+
+
+# --- Walls mode -------------------------------------------------------------
+
+
+func _map_data() -> MapData:
+	return editor.level.level_state.map_data
+
+
+## Presses a mouse button over `cell` in Walls mode, without releasing it.
+func _press_wall(cell: Vector2i, button := MOUSE_BUTTON_LEFT) -> void:
+	editor.hover_cell = cell
+	var click := InputEventMouseButton.new()
+	click.button_index = button
+	click.pressed = true
+	editor._wall_click(click)
+
+
+func _release_wall(button := MOUSE_BUTTON_LEFT) -> void:
+	var click := InputEventMouseButton.new()
+	click.button_index = button
+	click.pressed = false
+	editor._wall_click(click)
+
+
+func test_walls_mode_shows_its_panel() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	assert_true(editor.walls_box.visible)
+	assert_false(editor.terrain_box.visible)
+	assert_false(editor.units_box.visible)
+	assert_eq(editor.mode_option.get_item_text(editor.mode_option.selected), "Walls")
+
+
+func test_painting_and_erasing_walls() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_true(_map_data().walls.has(FREE_CELL))
+	assert_eq(editor.level.walls_layer.get_used_cells(), [FREE_CELL] as Array[Vector2i])
+	_press_wall(FREE_CELL, MOUSE_BUTTON_RIGHT)
+	_release_wall(MOUSE_BUTTON_RIGHT)
+	assert_true(_map_data().walls.is_empty())
+	assert_true(editor.level.walls_layer.get_used_cells().is_empty())
+
+
+func test_a_cell_holds_a_wall_or_a_door() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	_press_wall(FREE_CELL)
+	_release_wall()
+	editor.wall_piece_option.selected = MapEditor.WallPiece.DOOR
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_false(_map_data().walls.has(FREE_CELL), "the door replaced the wall")
+	assert_true(_map_data().doors.has(FREE_CELL))
+	editor.wall_piece_option.selected = MapEditor.WallPiece.WALL
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_true(_map_data().walls.has(FREE_CELL), "the wall replaced the door")
+	assert_false(_map_data().doors.has(FREE_CELL))
+
+
+func test_a_wall_stroke_is_one_undo_step() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	var steps := editor.undo_stack.size()
+	_press_wall(Vector2i(3, 3))
+	editor.hover_cell = Vector2i(4, 3)
+	editor._apply_brush(editor.dragging)
+	editor.hover_cell = Vector2i(5, 3)
+	editor._apply_brush(editor.dragging)
+	_release_wall()
+	assert_eq(_map_data().walls.size(), 3)
+	assert_eq(editor.undo_stack.size(), steps + 1)
+	editor.undo()
+	assert_true(_map_data().walls.is_empty())
+	assert_true(editor.level.walls_layer.get_used_cells().is_empty())
+	editor.redo()
+	assert_eq(_map_data().walls.size(), 3)
+	assert_eq(editor.level.walls_layer.get_used_cells().size(), 3)
+
+
+func test_walls_and_doors_survive_save_and_load() -> void:
+	const PATH := "user://test_map_editor_walls.json"
+	editor._set_mode(MapEditor.Mode.WALLS)
+	_press_wall(FREE_CELL)
+	_release_wall()
+	editor.wall_piece_option.selected = MapEditor.WallPiece.DOOR
+	_press_wall(FREE_CELL + Vector2i.RIGHT)
+	_release_wall()
+	editor.path_edit.text = PATH
+	editor._save()
+	editor._new()
+	assert_true(_map_data().walls.is_empty())
+	editor._load()
+	assert_eq(_map_data().walls, [FREE_CELL] as Array[Vector2i])
+	assert_eq(_map_data().doors, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
+	assert_eq(editor.level.walls_layer.get_used_cells().size(), 2)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))

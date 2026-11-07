@@ -19,6 +19,7 @@ Serenes Forest's `/blazing-sword/weapons/...` URLs redirect to *Shadow Dragon* (
 | 11 movement groups | 5: foot, armored, mounted, flier, mage | Simpler. **Nomads use mounted costs** (FE7 Nomads differ from Cavaliers in forest and desert), and **Fighters use foot costs** (FE7 Fighters pay 3 on mountains, where foot units pay 4). |
 | Character data stored as offsets from class bases | Character files' `stats` hold **total** stats | Teammates can paste numbers straight from character pages. Movement always comes from the class. |
 | Male and female class variants | Male values only | Simpler; can be added as separate classes later. |
+| Walls block every unit | **Fliers can cross and stop on walls** at cost 1 | Team decision. |
 
 ## Combat formulas
 All results round down unless noted.
@@ -63,11 +64,11 @@ Movement costs by our movement group. A dash means impassable. FE7's other group
 | River | 0 | 0 | | 5 | – | – | 1 | – |
 | Sea/Lake | 10 | 0 | | – | – | – | 1 | – |
 | Cliff | 0 | 0 | | – | – | – | 1 | – |
-| Wall | 0 | 0 | | – | – | – | – | – |
+| Wall | 0 | 0 | | – | – | – | 1 | – |
 
 "Mounted" is FE7's Knights 1 group (Cavalier). FE7's full table also has Nomad, Fighter, Bandit and Pirate columns.
 
-**Which terrain a map cell is.** Maps are painted by corners, so a cell at a terrain's edge can mix terrains. The game uses the majority rule (`MapData.rules_terrain_at`): the highest layer covering 3 or 4 of the cell's corners, or covering a straight half-edge if its terrain counts half-edges (forest does, so half-tree edge tiles play as forest); otherwise the layer covering the most corners (ties go to the higher layer); and a cell with fewer than 3 corners painted at all counts as nothing (impassable). The drawn tiles map to these rules through each terrain file's `tiles` list: grass and dirt are plains, trees are forest, sand is desert, water is sea, walls are wall. A tile no terrain file lists is treated as plains, with a warning.
+**Which terrain a map cell is.** Maps are painted by corners, so a cell at a terrain's edge can mix terrains. The game uses the majority rule (`MapData.rules_terrain_at`): the highest layer covering 3 or 4 of the cell's corners, or covering a straight half-edge if its terrain counts half-edges (forest does, so half-tree edge tiles play as forest); otherwise the layer covering the most corners (ties go to the higher layer); and a cell with fewer than 3 corners painted at all counts as nothing (impassable). The drawn tiles map to these rules through each terrain file's `tiles` list: grass and dirt are plains, trees are forest, sand is desert, water is sea. Walls and doors are separate from the painted layers (`map_data.walls`, `map_data.doors`) and overrule whatever is under them: a wall cell is Wall and a door cell is Gate. A tile no terrain file lists is treated as plains, with a warning.
 
 ## Classes (male, unpromoted)
 Stats in order HP / Str / Mag / Skl / Spd / Lck / Def / Res / Con / Mov. Growth rates in order HP / Str / Mag / Skl / Spd / Lck / Def / Res (%).

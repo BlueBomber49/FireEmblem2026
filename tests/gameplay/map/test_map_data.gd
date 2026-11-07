@@ -214,3 +214,44 @@ func test_unknown_character_survives_a_save_and_is_only_skipped_in_play() -> voi
 	assert_false(states.has("typo"), "skipped only when building play states")
 	assert_eq(states.size(), 2)
 	assert_push_warning("typo")
+
+
+# --- Walls and doors --------------------------------------------------------
+
+
+func _walled_map() -> MapData:
+	var data := _map([MapLayer.new("grass", 0, "grass", _full_block())])
+	data.walls = [Vector2i(1, 1)] as Array[Vector2i]
+	data.doors = [Vector2i(2, 1)] as Array[Vector2i]
+	return data
+
+
+func test_walls_and_doors_round_trip() -> void:
+	var data := _walled_map()
+	var again := MapData.fromJson(data.toJson())
+	assert_eq(again.walls, [Vector2i(1, 1)] as Array[Vector2i])
+	assert_eq(again.doors, [Vector2i(2, 1)] as Array[Vector2i])
+
+
+func test_map_without_walls_loads_with_none() -> void:
+	var data := MapData.fromJson(SAMPLE)
+	assert_true(data.walls.is_empty())
+	assert_true(data.doors.is_empty())
+
+
+func test_walls_and_doors_overrule_the_terrain_under_them() -> void:
+	var data := _walled_map()
+	assert_eq(data.rules_terrain_at(Vector2i(1, 1)), MapData.WALL_TILE)
+	assert_eq(data.rules_terrain_at(Vector2i(2, 1)), MapData.DOOR_TILE)
+	assert_eq(data.rules_terrain_at(Vector2i(0, 0)), "grass")
+
+
+func test_walls_count_on_cells_with_no_terrain() -> void:
+	var data := MapData.new()
+	data.walls = [Vector2i(7, 7)] as Array[Vector2i]
+	data.doors = [Vector2i(8, 7)] as Array[Vector2i]
+	assert_eq(data.rules_terrain_at(Vector2i(7, 7)), MapData.WALL_TILE)
+	assert_eq(data.rules_terrain_at(Vector2i(8, 7)), MapData.DOOR_TILE)
+	assert_true(data.is_drawn(Vector2i(7, 7)))
+	assert_true(data.is_drawn(Vector2i(8, 7)))
+	assert_eq(data.bounds(), Rect2i(7, 7, 2, 1), "bounds cover walls and doors")
