@@ -18,11 +18,15 @@ const BLINK_TIME := 0.6
 var stage := Stage.PRESS_START
 var _blink: Tween
 
+const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg")
+
 @onready var _press_start: Label = %PressStart
 @onready var _menu: ActionMenu = %Menu
-
+@onready var music: AudioStreamPlayer = $Music
 
 func _ready() -> void:
+	music.stream = MENU_MUSIC
+	music.play()
 	_menu.option_selected.connect(_on_menu_option)
 	_menu.cancelled.connect(_show_press_start)
 	_show_press_start()
