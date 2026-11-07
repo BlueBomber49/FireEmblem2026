@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://d3i7eeclbsxto"
-path="res://.godot/imported/arrow_impact.wav-559c11aa3b19027ad853a3e0090a3e1c.sample"
+path="res://.godot/imported/arrow-impact.wav-e7703c104e185a343f3fbd6386aaa13b.sample"
 
 [deps]
 
-source_file="res://assets/audio/SFX/arrow_impact.wav"
-dest_files=["res://.godot/imported/arrow_impact.wav-559c11aa3b19027ad853a3e0090a3e1c.sample"]
+source_file="res://assets/audio/SFX/arrow-impact.wav"
+dest_files=["res://.godot/imported/arrow-impact.wav-e7703c104e185a343f3fbd6386aaa13b.sample"]
 
 [params]
 

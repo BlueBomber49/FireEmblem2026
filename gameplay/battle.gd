@@ -46,6 +46,7 @@ const MELEE_SFX_3: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sw
 const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack Short 1.wav")
 const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
 const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
+const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -295,6 +296,8 @@ func _is_commandable(unit: LevelUnit) -> bool:
 
 
 func _select(unit: LevelUnit) -> void:
+	sound_effects.stream = BUTTON_PRESS
+	sound_effects.play()
 	level.select(unit)
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved

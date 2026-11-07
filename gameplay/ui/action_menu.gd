@@ -11,9 +11,8 @@ signal cancelled
 ## Ids of the options to show, top to bottom. The label is the capitalized id
 ## ([code]&"end"[/code] shows as "End").
 @export var options: Array[StringName] = []
-
+@onready var sound_effects: AudioStreamPlayer = $SFX
 @onready var _option_list: VBoxContainer = %Options
-
 
 func _ready() -> void:
 	hide()
@@ -69,5 +68,6 @@ func _build_buttons() -> void:
 
 
 func _on_option_pressed(option_id: StringName) -> void:
+	sound_effects.play()
 	close()
 	option_selected.emit(option_id)

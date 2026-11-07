@@ -60,6 +60,8 @@ func test_cancel_in_the_menu_goes_back_to_press_start() -> void:
 func test_new_game_reports_new_game_only() -> void:
 	_title._unhandled_input(_action(&"confirm"))
 	_press_option(&"new_game")
+	# The title waits for the button-press sound before reporting.
+	await wait_until(func() -> bool: return get_signal_emit_count(_title, "new_game_chosen") > 0, 2.0)
 	assert_signal_emit_count(_title, "new_game_chosen", 1)
 	assert_signal_not_emitted(_title, "quit_chosen")
 

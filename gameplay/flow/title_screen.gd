@@ -23,6 +23,7 @@ const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg"
 @onready var _press_start: Label = %PressStart
 @onready var _menu: ActionMenu = %Menu
 @onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SFX
 
 func _ready() -> void:
 	music.stream = MENU_MUSIC
@@ -60,6 +61,7 @@ func _show_press_start() -> void:
 
 
 func _open_menu() -> void:
+	sound_effects.play()
 	stage = Stage.MENU
 	if _blink != null:
 		_blink.kill()
@@ -71,6 +73,8 @@ func _open_menu() -> void:
 func _on_menu_option(option_id: StringName) -> void:
 	match option_id:
 		&"new_game":
+			if _menu.sound_effects.playing:
+				await _menu.sound_effects.finished
 			new_game_chosen.emit()
 			
 		&"quit":

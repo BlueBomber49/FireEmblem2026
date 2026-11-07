@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://gameplay/map/level.gd" id="2_level"]
 [ext_resource type="Script" uid="uid://bt2nsykliy8e3" path="res://gameplay/ui/map_cursor.gd" id="3_cursor"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/map_menu.tscn" id="4_map_menu"]
-[ext_resource type="PackedScene" path="res://gameplay/ui/action_menu.tscn" id="5_action_menu"]
+[ext_resource type="PackedScene" uid="uid://db6r7lledy23i" path="res://gameplay/ui/action_menu.tscn" id="5_action_menu"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/combat_forecast.tscn" id="6_forecast"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/terrain_panel.tscn" id="7_terrain_panel"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="8_theme"]
