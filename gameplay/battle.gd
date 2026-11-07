@@ -37,10 +37,16 @@ const TARGET_STEPS := {
 	&"ui_down": 1,
 }
 
-const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
-const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
-const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
-
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/Music/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Music/Victory.mp3")
+const MELEE_SFX_1: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 1.wav")
+const MELEE_SFX_2: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 5.wav")
+const MELEE_SFX_3: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 6.wav")
+const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack Short 1.wav")
+const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
+const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
+const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -57,6 +63,7 @@ const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
 @onready var end_screen: EndScreen = %EndScreen
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SoundEffects
 
 ## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
 ## adding the scene, so phases change instantly.
@@ -297,6 +304,8 @@ func _is_commandable(unit: LevelUnit) -> bool:
 
 
 func _select(unit: LevelUnit) -> void:
+	sound_effects.stream = BUTTON_PRESS
+	sound_effects.play()
 	level.select(unit)
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
@@ -533,12 +542,26 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 
 
 func _play_strike(strike: Combat.Strike) -> void:
+
 	var striker: LevelUnit = level.unit_nodes[strike.attacker.unit_ref.id]
 	var target: LevelUnit = level.unit_nodes[strike.defender.unit_ref.id]
+	play_strike_sound_effect(strike)
 	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
 	strike.defender.current_hp = strike.hp_after
+	
 	if not strike.defender.is_alive():
 		await level.fade_out_unit(target)
+		
+func play_strike_sound_effect(strike: Combat.Strike) -> void:
+	if strike.hit:
+		match strike.attacker.unit.equipped_weapon().weapon_type:
+			Enums.WeaponType.BOW:
+				sound_effects.stream = RANGED_SFX
+			_:
+				sound_effects.stream = [MELEE_SFX_1, MELEE_SFX_2, MELEE_SFX_3, MELEE_SFX_4].pick_random()
+	else:
+		sound_effects.stream = MISS_SFX
+	sound_effects.play()
 
 
 ## The straight direction to face for a strike along `offset`. A ranged strike can
