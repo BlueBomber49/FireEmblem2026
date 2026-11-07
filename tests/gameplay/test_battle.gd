@@ -14,6 +14,7 @@ var bandit: LevelUnitState
 func before_each() -> void:
 	battle = BattleScene.instantiate()
 	(battle.get_node("Level") as Level).level_path = LEVEL_PATH
+	battle.show_banners = false
 	add_child_autofree(battle)
 	lyn = battle.level.level_state.level_units["lyn"]
 	bandit = battle.level.level_state.level_units["bandit"]
