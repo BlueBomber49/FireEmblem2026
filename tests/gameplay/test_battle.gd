@@ -1263,3 +1263,73 @@ func test_escape_cells_are_highlighted_in_the_player_phase_only() -> void:
 	assert_true(battle.range_overlay.seize_cells.is_empty())
 	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
 	assert_true(battle.range_overlay.escape_cells.is_empty())
+
+
+# --- Experience ---------------------------------------------------------------------
+# Numbers from test_experience.gd: lyn (L1) vs the bandit (L2).
+
+
+func test_a_kill_awards_exp_after_the_fight() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	bandit.current_hp = 1
+	battle.roll = _always(10)
+	watch_signals(battle)
+	_lyn_in_unit_menu()
+	battle.unit_menu.option_selected.emit(&"attack")
+	await battle._fight(bandit)
+	assert_eq(lyn.unit.experience, 33)
+	assert_signal_emitted_with_parameters(battle, "experience_gained", ["lyn", 33, [] as Array[Dictionary]])
+
+
+func test_defending_in_the_enemy_phase_awards_exp() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	battle.roll = _always(99)  # the bandit misses; lyn's 100 hit lands
+	await battle.execute_enemy_attack(bandit, lyn)
+	assert_eq(lyn.unit.experience, 10, "lyn did damage on the counter")
+
+
+func test_allies_and_enemies_gain_no_exp() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	wil.unit_ref.faction = UnitReference.Faction.ALLY  # before_each makes him a player unit
+	bandit.cell = wil.cell + Vector2i.RIGHT
+	battle.roll = _always(99)
+	watch_signals(battle)
+	await battle.execute_enemy_attack(bandit, wil)
+	assert_eq(wil.unit.experience, 0, "green units don't level")
+	assert_eq(bandit.unit.experience, 0)
+	assert_signal_not_emitted(battle, "experience_gained")
+
+
+func test_a_unit_that_falls_gains_nothing() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	lyn.current_hp = 1
+	battle.roll = _always(0)  # the bandit hits first and kills
+	await battle.execute_enemy_attack(bandit, lyn)
+	assert_false(lyn.is_alive())
+	assert_eq(lyn.unit.experience, 0)
+
+
+func test_level_twenty_units_skip_exp() -> void:
+	lyn.unit.level = 20
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	battle.roll = _always(99)
+	watch_signals(battle)
+	await battle.execute_enemy_attack(bandit, lyn)
+	assert_signal_not_emitted(battle, "experience_gained")
+
+
+func test_the_popup_ends_on_the_units_real_exp_at_level_twenty() -> void:
+	lyn.unit.level = 19
+	lyn.unit.experience = 99  # the kill gives 4 here (a level-2 bandit): 103 reaches level 20
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	bandit.current_hp = 1
+	battle.roll = _always(10)
+	battle.show_banners = true
+	battle.exp_popup.fill_time = 0.01
+	battle.exp_popup.hold_time = 0.0
+	battle.exp_popup.level_up_time = 0.0
+	_lyn_in_unit_menu()
+	battle.unit_menu.option_selected.emit(&"attack")
+	await battle._fight(bandit)
+	assert_eq(lyn.unit.level, 20)
+	assert_eq(battle.exp_popup.get_node("%Bar").value, 0.0, "level 20: no leftover EXP")

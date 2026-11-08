@@ -1,0 +1,40 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gameplay/ui/exp_popup.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
+
+[node name="ExpPopup" type="PanelContainer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -40.0
+offset_right = 130.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Rows" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Lyn   EXP +33"
+
+[node name="Bar" type="ProgressBar" parent="Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 12)
+layout_mode = 2
+theme_type_variation = &"HpBar"
+show_percentage = false
+
+[node name="Gains" type="Label" parent="Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "HP +1  Str +1"

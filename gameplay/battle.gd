@@ -20,6 +20,9 @@ extends Node2D
 
 ## The level is over; GameFlow decides what plays next.
 signal ended(won: bool)
+## A player unit gained EXP after a fight: [param level_ups] holds one entry per
+## level gained (stat -> amount), from Experience.gain. A hook for UI.
+signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
 
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
@@ -64,6 +67,7 @@ const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.w
 @onready var status_screen: StatusScreen = %StatusScreen
 @onready var phase_banner: PhaseBanner = %PhaseBanner
 @onready var end_screen: EndScreen = %EndScreen
+@onready var exp_popup: ExpPopup = %ExpPopup
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
 @onready var sound_effects: AudioStreamPlayer = $SoundEffects
@@ -575,6 +579,7 @@ func _fight(target: LevelUnitState) -> void:
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
@@ -592,6 +597,7 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
@@ -628,6 +634,32 @@ static func strike_direction(offset: Vector2i) -> Vector2i:
 	if offset.x != 0:
 		return Vector2i(signi(offset.x), 0)
 	return Vector2i(0, signi(offset.y))
+
+
+# --- Experience --------------------------------------------------------------
+
+
+## After a fight: the player unit in it gains EXP (attacking or defending), if it
+## survived and isn't at level 20. Shows the popup when show_banners is on, and
+## returns once it's gone. Allies and enemies never gain EXP.
+func award_experience(a: LevelUnitState, b: LevelUnitState, strikes: Array[Combat.Strike]) -> void:
+	for pair: Array[LevelUnitState] in [[a, b], [b, a]] as Array[Array]:
+		var me := pair[0]
+		var them := pair[1]
+		if me.unit_ref.faction != UnitReference.Faction.PLAYER or not me.is_alive() \
+				or me.unit.level >= UnitData.MAX_LEVEL:
+			continue
+		var dealt := false
+		for strike in strikes:
+			if strike.attacker == me and strike.hit and strike.damage > 0:
+				dealt = true
+		var amount := Experience.for_fight(me.unit, them.unit, dealt, not them.is_alive(),
+				them.unit_ref.commander, Experience.is_thief(them.unit.class_data()))
+		var start := me.unit.experience
+		var level_ups := Experience.gain(me.unit, amount, roll)
+		experience_gained.emit(me.unit_ref.id, amount, level_ups)
+		if show_banners:
+			await exp_popup.play(me.unit_ref.display_name(), start, amount, level_ups, me.unit.experience)
 
 
 func _random_roll() -> int:
