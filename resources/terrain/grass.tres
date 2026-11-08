@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1_terrain")
 id = "grass"
-texture_path = "res://assets/tilesets/grass_tileset.png"
+texture_path = "res://assets/tilesets/grass_tileset_arranged.png"
 tile_size = Vector2i(16, 16)
 atlas_origin = Vector2i(0, 0)
 single_tile = Vector2i(-1, -1)
