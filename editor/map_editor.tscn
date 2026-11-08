@@ -103,13 +103,15 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
-item_count = 3
+item_count = 4
 popup/item_0/text = "Terrain"
 popup/item_0/id = 0
 popup/item_1/text = "Units"
 popup/item_1/id = 1
 popup/item_2/text = "Objective"
 popup/item_2/id = 2
+popup/item_3/text = "Events"
+popup/item_3/id = 3
 
 [node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
 unique_name_in_owner = true
@@ -312,6 +314,39 @@ tooltip_text = "Defensive enemies with the same team wake up together. Blank: th
 placeholder_text = "own team"
 editable = false
 
+[node name="ArrivesRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+
+[node name="ArrivesLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow"]
+layout_mode = 2
+text = "Arrives"
+
+[node name="ArrivesOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+tooltip_text = "At the start, or with a reinforcement event (set up in Events mode). Enemies only."
+
+[node name="PreselectRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="PreselectLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+text = "New enemies arrive with: Turn 2 reinforcements"
+autowrap_mode = 3
+
+[node name="PreselectClearButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Stop: new units start on the map again"
+text = "X"
+
 [node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -337,6 +372,12 @@ X / Esc: deselect, to place a different unit"
 autowrap_mode = 3
 
 [node name="ObjectiveBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="EventsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2

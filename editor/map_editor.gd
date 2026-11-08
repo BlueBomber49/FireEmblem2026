@@ -10,7 +10,7 @@ extends Node2D
 ## saving.
 ## Both: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
-enum Mode { TERRAIN, UNITS, OBJECTIVE }
+enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS }
 ## Enemy AI strategies, in the AI dropdown's order.
 const STRATEGIES := UnitReference.STRATEGIES
 enum Brush { PAINT, ERASE }
@@ -26,6 +26,8 @@ const CELL_COLOR := Color(1, 1, 1, 0.5)
 const SELECTED_TINT := Color(1.0, 1.0, 0.5)
 const SEIZE_FILL := Color(0.2, 0.9, 0.3, 0.35)
 const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
+## Reinforcements are drawn this faded, so they read as "not here at the start".
+const REINFORCEMENT_ALPHA := 0.45
 
 
 @export_file("*.json") var level_path := "res://resources/levels/simple_level.json"
@@ -38,6 +40,11 @@ const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
 @onready var terrain_box: VBoxContainer = %TerrainBox
 @onready var units_box: VBoxContainer = %UnitsBox
 @onready var objective_box: VBoxContainer = %ObjectiveBox
+@onready var events_box: VBoxContainer = %EventsBox
+@onready var arrives_option: OptionButton = %ArrivesOption
+@onready var preselect_row: HBoxContainer = %PreselectRow
+@onready var preselect_label: Label = %PreselectLabel
+@onready var preselect_clear_button: Button = %PreselectClearButton
 @onready var commander_check: CheckBox = %CommanderCheck
 @onready var strategy_option: OptionButton = %StrategyOption
 @onready var team_edit: LineEdit = %TeamEdit
@@ -108,6 +115,19 @@ var _pending_cell := Vector2i.ZERO
 var _has_pending := false
 
 ## Level snapshots (toJson(false)) to restore on undo / redo.
+# Events mode: one row per event (event id -> its controls), built in code.
+var event_rows: VBoxContainer
+var add_event_button: Button
+var events_problems_label: Label
+var _event_rows: Dictionary = {}
+## The event new placements join ("Place new units"), or "".
+var preselected_event := ""
+## The event whose Choose is in progress, or "", and the enemies clicked so far.
+var _event_pick := ""
+var _event_pending: Array[String] = []
+## The event last worked on: its units are outlined in Events mode.
+var _focused_event := ""
+
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
 ## Tag of the last committed change; consecutive changes with the same tag merge.
@@ -123,6 +143,7 @@ func _ready() -> void:
 	_fill_unit_options()
 	_build_stats_grid()
 	_build_objective_panel()
+	_build_events_panel()
 	overlay.draw.connect(_draw_overlay)
 
 	%LoadButton.pressed.connect(_load)
@@ -151,6 +172,8 @@ func _ready() -> void:
 	strategy_option.item_selected.connect(_on_strategy_picked)
 	team_edit.text_submitted.connect(func(_text: String) -> void: _on_team_edited())
 	team_edit.focus_exited.connect(_on_team_edited)
+	arrives_option.item_selected.connect(_on_arrives_picked)
+	preselect_clear_button.pressed.connect(_preselect_event.bind(""))
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
 	deselect_button.pressed.connect(_select_unit.bind(""))
 	%UndoButton.pressed.connect(undo)
@@ -194,6 +217,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		if mode == Mode.OBJECTIVE and is_picking():
 			_cancel_pick()
+		elif mode == Mode.EVENTS and is_picking_event():
+			_cancel_event_pick()
+		elif mode == Mode.UNITS and not preselected_event.is_empty():
+			_preselect_event("")
 		else:
 			_select_unit("")
 		return
@@ -216,6 +243,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				Mode.OBJECTIVE:
 					if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
 						_objective_click(hover_cell)
+				Mode.EVENTS:
+					if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
+						_events_click(hover_cell)
 		MOUSE_BUTTON_MIDDLE:
 			panning = click.pressed
 		MOUSE_BUTTON_WHEEL_UP:
@@ -236,11 +266,16 @@ func _set_mode(new_mode: int) -> void:
 	if new_mode != Mode.OBJECTIVE and is_picking():
 		_stop_picking()  # a pick you can't see shouldn't linger
 		_refresh_objective_panel()
+	if new_mode != Mode.EVENTS and is_picking_event():
+		_cancel_event_pick()
+	if new_mode != Mode.UNITS and not preselected_event.is_empty():
+		_preselect_event("")  # only while placing units
 	mode = new_mode
 	mode_option.selected = mode
 	terrain_box.visible = mode == Mode.TERRAIN
 	units_box.visible = mode == Mode.UNITS
 	objective_box.visible = mode == Mode.OBJECTIVE
+	events_box.visible = mode == Mode.EVENTS
 	_end_stroke()
 	overlay.queue_redraw()
 	_update_status()
@@ -439,6 +474,8 @@ func _place_unit(cell: Vector2i) -> void:
 			ref.items.append(String(weapon.id))
 	ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
 	ref.start_cell = cell
+	if not preselected_event.is_empty() and ref.faction == UnitReference.Faction.ENEMY:
+		ref.event = preselected_event
 	var before := _snapshot()
 	level.level_state.map_data.units[ref.id] = ref
 	_commit(before)
@@ -478,8 +515,7 @@ func _delete_selected_unit() -> void:
 
 func _select_unit(id: String) -> void:
 	selected_unit_id = id if level.level_state.map_data.units.has(id) else ""
-	for node_id in level.unit_nodes:
-		level.unit_nodes[node_id].modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
+	_tint_units()
 	_fill_inspector()
 	overlay.queue_redraw()
 	_update_status()
@@ -489,8 +525,20 @@ func _select_unit(id: String) -> void:
 func _rebuild_units() -> void:
 	level.level_state.level_units = LevelUnitState.build_all(level.level_state.map_data.units, {})
 	level.respawn_units()
-	for node_id in level.unit_nodes:
-		level.unit_nodes[node_id].modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
+	_tint_units()
+	_refresh_events_panel()
+
+
+## The selected unit tinted, and reinforcements faded with their arrival turn: one
+## place, so neither wipes out the other. The fade is self_modulate, so it leaves
+## the badges (children) fully visible.
+func _tint_units() -> void:
+	for node_id: String in level.unit_nodes:
+		var node: LevelUnit = level.unit_nodes[node_id]
+		node.modulate = SELECTED_TINT if node_id == selected_unit_id else Color.WHITE
+		var turn := arrival_turn(level.level_state.map_data.units.get(node_id))
+		node.self_modulate = Color(1, 1, 1, REINFORCEMENT_ALPHA if turn > 0 else 1.0)
+		node.set_arrival_turn(turn)
 
 
 ## Picking a character on a placed unit applies it; with no unit selected it
@@ -588,6 +636,14 @@ func _fill_inspector() -> void:
 	strategy_option.selected = maxi(STRATEGIES.find(ref.strategy), 0) if enemy else 0
 	team_edit.editable = enemy and ref.strategy == UnitReference.STRATEGY_DEFENSIVE
 	team_edit.text = ref.team if enemy else ""
+	# Arrives: at the start, or with an event. Enemies only.
+	arrives_option.clear()
+	arrives_option.add_item("At the start")
+	var ids := level.level_state.events.keys()
+	for event_id: String in ids:
+		arrives_option.add_item(event_title(event_id))
+	arrives_option.disabled = not enemy
+	arrives_option.selected = ids.find(ref.event) + 1 if enemy else 0
 	deselect_button.disabled = not editing
 	if editing:
 		var data := ref.build_unit_data()
@@ -713,6 +769,7 @@ func _apply_inspector(respawn := false) -> void:
 		ref.commander = false  # only an enemy can command
 		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
 		ref.team = ""
+		ref.event = ""  # or arrive later
 
 	var picked := String(_picked_character())
 	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
@@ -853,13 +910,20 @@ func _load() -> void:
 	if loaded == null:
 		status.text = "Could not load %s" % level_path
 		return
+	# A unit pointing at an event that isn't there starts on the map.
+	for ref: UnitReference in loaded.map_data.units.values():
+		if not ref.event.is_empty() and not loaded.events.has(ref.event):
+			push_warning("Level: unit '%s' arrives with event '%s', which doesn't exist; it now starts on the map." % [ref.id, ref.event])
+			ref.event = ""
 	level.level_state = loaded
 	level.rebuild()
 	_frame_camera()
 	_refresh_layer_list()
 	_select_unit("")
 	_stop_picking()
+	_stop_event_pick()
 	_refresh_objective_panel()
+	_refresh_events_panel()
 	_clear_history()
 	status.text = "Loaded %s" % level_path
 
@@ -868,6 +932,10 @@ func _save() -> void:
 	var problems := objective_problems()
 	if not problems.is_empty():
 		status.text = "Can't save until the objective is fixed: " + " ".join(problems)
+		return
+	var event_issues := event_problems()
+	if not event_issues.is_empty():
+		status.text = "Can't save until the events are fixed: " + " ".join(event_issues)
 		return
 	level_path = path_edit.text
 	if level.level_state.save_file(level_path, false) == OK:
@@ -882,7 +950,9 @@ func _new() -> void:
 	_refresh_layer_list()
 	_select_unit("")
 	_stop_picking()
+	_stop_event_pick()
 	_refresh_objective_panel()
+	_refresh_events_panel()
 	_clear_history()
 	status.text = "New empty map. Add a layer to start painting."
 
@@ -931,7 +1001,11 @@ func _restore(snapshot: Dictionary) -> void:
 	_refresh_layer_list()
 	_select_unit(selected_unit_id)
 	_stop_picking()  # the old conditions are gone
+	_stop_event_pick()
+	if not level.level_state.events.has(preselected_event):
+		_preselect_event("")
 	_refresh_objective_panel()
+	_refresh_events_panel()
 	_update_history_buttons()
 
 
@@ -968,7 +1042,7 @@ func _frame_camera() -> void:
 
 func _update_status() -> void:
 	_update_problems()  # unit edits (a deleted or unmarked commander) can change them
-	if mode == Mode.UNITS:
+	if mode == Mode.UNITS or mode == Mode.EVENTS:
 		var here := _unit_id_at(hover_cell)
 		status.text = "cell %s   |   %s" % [hover_cell, "unit: " + here if not here.is_empty() else "%d units" % level.level_state.map_data.units.size()]
 		var broken := broken_placements()
@@ -1022,6 +1096,14 @@ func _draw_overlay() -> void:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
 		if is_picking() and _has_pending:
 			overlay.draw_rect(_cell_rect(_pending_cell), PAINT_COLOR, false, 2.0)
+		return
+
+	if mode == Mode.EVENTS:
+		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
+		for id in event_units(outlined_event()):
+			overlay.draw_rect(_cell_rect(level.level_state.map_data.units[id].start_cell), PAINT_COLOR, false, 1.0)
+		for id in _event_pending:
+			overlay.draw_rect(_cell_rect(level.level_state.map_data.units[id].start_cell), PAINT_COLOR, false, 2.0)
 		return
 
 	if mode == Mode.UNITS:
@@ -1351,6 +1433,14 @@ func _build_row(side: StringName, index: int) -> void:
 				pick.item_selected.connect(func(i: int) -> void: _on_commander_picked(pick.get_item_metadata(i)))
 				controls[&"commander"] = pick
 				line.add_child(pick)
+				# A commander that arrives later says when.
+				var arrives := Label.new()
+				var commander: UnitReference = level.level_state.map_data.units.get(level.level_state.commander_id())
+				var turn := arrival_turn(commander)
+				arrives.text = "arrives on turn %d" % turn if turn > 0 else ""
+				arrives.visible = turn > 0
+				controls[&"arrives"] = arrives
+				line.add_child(arrives)
 				_add_pick_controls(condition, line, controls, "Choose on map")
 			&"cells":
 				# The chosen cells, each removable, then how to add one.
@@ -1555,9 +1645,14 @@ func fixed_loss_text() -> String:
 	return _fixed_loss_label.text if _fixed_loss_label != null else ""
 
 
-## What stops the level from being saved: Objective.validate's problems.
+## What stops the level from being saved: Objective.validate's problems, and a
+## Rout that would be won at once because every enemy arrives later.
 func objective_problems() -> PackedStringArray:
-	return level.level_state.objective.validate(level.level_state)
+	var problems := level.level_state.objective.validate(level.level_state)
+	var counts := _enemy_counts()
+	if _has_rout() and counts[1] > 0 and counts[0] == 0:
+		problems.append("No enemy starts on the map, so Rout wins at once.")
+	return problems
 
 
 ## Worth a look but not blocking: an empty win list means "never" (a level an
@@ -1566,7 +1661,31 @@ func objective_notes() -> PackedStringArray:
 	var notes := PackedStringArray()
 	if level.level_state.objective.win.is_empty():
 		notes.append("No win condition: the level can only be lost.")
+	var counts := _enemy_counts()
+	if _has_rout() and counts[1] > 0 and counts[0] > 0:
+		notes.append("Rout counts only enemies on the map; %d more arrive later." % counts[1])
 	return notes
+
+
+func _has_rout() -> bool:
+	for condition in level.level_state.objective.win:
+		if condition is Objective.FactionDefeated:
+			return true
+	return false
+
+
+## [enemies on the map when Rout is first checked, enemies arriving later].
+## Arrivals on turn 1's player phase count as on the map: that event runs before
+## the first check.
+func _enemy_counts() -> Array[int]:
+	var counts: Array[int] = [0, 0]
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		if ref.faction != UnitReference.Faction.ENEMY:
+			continue
+		var turn := arrival_turn(ref)
+		var first_phase := turn == 1 and str(level.level_state.events[ref.event]["trigger"]["phase"]) == "player"
+		counts[1 if turn > 0 and not first_phase else 0] += 1
+	return counts
 
 
 ## The summary at the top of the panel: blocking problems, then notes.
@@ -1589,3 +1708,413 @@ func _update_problems() -> void:
 		lines.append("Note: " + note)
 	problems_label.text = "\n".join(lines)
 	problems_label.visible = not lines.is_empty()
+
+
+# --- Events: reinforcements ----------------------------------------------------------
+# Each event is a row: WHEN turn N's enemy or player phase starts, THEN these
+# enemies arrive. Units join an event here (Choose -> click -> Confirm, or Place
+# new units) or from the Units inspector's Arrives dropdown: the same data.
+
+
+const EVENT_PHASE_TEXT := ["enemy phase", "player phase"]
+
+
+func _build_events_panel() -> void:
+	events_problems_label = Label.new()
+	events_problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	events_problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
+	events_box.add_child(events_problems_label)
+	events_box.add_child(_section_header("REINFORCEMENTS: enemies that arrive later", WIN_COLOR))
+	event_rows = VBoxContainer.new()
+	events_box.add_child(event_rows)
+	add_event_button = Button.new()
+	add_event_button.text = "+ Add reinforcement event"
+	add_event_button.pressed.connect(_add_event)
+	events_box.add_child(add_event_button)
+
+
+## The turn `ref` arrives on, or 0 when it starts on the map (or its event is
+## missing or broken, so it would start there in play too).
+func arrival_turn(ref: UnitReference) -> int:
+	if ref == null or ref.event.is_empty() or ref.faction != UnitReference.Faction.ENEMY:
+		return 0
+	var event: Variant = level.level_state.events.get(ref.event)
+	if event == null or not LevelState.event_problem(event).is_empty():
+		return 0
+	return int(event["trigger"]["turn"])
+
+
+## An event's name, or "Turn N reinforcements".
+func event_title(event_id: String) -> String:
+	var event: Variant = level.level_state.events.get(event_id)
+	if not event is Dictionary:
+		return event_id
+	var name := str((event as Dictionary).get("name", ""))
+	if not name.is_empty():
+		return name
+	var trigger: Variant = (event as Dictionary).get("trigger")
+	return "Turn %d reinforcements" % int(trigger.get("turn", 0)) if trigger is Dictionary else event_id
+
+
+## The ids of the units tied to `event_id`, in map order.
+func event_units(event_id: String) -> Array[String]:
+	var ids: Array[String] = []
+	if event_id.is_empty():
+		return ids
+	for id: String in level.level_state.map_data.units:
+		if level.level_state.map_data.units[id].event == event_id:
+			ids.append(id)
+	return ids
+
+
+## What stops saving: events that can't run, and events with no units.
+func event_problems() -> PackedStringArray:
+	var problems := PackedStringArray()
+	for event_id: String in level.level_state.events:
+		var problem := LevelState.event_problem(level.level_state.events[event_id])
+		if not problem.is_empty():
+			problems.append("Event '%s': %s." % [event_id, problem])
+		elif event_units(event_id).is_empty():
+			problems.append("%s: no units arrive." % event_title(event_id))
+	return problems
+
+
+func _add_event() -> void:
+	var before := _snapshot()
+	var n := level.level_state.events.size() + 1
+	while level.level_state.events.has("wave_%d" % n):
+		n += 1
+	var id := "wave_%d" % n
+	level.level_state.events[id] = {
+		"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+		"actions": [{"type": "spawn"}],
+	}
+	_commit(before)
+	_focused_event = id
+	_refresh_events_panel()
+
+
+func _remove_event(event_id: String) -> void:
+	var before := _snapshot()
+	for id in event_units(event_id):
+		level.level_state.map_data.units[id].event = ""
+	level.level_state.events.erase(event_id)
+	_commit(before)
+	if preselected_event == event_id:
+		_preselect_event("")
+	if _event_pick == event_id:
+		_stop_event_pick()
+	_after_event_change()
+
+
+## Units, inspector, objective notes and this panel all follow an event edit.
+func _after_event_change() -> void:
+	_rebuild_units()  # also refreshes this panel
+	_fill_inspector()
+	_refresh_objective_panel()
+
+
+func _on_event_turn(event_id: String, value: float) -> void:
+	var trigger: Dictionary = level.level_state.events[event_id]["trigger"]
+	if int(trigger.get("turn", 0)) == int(value):
+		return
+	var before := _snapshot()
+	trigger["turn"] = int(value)
+	_commit(before, "event_turn:" + event_id)
+	_focused_event = event_id
+	_tint_units()
+	_update_event_row(event_id)
+	_update_events_problems()
+	# Other modes show the turn too: the Arrives dropdown and the commander's
+	# "arrives on turn N". Neither is on screen here, so rebuilding them is safe.
+	_fill_inspector()
+	_refresh_objective_panel()
+
+
+func _on_event_phase(event_id: String, index: int) -> void:
+	var before := _snapshot()
+	level.level_state.events[event_id]["trigger"]["phase"] = "enemy" if index == 0 else "player"
+	_commit(before)
+	_focused_event = event_id
+	_update_problems()
+
+
+func _on_event_name(event_id: String, text: String) -> void:
+	var before := _snapshot()
+	var event: Dictionary = level.level_state.events[event_id]
+	if text.strip_edges().is_empty():
+		event.erase("name")
+	else:
+		event["name"] = text.strip_edges()
+	_commit(before, "event_name:" + event_id)
+	_fill_inspector()
+
+
+func _remove_from_event(unit_id: String) -> void:
+	var before := _snapshot()
+	level.level_state.map_data.units[unit_id].event = ""
+	_commit(before)
+	_after_event_change()
+
+
+# Choose -> click enemies -> Confirm.
+
+
+## The event whose units are outlined in Events mode: the one being chosen for,
+## else the one last worked on.
+func outlined_event() -> String:
+	return _event_pick if is_picking_event() else _focused_event
+
+
+func is_picking_event() -> bool:
+	return not _event_pick.is_empty()
+
+
+func _start_event_pick(event_id: String) -> void:
+	_event_pick = event_id
+	_focused_event = event_id
+	_event_pending.clear()
+	status.text = "Click enemies on the map to add them, then Confirm."
+	_refresh_events_panel()
+	overlay.queue_redraw()
+
+
+## A map click in Events mode: while choosing, toggles the enemy there.
+func _events_click(cell: Vector2i) -> void:
+	if not is_picking_event():
+		status.text = "To add units, press Choose units on an event, then click enemies."
+		return
+	var id := _unit_id_at(cell)
+	var ref: UnitReference = level.level_state.map_data.units.get(id)
+	if ref == null or ref.faction != UnitReference.Faction.ENEMY:
+		status.text = "Only enemies arrive later: click an enemy."
+		return
+	if _event_pending.has(id):
+		_event_pending.erase(id)
+	else:
+		_event_pending.append(id)
+	status.text = "%d chosen. Press Confirm to add them." % _event_pending.size()
+	_refresh_events_panel()
+	overlay.queue_redraw()
+
+
+func _confirm_event_pick() -> void:
+	var event_id := _event_pick
+	var chosen := _event_pending.duplicate()
+	_stop_event_pick()
+	if not chosen.is_empty():
+		var before := _snapshot()
+		for id: String in chosen:
+			level.level_state.map_data.units[id].event = event_id
+		_commit(before)
+	_after_event_change()
+	status.text = "%d enemy(s) added to %s." % [chosen.size(), event_title(event_id)]
+
+
+func _cancel_event_pick() -> void:
+	_stop_event_pick()
+	_refresh_events_panel()
+	overlay.queue_redraw()
+
+
+func _stop_event_pick() -> void:
+	_event_pick = ""
+	_event_pending.clear()
+
+
+# Placing new units into an event.
+
+
+## New enemy placements join `event_id` until it's cleared ("" clears). Switches
+## to Units mode with Enemy picked.
+func _preselect_event(event_id: String) -> void:
+	preselected_event = event_id
+	if not event_id.is_empty():
+		_focused_event = event_id
+		if mode != Mode.UNITS:
+			_set_mode(Mode.UNITS)
+		preselected_event = event_id  # _set_mode doesn't clear it entering Units
+		faction_option.selected = UnitReference.Faction.ENEMY
+		_select_unit("")
+	preselect_row.visible = not preselected_event.is_empty()
+	preselect_label.text = "New enemies arrive with: %s" % event_title(preselected_event)
+
+
+func _on_arrives_picked(index: int) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	ref.event = "" if index == 0 else String(level.level_state.events.keys()[index - 1])
+	_commit(before)
+	_after_event_change()
+
+
+# Rows.
+
+
+func _refresh_events_panel() -> void:
+	if event_rows == null or level.level_state == null:
+		return
+	for child in event_rows.get_children():
+		event_rows.remove_child(child)
+		child.queue_free()
+	_event_rows.clear()
+	for event_id: String in level.level_state.events:
+		_build_event_row(event_id)
+	_update_events_problems()
+
+
+func _build_event_row(event_id: String) -> void:
+	var event: Variant = level.level_state.events[event_id]
+	var controls := {}
+	var row := VBoxContainer.new()
+	var valid := LevelState.event_problem(event).is_empty()
+
+	var when := HFlowContainer.new()
+	row.add_child(when)
+	var when_label := Label.new()
+	when_label.text = "WHEN turn"
+	when.add_child(when_label)
+	if valid:
+		var trigger: Dictionary = event["trigger"]
+		var spin := SpinBox.new()
+		spin.min_value = 1
+		spin.max_value = 99
+		spin.value = int(trigger["turn"])
+		spin.value_changed.connect(func(v: float) -> void: _on_event_turn(event_id, v))
+		spin.get_line_edit().text_submitted.connect(func(_t: String) -> void: spin.get_line_edit().release_focus())
+		controls[&"turn"] = spin
+		when.add_child(spin)
+		var phase := OptionButton.new()
+		for text: String in EVENT_PHASE_TEXT:
+			phase.add_item(text)
+		phase.selected = 0 if trigger["phase"] == "enemy" else 1
+		phase.item_selected.connect(func(i: int) -> void: _on_event_phase(event_id, i))
+		controls[&"phase"] = phase
+		when.add_child(phase)
+		var starts := Label.new()
+		starts.text = "starts"
+		when.add_child(starts)
+	var remove := Button.new()
+	remove.text = "X"
+	remove.tooltip_text = "Delete this event: its units start on the map"
+	remove.pressed.connect(_remove_event.bind(event_id))
+	controls[&"remove"] = remove
+	when.add_child(remove)
+
+	if valid:
+		var name_line := HBoxContainer.new()
+		var name_label := Label.new()
+		name_label.text = "Name"
+		name_line.add_child(name_label)
+		var name_edit := LineEdit.new()
+		name_edit.placeholder_text = "Turn %d reinforcements" % int(event["trigger"]["turn"])
+		name_edit.text = str((event as Dictionary).get("name", ""))
+		name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_edit.text_changed.connect(func(t: String) -> void: _on_event_name(event_id, t))
+		controls[&"name"] = name_edit
+		name_line.add_child(name_edit)
+		row.add_child(name_line)
+
+		var then := Label.new()
+		then.text = "THEN these enemies arrive:"
+		row.add_child(then)
+		var chips_line := HFlowContainer.new()
+		var chips := {}
+		var units := event_units(event_id)
+		if units.is_empty():
+			var none := Label.new()
+			none.text = "none yet"
+			chips_line.add_child(none)
+		for id in units:
+			# The name selects the unit on the map; the x takes it out of the event.
+			var chip := HBoxContainer.new()
+			chip.add_theme_constant_override("separation", 0)
+			var select := Button.new()
+			select.text = level.level_state.map_data.units[id].display_name()
+			select.tooltip_text = "Select it on the map"
+			select.pressed.connect(_select_unit.bind(id))
+			chip.add_child(select)
+			var remove_unit := Button.new()
+			remove_unit.text = "x"
+			remove_unit.tooltip_text = "Take it out of this event: it starts on the map"
+			remove_unit.pressed.connect(_remove_from_event.bind(id))
+			chips[id] = remove_unit
+			chip.add_child(remove_unit)
+			chips_line.add_child(chip)
+		controls[&"chips"] = chips
+		row.add_child(chips_line)
+
+		var actions := HFlowContainer.new()
+		if _event_pick == event_id:
+			var prompt := Label.new()
+			prompt.text = "Click enemies... (%d chosen)" % _event_pending.size()
+			actions.add_child(prompt)
+			var confirm := Button.new()
+			confirm.text = "Confirm"
+			confirm.disabled = _event_pending.is_empty()
+			confirm.pressed.connect(_confirm_event_pick)
+			controls[&"confirm"] = confirm
+			actions.add_child(confirm)
+			var cancel := Button.new()
+			cancel.text = "Cancel"
+			cancel.pressed.connect(_cancel_event_pick)
+			controls[&"cancel"] = cancel
+			actions.add_child(cancel)
+		else:
+			var choose := Button.new()
+			choose.text = "+ Add units"
+			choose.tooltip_text = "Click enemies already on the map, then Confirm"
+			choose.pressed.connect(_start_event_pick.bind(event_id))
+			controls[&"choose"] = choose
+			actions.add_child(choose)
+			var place := Button.new()
+			place.text = "Place new units"
+			place.tooltip_text = "Go to Units mode: enemies you place join this event"
+			place.pressed.connect(_preselect_event.bind(event_id))
+			controls[&"place"] = place
+			actions.add_child(place)
+		row.add_child(actions)
+
+	var problem := Label.new()
+	problem.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	problem.add_theme_color_override("font_color", PROBLEM_COLOR)
+	controls[&"problem"] = problem
+	row.add_child(problem)
+	row.add_child(HSeparator.new())
+	_event_rows[event_id] = controls
+	event_rows.add_child(row)
+	_update_event_row(event_id)
+
+
+## The row's warning, without rebuilding it (a spin being typed in keeps focus).
+func _update_event_row(event_id: String) -> void:
+	var controls: Dictionary = _event_rows.get(event_id, {})
+	if controls.is_empty():
+		return
+	var problem := LevelState.event_problem(level.level_state.events[event_id])
+	if problem.is_empty() and event_units(event_id).is_empty():
+		problem = "add the enemies that arrive"
+	var label := controls[&"problem"] as Label
+	label.text = "! " + problem if not problem.is_empty() else ""
+	label.visible = not problem.is_empty()
+	if controls.has(&"name"):
+		(controls[&"name"] as LineEdit).placeholder_text = "Turn %d reinforcements" \
+				% int(level.level_state.events[event_id]["trigger"]["turn"])
+
+
+func _update_events_problems() -> void:
+	if events_problems_label == null:
+		return
+	var problems := event_problems()
+	events_problems_label.text = "Can't save yet: fix the events marked with !" if not problems.is_empty() else ""
+	events_problems_label.visible = not problems.is_empty()
+
+
+func event_control(event_id: String, key: StringName) -> Control:
+	return _event_rows.get(event_id, {}).get(key)
+
+
+func event_chip(event_id: String, unit_id: String) -> Button:
+	return _event_rows.get(event_id, {}).get(&"chips", {}).get(unit_id)
