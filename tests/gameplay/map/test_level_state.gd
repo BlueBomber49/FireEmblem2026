@@ -124,6 +124,14 @@ func test_turn_and_seize_are_saved_only_with_state() -> void:
 	assert_eq(LevelState.fromJson(authored).turn, 1)
 
 
+func test_escaped_is_saved_only_with_state() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	assert_false(state.escaped)
+	state.escaped = true
+	assert_false(state.toJson(false).has("escaped"))
+	assert_true(LevelState.fromJson(state.toJson()).escaped)
+
+
 func test_commander_id_finds_the_marked_unit() -> void:
 	var state := LevelState.fromJson(SAMPLE)
 	assert_eq(state.commander_id(), "")

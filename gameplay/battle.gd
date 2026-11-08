@@ -370,9 +370,11 @@ func _open_unit_menu() -> void:
 		options.push_front(&"item")
 	if not targets.is_empty():
 		options.push_front(&"attack")
-	# Seize comes first, as in FE: on a seize cell it's what the player came for.
+	# Seize and Escape come first, as in FE: on that cell it's what the player came for.
 	if level.level_state.objective.seize_cells().has(level.selected.state.cell):
 		options.push_front(&"seize")
+	if level.level_state.objective.escape_cells().has(level.selected.state.cell):
+		options.push_front(&"escape")
 	cursor.set_cell(level.selected.state.cell)
 	attack_cells = {}
 	_redraw_selection()
@@ -396,6 +398,10 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
+			_finish_action()
+		&"escape":
+			# Ends like Seize: the completion check then sees the escape and wins.
+			turn_loop.mark_escaped()
 			_finish_action()
 		&"seize":
 			# Ends like any action: the completion check then sees the seize and wins.
@@ -911,9 +917,12 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 ## The seize cells are highlighted during the player phase, like the danger zone.
 func _refresh_seize_cells(phase: TurnLoop.Phase) -> void:
 	var cells: Array[Vector2i] = []
+	var escape: Array[Vector2i] = []
 	if phase == TurnLoop.Phase.PLAYER:
 		cells = level.level_state.objective.seize_cells()
+		escape = level.level_state.objective.escape_cells()
 	range_overlay.set_seize_cells(cells)
+	range_overlay.set_escape_cells(escape)
 
 
 # --- Music -----------------------------------------------------------------

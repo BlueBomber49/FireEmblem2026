@@ -1012,6 +1012,11 @@ func _draw_overlay() -> void:
 	for cell in seize_cells:
 		overlay.draw_rect(_cell_rect(cell), SEIZE_FILL)
 		overlay.draw_rect(_cell_rect(cell), RangeOverlay.SEIZE_OUTLINE, false, 1.0)
+	# Escape cells too, in the same gold as in play.
+	var escape_cells: Array[Vector2i] = level.level_state.objective.escape_cells() if level.level_state != null else []
+	for cell in escape_cells:
+		overlay.draw_rect(_cell_rect(cell), RangeOverlay.ESCAPE_FILL)
+		overlay.draw_rect(_cell_rect(cell), RangeOverlay.ESCAPE_OUTLINE, false, 1.0)
 
 	if mode == Mode.OBJECTIVE:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)

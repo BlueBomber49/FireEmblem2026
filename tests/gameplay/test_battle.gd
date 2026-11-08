@@ -1222,3 +1222,44 @@ func test_the_red_cells_follow_the_compared_weapon() -> void:
 	assert_false(battle.attack_cells.has(LYN_CELL + Vector2i(2, 0)), "the lance reaches 1")
 	_press(&"ui_left")  # Javelin
 	assert_true(battle.attack_cells.has(LYN_CELL + Vector2i(2, 0)), "the javelin reaches 2")
+
+
+# --- Escape ------------------------------------------------------------------------
+
+
+func _escape_at(cell: Vector2i) -> void:
+	battle.turn_loop.set_objective(Objective.fromJson({"win": [{"type": "escape", "cells": [[cell.x, cell.y]]}]}))
+
+
+func test_escape_is_offered_first_on_an_escape_cell() -> void:
+	_escape_at(LYN_CELL)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_eq(battle.unit_menu.options[0], &"escape")
+	assert_false(battle.unit_menu.options.has(&"seize"))
+
+
+func test_escape_is_not_offered_off_the_escape_cell() -> void:
+	_escape_at(LYN_CELL + Vector2i.RIGHT)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.unit_menu.options.has(&"escape"))
+
+
+func test_choosing_escape_wins() -> void:
+	_escape_at(LYN_CELL)
+	watch_signals(battle.turn_loop)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	battle.unit_menu.option_selected.emit(&"escape")
+	assert_true(lyn.has_acted, "the action ended normally")
+	assert_eq(battle.turn_loop.phase, TurnLoop.Phase.COMPLETE)
+	assert_signal_emitted_with_parameters(battle.turn_loop, "finished", [true])
+
+
+func test_escape_cells_are_highlighted_in_the_player_phase_only() -> void:
+	_escape_at(LYN_CELL + Vector2i.RIGHT)
+	assert_eq(battle.range_overlay.escape_cells, {LYN_CELL + Vector2i.RIGHT: true})
+	assert_true(battle.range_overlay.seize_cells.is_empty())
+	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
+	assert_true(battle.range_overlay.escape_cells.is_empty())

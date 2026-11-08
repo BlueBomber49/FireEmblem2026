@@ -17,6 +17,8 @@ var objective := Objective.new()
 var turn := 1
 ## Whether a unit has used the Seize command (Objective's seize condition).
 var seized := false
+## Whether a unit has used the Escape command (Objective's escape condition).
+var escaped := false
 
 
 static func fromJson(d: Dictionary) -> LevelState:
@@ -31,6 +33,7 @@ static func fromJson(d: Dictionary) -> LevelState:
 		push_warning("Objective: %s" % problem)
 	state.turn = maxi(SaveUtil.read_int(d, "turn", 1), 1) if d.has("turn") else 1
 	state.seized = d.get("seized", false) == true
+	state.escaped = d.get("escaped", false) == true
 	return state
 
 
@@ -58,6 +61,7 @@ func toJson(include_state := true) -> Dictionary:
 		d["level_units"] = saved_units
 		d["turn"] = turn
 		d["seized"] = seized
+		d["escaped"] = escaped
 	return d
 
 

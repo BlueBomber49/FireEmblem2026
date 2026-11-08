@@ -82,6 +82,13 @@ func set_objective(new_objective: Objective) -> void:
 		_check_end()
 
 
+## Records that a unit used Escape; like mark_seized, the action's normal
+## completion check then ends the level if escaping wins it.
+func mark_escaped() -> void:
+	if _has_level():
+		level.level_state.escaped = true
+
+
 ## Records that a unit used Seize. The action's normal completion check
 ## (on_player_action_completed) then ends the level if seizing wins it.
 func mark_seized() -> void:

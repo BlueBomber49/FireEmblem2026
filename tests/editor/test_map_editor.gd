@@ -755,3 +755,15 @@ func test_a_unit_that_stops_being_an_enemy_loses_its_ai() -> void:
 	editor._apply_inspector(true)
 	assert_eq(_map_units()["bandit"].strategy, "aggressive")
 	assert_eq(_map_units()["bandit"].team, "")
+
+
+func test_an_escape_cell_is_chosen_like_a_seize_cell() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	var escape := _objective().win[i] as Objective.Escape
+	assert_eq(escape.cells, [FREE_CELL] as Array[Vector2i])
+	assert_string_contains(editor.row_text(Objective.WIN, i), "Escape")
+	assert_true(_objective().seize_cells().is_empty())

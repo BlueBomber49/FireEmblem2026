@@ -79,3 +79,10 @@ func test_seize_cells_alone_keep_the_shimmer_animating() -> void:
 	overlay.set_seize_cells([Vector2i(2, 3)] as Array[Vector2i])
 	overlay._process(1.0 / RangeOverlay.FPS)
 	assert_eq(overlay.frame, 1)
+
+
+func test_set_escape_cells_stores_them_and_animates() -> void:
+	overlay.set_escape_cells([Vector2i(2, 3)] as Array[Vector2i])
+	assert_eq(overlay.escape_cells, {Vector2i(2, 3): true})
+	overlay.set_escape_cells([] as Array[Vector2i])
+	assert_true(overlay.escape_cells.is_empty())
