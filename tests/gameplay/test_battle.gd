@@ -1074,13 +1074,11 @@ func test_choosing_seize_wins_through_the_normal_action_end() -> void:
 	assert_true(battle.end_screen.visible, "Stage Clear waits for the player")
 
 
-func test_seize_cells_are_highlighted_in_the_player_phase_only() -> void:
+func test_seize_cells_stay_highlighted_in_every_phase() -> void:
 	_seize_at(LYN_CELL + Vector2i.RIGHT)
 	assert_eq(battle.range_overlay.seize_cells, {LYN_CELL + Vector2i.RIGHT: true}, "objective_changed redraws it")
 	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
-	assert_true(battle.range_overlay.seize_cells.is_empty())
-	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.PLAYER)
-	assert_false(battle.range_overlay.seize_cells.is_empty())
+	assert_eq(battle.range_overlay.seize_cells, {LYN_CELL + Vector2i.RIGHT: true}, "still marked while enemies move")
 
 
 func test_a_level_without_seize_highlights_nothing() -> void:
@@ -1257,12 +1255,12 @@ func test_choosing_escape_wins() -> void:
 	assert_signal_emitted_with_parameters(battle.turn_loop, "finished", [true])
 
 
-func test_escape_cells_are_highlighted_in_the_player_phase_only() -> void:
+func test_escape_cells_stay_highlighted_in_every_phase() -> void:
 	_escape_at(LYN_CELL + Vector2i.RIGHT)
 	assert_eq(battle.range_overlay.escape_cells, {LYN_CELL + Vector2i.RIGHT: true})
 	assert_true(battle.range_overlay.seize_cells.is_empty())
 	battle.turn_loop.phase_changed.emit(TurnLoop.Phase.ENEMY)
-	assert_true(battle.range_overlay.escape_cells.is_empty())
+	assert_eq(battle.range_overlay.escape_cells, {LYN_CELL + Vector2i.RIGHT: true})
 
 
 # --- Experience ---------------------------------------------------------------------

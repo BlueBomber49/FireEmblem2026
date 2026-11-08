@@ -948,14 +948,11 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 
 
 ## The seize cells are highlighted during the player phase, like the danger zone.
-func _refresh_seize_cells(phase: TurnLoop.Phase) -> void:
-	var cells: Array[Vector2i] = []
-	var escape: Array[Vector2i] = []
-	if phase == TurnLoop.Phase.PLAYER:
-		cells = level.level_state.objective.seize_cells()
-		escape = level.level_state.objective.escape_cells()
-	range_overlay.set_seize_cells(cells)
-	range_overlay.set_escape_cells(escape)
+## Seize and escape cells stay marked in every phase, like the series' map art:
+## where the goal is matters while the enemy moves too.
+func _refresh_seize_cells(_phase: TurnLoop.Phase) -> void:
+	range_overlay.set_seize_cells(level.level_state.objective.seize_cells())
+	range_overlay.set_escape_cells(level.level_state.objective.escape_cells())
 
 
 ## Reinforcements changed the board: tints, the danger zone and hover follow.
