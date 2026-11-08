@@ -1045,3 +1045,51 @@ func test_the_event_being_worked_on_is_outlined() -> void:
 	assert_eq(editor.outlined_event(), second, "the one just added")
 	(editor.event_control(first, &"choose") as Button).pressed.emit()
 	assert_eq(editor.outlined_event(), first, "the one being chosen for")
+
+
+func test_several_cells_are_chosen_in_one_pick() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	for cell in [FREE_CELL, FREE_CELL + Vector2i.RIGHT, FREE_CELL + Vector2i(2, 0)]:
+		editor._objective_click(cell)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)  # clicked again: unselected
+	assert_eq(editor.pending_cells(), [FREE_CELL, FREE_CELL + Vector2i(2, 0)] as Array[Vector2i])
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty(), "nothing set before Confirm")
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq((_objective().win[i] as Objective.Escape).cells, [FREE_CELL, FREE_CELL + Vector2i(2, 0)] as Array[Vector2i])
+	assert_eq(editor.status.text, "Escape: 2 cell(s) set.")
+	editor.undo()
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty(), "one undo step for the whole pick")
+
+
+func test_a_pick_can_remove_cells_already_set() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	var seize := _objective().win[i] as Objective.Seize
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	assert_eq(editor.pending_cells(), seize.cells, "starts from the cells already set")
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq(seize.cells, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
+
+
+func test_cancelling_a_multi_cell_pick_changes_nothing() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
+	(editor.row_control(Objective.WIN, i, &"cancel") as Button).pressed.emit()
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty())
+
+
+func test_the_escape_row_has_no_name_box() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	assert_null(editor.row_control(Objective.WIN, i, &"name"))
+	assert_eq(editor.row_text(Objective.WIN, i), "Escape")

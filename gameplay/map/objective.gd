@@ -133,8 +133,8 @@ class Seize:
 		return d
 
 
-## Like Seize (cells, an optional name, a unit-menu command on those cells), but
-## won by the Escape command, with its own flag and text.
+## Like Seize (cells and a unit-menu command on them), but won by the Escape
+## command, with its own flag. No name: it always reads "Escape".
 class Escape:
 	extends Seize
 
@@ -147,19 +147,21 @@ class Escape:
 		var escape := Escape.new()
 		for raw: Variant in d["cells"]:
 			escape.cells.append(JsonUtil.vec2i_from_json(raw))
-		escape.name = str(d.get("name", ""))
 		return escape
 
 	func is_met(state: LevelState) -> bool:
 		return state.escaped
 
 	func describe(_state: LevelState) -> String:
-		return "Escape" if name.is_empty() else "Escape to %s" % name
+		return "Escape"
 
 	func validate(_state: LevelState) -> PackedStringArray:
 		if cells.is_empty():
 			return PackedStringArray(["escape: no cell to escape from."])
 		return PackedStringArray()
+
+	func toJson() -> Dictionary:
+		return {"type": type, "cells": cells.map(func(c: Vector2i) -> Array: return JsonUtil.vec2i_to_json(c))}
 
 
 ## Base for conditions that count turns: met once `turns` enemy phases are over
@@ -267,7 +269,7 @@ const CONDITION_TYPES := {
 	"faction_defeated": {"class": FactionDefeated, "title": "Rout the enemy", "sides": [WIN], "settings": []},
 	"defeat_commander": {"class": DefeatCommander, "title": "Defeat the enemy commander", "sides": [WIN], "settings": [&"commander"]},
 	"seize": {"class": Seize, "title": "Seize", "sides": [WIN], "settings": [&"cells", &"name"]},
-	"escape": {"class": Escape, "title": "Escape", "sides": [WIN], "settings": [&"cells", &"name"]},
+	"escape": {"class": Escape, "title": "Escape", "sides": [WIN], "settings": [&"cells"]},
 	"survive": {"class": Survive, "title": "Survive N turns", "sides": [WIN], "settings": [&"turns"]},
 	"units_fall": {"class": UnitsFall, "title": "Units fall", "sides": [LOSE], "settings": [&"units"]},
 	"turns_pass": {"class": TurnsPass, "title": "N turns pass", "sides": [LOSE], "settings": [&"turns"]},

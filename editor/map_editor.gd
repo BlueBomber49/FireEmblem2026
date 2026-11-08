@@ -113,6 +113,9 @@ var lose_header: Label
 var _pick_condition: Objective.Condition
 var _pending_cell := Vector2i.ZERO
 var _has_pending := false
+## While choosing cells (seize, escape): the cells as they'll be on Confirm. It
+## starts as the condition's cells; each click adds or removes one.
+var _pending_cells: Array[Vector2i] = []
 
 ## Level snapshots (toJson(false)) to restore on undo / redo.
 # Events mode: one row per event (event id -> its controls), built in code.
@@ -1065,6 +1068,16 @@ func broken_placements() -> PackedStringArray:
 	return problems
 
 
+func _draw_goal_cells(cells: Array[Vector2i], fill: Color, outline: Color) -> void:
+	var set := {}
+	for cell in cells:
+		set[cell] = true
+		overlay.draw_rect(_cell_rect(cell), fill)
+	var ts := Vector2(level.tile_size)
+	for edge: Array in RangeOverlay.outline_edges(set):
+		overlay.draw_line(level.to_global(Vector2(edge[0]) * ts), level.to_global(Vector2(edge[1]) * ts), outline, 1.0)
+
+
 func _cell_rect(cell: Vector2i) -> Rect2:
 	var ts := Vector2(level.tile_size)
 	return Rect2(level.to_global(Vector2(cell) * ts), ts)
@@ -1081,20 +1094,18 @@ func _draw_overlay() -> void:
 	for y in range(int(first.y), int(last.y) + 1):
 		overlay.draw_line(Vector2(view.position.x, y * ts.y), Vector2(view.end.x, y * ts.y), GRID_COLOR)
 
-	# Seize cells, in every mode, the same green as in play.
-	var seize_cells: Array[Vector2i] = level.level_state.objective.seize_cells() if level.level_state != null else []
-	for cell in seize_cells:
-		overlay.draw_rect(_cell_rect(cell), SEIZE_FILL)
-		overlay.draw_rect(_cell_rect(cell), RangeOverlay.SEIZE_OUTLINE, false, 1.0)
-	# Escape cells too, in the same gold as in play.
-	var escape_cells: Array[Vector2i] = level.level_state.objective.escape_cells() if level.level_state != null else []
-	for cell in escape_cells:
-		overlay.draw_rect(_cell_rect(cell), RangeOverlay.ESCAPE_FILL)
-		overlay.draw_rect(_cell_rect(cell), RangeOverlay.ESCAPE_OUTLINE, false, 1.0)
+	# Seize (green) and escape (gold) cells, in every mode, as in play: filled, with
+	# one outline around each group of touching cells.
+	if level.level_state != null:
+		_draw_goal_cells(level.level_state.objective.seize_cells(), SEIZE_FILL, RangeOverlay.SEIZE_OUTLINE)
+		_draw_goal_cells(level.level_state.objective.escape_cells(), RangeOverlay.ESCAPE_FILL, RangeOverlay.ESCAPE_OUTLINE)
 
 	if mode == Mode.OBJECTIVE:
 		overlay.draw_rect(_cell_rect(hover_cell), CELL_COLOR, false, 1.0)
-		if is_picking() and _has_pending:
+		if is_picking() and _pick_condition is Objective.Seize:
+			for cell in _pending_cells:
+				overlay.draw_rect(_cell_rect(cell), PAINT_COLOR, false, 2.0)
+		elif is_picking() and _has_pending:
 			overlay.draw_rect(_cell_rect(_pending_cell), PAINT_COLOR, false, 2.0)
 		return
 
@@ -1290,11 +1301,16 @@ func _objective_click(cell: Vector2i) -> void:
 			return
 		status.text = "Commander: %s. Press Confirm to set it." % ref.display_name()
 	else:
-		# A seize cell has to be somewhere a unit can stand on the map.
+		# A seize or escape cell has to be somewhere a unit can stand on the map.
 		if not level.level_state.map_data.bounds().has_point(cell) or level.pathfinding.terrain_at(cell) == null:
 			status.text = "That cell isn't on the map; pick a cell with terrain."
 			return
-		status.text = "Cell %s. Press Confirm to add it." % cell
+		if _pending_cells.has(cell):
+			_pending_cells.erase(cell)
+			status.text = "Cell %s unselected. Click more cells, then Confirm." % cell
+		else:
+			_pending_cells.append(cell)
+			status.text = "Cell %s selected. Click more cells, then Confirm." % cell
 	_pending_cell = cell
 	_has_pending = true
 	_refresh_objective_panel()
@@ -1304,33 +1320,39 @@ func _objective_click(cell: Vector2i) -> void:
 func _start_pick(condition: Objective.Condition) -> void:
 	_pick_condition = condition
 	_has_pending = false
+	_pending_cells.clear()
+	if condition is Objective.Seize:
+		_pending_cells = (condition as Objective.Seize).cells.duplicate()
 	status.text = "Click an enemy on the map, then Confirm." if condition is Objective.DefeatCommander \
-			else "Click a map cell, then Confirm."
+			else "Click cells to select or unselect them, then Confirm."
 	_refresh_objective_panel()
 
 
-## Applies the pending pick: adds the seize cell, or marks the commander.
+## Applies the pending pick: the chosen cells (seize, escape), or the commander.
 func _confirm_pick() -> void:
 	if _pick_condition == null or not _has_pending:
 		return
 	var condition := _pick_condition
 	var cell := _pending_cell
+	var cells := _pending_cells.duplicate()
 	_cancel_pick()
 	if condition is Objective.DefeatCommander:
 		_on_commander_picked(_unit_id_at(cell))  # commits and redraws
 		return
 	var seize := condition as Objective.Seize
-	if not seize.cells.has(cell):
+	if seize.cells != cells:
 		var before := _snapshot()
-		seize.cells.append(cell)
+		seize.cells = cells
 		_commit(before)
 	_refresh_objective_panel()
+	status.text = "%s: %d cell(s) set." % [seize.describe(level.level_state), cells.size()]
 
 
 ## Ends a pick without changing anything.
 func _cancel_pick() -> void:
 	_pick_condition = null
 	_has_pending = false
+	_pending_cells.clear()
 	_refresh_objective_panel()
 
 
@@ -1345,6 +1367,7 @@ func _remove_seize_cell(condition: Objective.Condition, cell: Vector2i) -> void:
 func _stop_picking() -> void:
 	_pick_condition = null
 	_has_pending = false
+	_pending_cells.clear()
 
 
 func is_picking() -> bool:
@@ -1357,6 +1380,11 @@ func has_pending() -> bool:
 
 func pending_cell() -> Vector2i:
 	return _pending_cell
+
+
+## The cells a seize or escape pick will set on Confirm.
+func pending_cells() -> Array[Vector2i]:
+	return _pending_cells
 
 
 ## Rebuilds every row from the level's objective, and the add menus.
@@ -1525,13 +1553,15 @@ func _add_pick_controls(condition: Objective.Condition, line: Container, control
 		line.add_child(choose)
 		return
 	var prompt := Label.new()
-	if not _has_pending:
+	if not _has_pending and not condition is Objective.Seize:
 		prompt.text = "Click the map..."
+	elif not _has_pending:
+		prompt.text = "Click cells... (%d selected)" % _pending_cells.size()
 	elif condition is Objective.DefeatCommander:
 		var ref: UnitReference = level.level_state.map_data.units.get(_unit_id_at(_pending_cell))
 		prompt.text = "Selected: %s" % (ref.display_name() if ref != null else "?")
 	else:
-		prompt.text = "Selected: (%d, %d)" % [_pending_cell.x, _pending_cell.y]
+		prompt.text = "%d cell(s) selected" % _pending_cells.size()
 	line.add_child(prompt)
 	var confirm := Button.new()
 	confirm.text = "Confirm"

@@ -269,7 +269,7 @@ func test_units_fall_with_no_units_yet_still_describes_itself() -> void:
 
 func test_escape_read_from_json_is_an_escape_not_a_seize() -> void:
 	# The loader calls the registry class's from_json; Escape must build itself.
-	var objective := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]], "name": "the bridge"}]})
+	var objective := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]]}]})
 	assert_eq(objective.win.size(), 1)
 	assert_true(objective.win[0] is Objective.Escape)
 	assert_eq(objective.escape_cells(), [Vector2i(1, 2)] as Array[Vector2i])
@@ -286,14 +286,13 @@ func test_escape_is_met_by_escaping_not_seizing() -> void:
 
 
 func test_escape_text_and_round_trip() -> void:
-	var named := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]], "name": "the bridge"}]})
-	assert_eq(named.win_lines(LevelState.new())[0], "Escape to the bridge")
-	var plain := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]]}]})
-	assert_eq(plain.win_lines(LevelState.new())[0], "Escape")
-	var again := Objective.fromJson(named.toJson())
+	var escape := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]], "name": "ignored"}]})
+	assert_eq(escape.win_lines(LevelState.new())[0], "Escape", "no name: always Escape")
+	assert_false(escape.toJson()["win"][0].has("name"))
+	var again := Objective.fromJson(escape.toJson())
 	assert_true(again.win[0] is Objective.Escape)
-	assert_eq(JSON.stringify(again.toJson()), JSON.stringify(named.toJson()))
-
+	assert_eq(JSON.stringify(again.toJson()), JSON.stringify(escape.toJson()))
+	assert_eq(Objective.settings_of("escape"), [&"cells"] as Array[StringName], "the editor shows no name box")
 
 func test_escape_needs_a_cell_and_is_win_only() -> void:
 	var empty := Objective.fromJson({"win": [{"type": "escape", "cells": []}]})
