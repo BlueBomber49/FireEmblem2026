@@ -153,3 +153,55 @@ func test_only_the_commander_wears_the_crown() -> void:
 	add_child_autofree(level)
 	assert_not_null(level.unit_nodes["bandit"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
 	assert_null(level.unit_nodes["lyn"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
+
+
+# --- The roster: characters carried between chapters --------------------------------
+
+
+func _level_with_roster(roster: Dictionary) -> Level:
+	var level := Level.new()
+	level.level_path = LEVEL_PATH
+	level.roster = roster
+	add_child_autofree(level)
+	return level
+
+
+func test_the_roster_carries_a_character_in_healed() -> void:
+	var first := _level_with_roster({})
+	var lyn: Unit = first.level_state.level_units["lyn"].unit
+	lyn.level = 5
+	lyn.experience = 30
+	lyn.stats.speed += 2
+	lyn.current_hp = 3
+	var next := _level_with_roster(first.collect_roster())
+	var carried: Unit = next.level_state.level_units["lyn"].unit
+	assert_eq(carried.level, 5)
+	assert_eq(carried.experience, 30)
+	assert_eq(carried.stats.speed, lyn.stats.speed)
+	assert_eq(carried.current_hp, carried.max_hp(), "healed for the new chapter")
+
+
+func test_the_roster_holds_player_characters_only() -> void:
+	var level := _level_with_roster({})
+	var roster := level.collect_roster()
+	assert_true(roster.has("lyn"))
+	assert_false(roster.has("bandit"), "a generic enemy")
+	assert_false(roster.has("wil"), "an ally")
+
+
+func test_a_fallen_character_returns_with_its_progress() -> void:
+	var level := _level_with_roster({})
+	var lyn: LevelUnitState = level.level_state.level_units["lyn"]
+	lyn.unit.level = 3
+	lyn.current_hp = 0
+	var roster := level.collect_roster()
+	assert_true(roster.has("lyn"), "casual: the fallen come back")
+	var next := _level_with_roster(roster)
+	var back: LevelUnitState = next.level_state.level_units["lyn"]
+	assert_true(back.is_alive())
+	assert_eq(back.unit.level, 3)
+
+
+func test_the_roster_skips_a_unit_of_another_faction() -> void:
+	var level := _level_with_roster({"wil": {"level": 9}})
+	assert_ne(level.level_state.level_units["wil"].unit.level, 9, "wil is an ally here")

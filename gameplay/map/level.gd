@@ -35,6 +35,11 @@ var acting_faction := UnitReference.Faction.PLAYER
 var moving := false
 
 
+## Character id -> Unit.save_state(): the army's progress from earlier chapters
+## (GameFlow's roster). Set before the Level enters the tree; applied on load.
+var roster: Dictionary = {}
+
+
 func _ready() -> void:
 	if level_state == null:
 		if level_path.is_empty():
@@ -42,7 +47,30 @@ func _ready() -> void:
 		level_state = LevelState.load_file(level_path)
 		if level_state == null:
 			return
+	apply_roster()
 	rebuild()
+
+
+## Gives each player character its roster entry (level, EXP, stats, items), healed
+## to full for the new chapter.
+func apply_roster() -> void:
+	for state: LevelUnitState in level_state.level_units.values():
+		var id := state.unit_ref.character_id
+		if state.unit_ref.faction != UnitReference.Faction.PLAYER or id.is_empty() or not roster.has(id):
+			continue
+		state.unit.apply_saved_state(roster[id])
+		state.unit.current_hp = state.unit.max_hp()
+
+
+## Every player character's state, by character id, for the roster. Fallen ones
+## too: casual mode, so they return next chapter with what they'd earned.
+func collect_roster() -> Dictionary:
+	var out := {}
+	for state: LevelUnitState in level_state.level_units.values():
+		var id := state.unit_ref.character_id
+		if state.unit_ref.faction == UnitReference.Faction.PLAYER and not id.is_empty():
+			out[id] = state.unit.save_state()
+	return out
 
 
 # --- Scene construction ----------------------------------------------------
