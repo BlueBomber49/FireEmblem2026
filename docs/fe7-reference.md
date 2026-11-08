@@ -48,6 +48,7 @@ All results round down unless noted.
 - **EXP for a kill** = damage EXP + max(0, kill base + 20 + boss bonus (40) + thief bonus (20)), where kill base = (enemy level × enemy class power + enemy bonus B) − (level × class power + bonus B)
 - Class power: 3 for most classes; 2 for Cleric, Soldier, Troubadour, Bard, Thief and Dancer
 - Bonus A: 0 unpromoted, 20 promoted. Bonus B: 0 unpromoted, 60 promoted (40 for Assassin, female Bishop and Valkyrie)
+- **In the game** (`gameplay/experience.gd`): damage and kill EXP, the boss bonus (our level's commander), the thief bonus (classes tagged `thief`), level-ups from growth rates with class caps. Player units gain EXP attacking or defending; allies and enemies don't. A gain is capped at 100. **Not yet:** staff EXP (no staves), promotion, weapon rank EXP. Bonus B uses 60 for every promoted class (no Assassin, Bishop or Valkyrie yet).
 
 ## Terrain
 Movement costs by our movement group. A dash means impassable. FE7's other groups are omitted; see the intended differences above.
