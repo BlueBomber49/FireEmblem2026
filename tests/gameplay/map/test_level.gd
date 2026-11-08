@@ -205,3 +205,45 @@ func test_a_fallen_character_returns_with_its_progress() -> void:
 func test_the_roster_skips_a_unit_of_another_faction() -> void:
 	var level := _level_with_roster({"wil": {"level": 9}})
 	assert_ne(level.level_state.level_units["wil"].unit.level, 9, "wil is an ally here")
+
+
+
+func test_a_level_holds_reinforcements_back_only_when_set() -> void:
+	var state := LevelState.load_file(LEVEL_PATH)
+	state.map_data.units["bandit"].event = "wave_1"
+	state.events = {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+			"actions": [{"type": "spawn"}]}}
+	var editor_level := Level.new()
+	editor_level.level_state = LevelState.fromJson(state.toJson(false))
+	add_child_autofree(editor_level)
+	assert_true(editor_level.unit_nodes.has("bandit"), "the editor shows every placement")
+	var play_level := Level.new()
+	play_level.holds_reinforcements = true
+	play_level.level_state = LevelState.fromJson(state.toJson(false))
+	add_child_autofree(play_level)
+	assert_false(play_level.unit_nodes.has("bandit"), "in play it waits")
+	assert_eq(play_level.arrive("bandit"), Vector2i(10, 5))
+	assert_true(play_level.unit_nodes.has("bandit"))
+
+
+func test_arrive_finds_no_cell_on_a_full_map() -> void:
+	# One grass cell, and lyn is standing on it.
+	var level := Level.new()
+	level.holds_reinforcements = true
+	level.level_state = LevelState.fromJson({
+		"map_data": {
+			"layers": {"grass": {"z": 0, "terrain": "grass", "verts": [[0, 0]]}},
+			"units": {
+				"lyn": {"character": "lyn", "faction": "player", "start_cell": [0, 0]},
+				"wave": {"class": "fighter", "items": ["iron_axe"], "faction": "enemy",
+						"start_cell": [0, 0], "event": "wave_1"},
+			},
+		},
+		"events": {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+				"actions": [{"type": "spawn"}]}},
+	})
+	add_child_autofree(level)
+	assert_true(level.level_state.pending_units.has("wave"))
+	assert_eq(level.arrive("wave"), Vector2i(-1, -1))
+	assert_true(level.level_state.pending_units.has("wave"), "it keeps waiting")
+	assert_push_warning("wave")

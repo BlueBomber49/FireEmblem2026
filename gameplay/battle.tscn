@@ -31,6 +31,7 @@ script = ExtResource("9_arrow")
 [node name="Level" type="Node2D" parent="." unique_id=1705077647]
 script = ExtResource("2_level")
 level_path = "res://resources/levels/prologue.json"
+holds_reinforcements = true
 
 [node name="TurnLoop" type="Node" parent="." unique_id=1980547913]
 script = ExtResource("11_turn_loop")

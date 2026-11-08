@@ -8,8 +8,16 @@ const SAVE_VERSION := 1
 var map_data: MapData = MapData.new()
 ## id -> LevelUnitState; the saveable state of every unit.
 var level_units: Dictionary = {}
-## Unimplemented for now; carried through JSON untouched.
+## Event id -> event. Today's one kind brings reinforcements in:
+## {"name": "...", "trigger": {"type": "turn_start", "turn": N, "phase": "enemy"},
+##  "actions": [{"type": "spawn"}]}, where spawn brings in every placement whose
+## "event" is that id. Carried through JSON as written.
 var events: Dictionary = {}
+## In play: id -> LevelUnitState for reinforcements not on the map yet (see
+## hold_back_reinforcements). Empty in the editor.
+var pending_units: Dictionary = {}
+## Ids of the events that have fired this level.
+var fired_events: Array[String] = []
 ## How the level is won or lost. Rout by default.
 var objective := Objective.new()
 ## The turn number: 1 is the first player phase, and it goes up after each enemy
@@ -35,6 +43,50 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.seized = d.get("seized", false) == true
 	state.escaped = d.get("escaped", false) == true
 	return state
+
+
+## The event trigger types and phases that exist so far.
+const TRIGGER_TYPES: Array[String] = ["turn_start"]
+const EVENT_PHASES: Array[String] = ["enemy", "player"]
+
+
+## Why `event` can't run, or "" when it's a valid event: a turn_start trigger
+## with a turn of 1 or more and a known phase.
+static func event_problem(event: Variant) -> String:
+	if not event is Dictionary or not (event as Dictionary).get("trigger") is Dictionary:
+		return "it has no trigger"
+	var trigger: Dictionary = event["trigger"]
+	if not str(trigger.get("type", "")) in TRIGGER_TYPES:
+		return "unknown trigger '%s'" % str(trigger.get("type", ""))
+	var turn: Variant = trigger.get("turn")
+	if not (turn is int or turn is float) or int(turn) < 1:
+		return "its turn must be 1 or more"
+	if not str(trigger.get("phase", "")) in EVENT_PHASES:
+		return "unknown phase '%s'" % str(trigger.get("phase", ""))
+	return ""
+
+
+## In play: moves each enemy placement tied to a valid event off the map, into
+## pending_units, until that event brings it in. A unit whose event is missing or
+## broken, or that isn't an enemy, is left on the map with a warning, so nothing
+## is ever stranded.
+func hold_back_reinforcements() -> void:
+	for id: String in level_units.keys():
+		var ref: UnitReference = map_data.units.get(id)
+		if ref == null or ref.event.is_empty():
+			continue
+		if ref.faction != UnitReference.Faction.ENEMY:
+			push_warning("Level: unit '%s' has event '%s', but only enemies arrive later; it starts on the map." % [id, ref.event])
+			continue
+		if not events.has(ref.event):
+			push_warning("Level: unit '%s' arrives with event '%s', which doesn't exist; it starts on the map." % [id, ref.event])
+			continue
+		var problem := event_problem(events[ref.event])
+		if not problem.is_empty():
+			push_warning("Level: event '%s' can't run (%s); unit '%s' starts on the map." % [ref.event, problem, id])
+			continue
+		pending_units[id] = level_units[id]
+		level_units.erase(id)
 
 
 ## The id of the unit marked as the enemy commander, or "" when none is.

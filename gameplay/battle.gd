@@ -121,6 +121,7 @@ func _ready() -> void:
 	turn_loop.finished.connect(_on_battle_finished)
 	end_screen.continue_requested.connect(_on_end_screen_continue)
 	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
+	turn_loop.units_arrived.connect(_on_units_arrived)
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level, level.level_state.objective)
@@ -955,6 +956,13 @@ func _refresh_seize_cells(phase: TurnLoop.Phase) -> void:
 		escape = level.level_state.objective.escape_cells()
 	range_overlay.set_seize_cells(cells)
 	range_overlay.set_escape_cells(escape)
+
+
+## Reinforcements changed the board: tints, the danger zone and hover follow.
+func _on_units_arrived(_ids: Array[String]) -> void:
+	level.update_tints()
+	_refresh_danger_zone_for(turn_loop.phase)
+	_update_hover_for(turn_loop.phase)
 
 
 # --- Music -----------------------------------------------------------------

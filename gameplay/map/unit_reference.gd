@@ -24,7 +24,7 @@ const FACTION_COLORS := {
 }
 ## Keys this class reads; anything else in the JSON is carried through untouched.
 const KNOWN_KEYS := ["character", "class", "name", "level", "items", "stats", "faction",
-	"sprite_sheet", "start_cell", "facing", "commander", "strategy", "team"]
+	"sprite_sheet", "start_cell", "facing", "commander", "strategy", "team", "event"]
 ## Enemy AI strategies, as written in level files (EnemyAI.Strategy in play).
 const STRATEGY_AGGRESSIVE := "aggressive"
 const STRATEGY_STATIONARY := "stationary"
@@ -56,6 +56,9 @@ var strategy := STRATEGY_AGGRESSIVE
 ## Defensive enemies sharing a team wake up together; a blank team is a team of
 ## one. Written only when set.
 var team := ""
+## The id of the level event that brings this unit onto the map (a reinforcement),
+## or "" when it's there from the start. Enemies only; written only when set.
+var event := ""
 
 ## A named character's id (resources/characters/<id>.json), or "" for a generic unit.
 var character_id: String
@@ -197,6 +200,7 @@ static func fromJson(p_id: String, d: Dictionary) -> UnitReference:
 		push_warning("Level: unit '%s': unknown strategy '%s'; using aggressive." % [p_id, ref.strategy])
 		ref.strategy = STRATEGY_AGGRESSIVE
 	ref.team = str(d.get("team", ""))
+	ref.event = str(d.get("event", ""))
 	for key in d:
 		if not key in KNOWN_KEYS:
 			ref._extra[key] = d[key]
@@ -226,5 +230,7 @@ func toJson() -> Dictionary:
 		d["strategy"] = strategy
 	if not team.is_empty():
 		d["team"] = team
+	if not event.is_empty():
+		d["event"] = event
 	d.merge(_extra.duplicate(true))
 	return d

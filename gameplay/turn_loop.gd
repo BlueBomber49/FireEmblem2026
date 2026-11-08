@@ -15,6 +15,8 @@ signal phase_changed(phase: Phase)
 signal finished(won: bool)
 ## A new turn began (after an enemy phase); [param turn] starts at 1.
 signal turn_changed(turn: int)
+## Reinforcements came onto the map (Level.arrive), by unit id.
+signal units_arrived(ids: Array[String])
 ## set_objective() replaced the level's objective.
 signal objective_changed(objective: Objective)
 
@@ -62,6 +64,31 @@ func _apply_strategies() -> void:
 			continue
 		var team := ref.team if not ref.team.is_empty() else "solo:" + ref.id
 		enemy_controller.set_strategy(StringName(ref.id), IN_PLAY[ref.strategy], StringName(team))
+
+
+## Fires each event whose trigger is the start of this turn and `for_phase`, once.
+## Its spawn action brings in the units placed with that event's id.
+func run_events(for_phase: Phase) -> void:
+	var state := level.level_state
+	var phase_name := "enemy" if for_phase == Phase.ENEMY else "player"
+	for event_id: String in state.events:
+		if state.fired_events.has(event_id) or not LevelState.event_problem(state.events[event_id]).is_empty():
+			continue
+		var event: Dictionary = state.events[event_id]
+		var trigger: Dictionary = event["trigger"]
+		if int(trigger["turn"]) != state.turn or str(trigger["phase"]) != phase_name:
+			continue
+		state.fired_events.append(event_id)
+		for action: Variant in event.get("actions", []):
+			if not action is Dictionary or (action as Dictionary).get("type") != "spawn":
+				push_warning("Level: event '%s': unknown action %s; skipped." % [event_id, action])
+				continue
+			var arrived: Array[String] = []
+			for id: String in state.pending_units.keys():
+				if state.map_data.units[id].event == event_id and level.arrive(id).x >= 0:
+					arrived.append(id)
+			if not arrived.is_empty():
+				units_arrived.emit(arrived)
 
 
 func is_player_turn() -> bool:
@@ -156,6 +183,8 @@ func _start_enemy_phase() -> void:
 	phase = Phase.ENEMY
 	level.acting_faction = UnitReference.Faction.ENEMY
 	phase_changed.emit(phase)
+	# Before begin_turn, which gathers the phase's enemies: arrivals act this phase.
+	run_events(phase)
 	enemy_controller.begin_turn()
 	level.update_tints()
 	if battle != null:
@@ -201,6 +230,8 @@ func _begin_player_phase() -> void:
 			state.reset_turn()
 	phase = Phase.PLAYER
 	level.acting_faction = UnitReference.Faction.PLAYER
+	# Before phase_changed, so Battle's refresh for the new phase includes arrivals.
+	run_events(phase)
 	phase_changed.emit(phase)
 	level.update_tints()
 	if battle != null:

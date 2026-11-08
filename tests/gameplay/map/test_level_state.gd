@@ -138,3 +138,71 @@ func test_commander_id_finds_the_marked_unit() -> void:
 	var id: String = state.map_data.units.keys()[0]
 	state.map_data.units[id].commander = true
 	assert_eq(state.commander_id(), id)
+
+
+# --- Reinforcements: placements tied to an event --------------------------------------
+
+
+func _wave_level(event: Variant, faction := "enemy") -> LevelState:
+	return LevelState.fromJson({
+		"map_data": {
+			"layers": {"grass": {"z": 0, "terrain": "grass", "verts": [[0, 0], [5, 0], [5, 5], [0, 5]]}},
+			"units": {
+				"lyn": {"character": "lyn", "faction": "player", "start_cell": [0, 0]},
+				"bandit": {"class": "fighter", "items": ["iron_axe"], "faction": "enemy", "start_cell": [4, 4]},
+				"wave": {"class": "fighter", "items": ["iron_axe"], "faction": faction, "start_cell": [3, 3],
+						"event": "wave_1"},
+			},
+		},
+		"events": {"wave_1": event},
+	})
+
+
+func _turn_event(turn: int, phase := "enemy") -> Dictionary:
+	return {"trigger": {"type": "turn_start", "turn": turn, "phase": phase}, "actions": [{"type": "spawn"}]}
+
+
+func test_a_placement_keeps_its_event() -> void:
+	var state := _wave_level(_turn_event(2))
+	assert_eq(state.map_data.units["wave"].event, "wave_1")
+	assert_eq(state.map_data.units["wave"].toJson()["event"], "wave_1")
+	assert_false(state.map_data.units["bandit"].toJson().has("event"), "written only when set")
+
+
+func test_reinforcements_are_only_held_back_when_asked() -> void:
+	var state := _wave_level(_turn_event(2))
+	assert_true(state.level_units.has("wave"), "loading alone keeps every placement (the editor)")
+	state.hold_back_reinforcements()
+	assert_false(state.level_units.has("wave"))
+	assert_true(state.pending_units.has("wave"))
+	assert_true(state.level_units.has("bandit"))
+
+
+func test_an_event_with_a_broken_trigger_places_its_units_at_the_start() -> void:
+	var state := _wave_level({"trigger": {"type": "full_moon"}, "actions": [{"type": "spawn"}]})
+	state.hold_back_reinforcements()
+	assert_true(state.level_units.has("wave"), "never stuck off the map")
+	assert_push_warning("wave_1")
+
+
+func test_a_missing_event_places_the_unit_at_the_start() -> void:
+	var state := _wave_level(_turn_event(2))
+	state.events.erase("wave_1")
+	state.hold_back_reinforcements()
+	assert_true(state.level_units.has("wave"))
+	assert_push_warning("wave_1")
+
+
+func test_only_enemies_are_held_back() -> void:
+	var state := _wave_level(_turn_event(2), "player")
+	state.hold_back_reinforcements()
+	assert_true(state.level_units.has("wave"), "reinforcements are enemies only")
+	assert_push_warning("enemies")
+
+
+func test_event_problems() -> void:
+	assert_eq(LevelState.event_problem(_turn_event(2)), "")
+	assert_ne(LevelState.event_problem(_turn_event(0)), "", "turn below 1")
+	assert_ne(LevelState.event_problem(_turn_event(2, "dusk")), "", "unknown phase")
+	assert_ne(LevelState.event_problem({"trigger": {"type": "full_moon"}}), "", "unknown trigger")
+	assert_ne(LevelState.event_problem(["hello"]), "", "not an event at all")
