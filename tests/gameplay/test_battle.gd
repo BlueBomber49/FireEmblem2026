@@ -1324,8 +1324,8 @@ func test_the_popup_ends_on_the_units_real_exp_at_level_twenty() -> void:
 	battle.roll = _always(10)
 	battle.show_banners = true
 	battle.exp_popup.fill_time = 0.01
+	battle.exp_popup.wait_for_player = false
 	battle.exp_popup.hold_time = 0.0
-	battle.exp_popup.level_up_time = 0.0
 	_lyn_in_unit_menu()
 	battle.unit_menu.option_selected.emit(&"attack")
 	await battle._fight(bandit)

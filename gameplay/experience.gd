@@ -64,7 +64,8 @@ static func _bonus_b(unit: Unit) -> int:
 
 
 ## Rolls each growing stat once. Movement and constitution don't grow, and no stat
-## passes the class cap. A rise in max HP raises current HP by the same, as in FE.
+## passes the class cap. An HP rise raises max HP only; current HP stays as it
+## was, even for a unit at full HP (20/20 becomes 20/21).
 static func _level_up(unit: Unit, roll: Callable) -> Dictionary:
 	var up := {}
 	var growths := unit.growths()
@@ -76,6 +77,4 @@ static func _level_up(unit: Unit, roll: Callable) -> Dictionary:
 		if roll.call() < int(growths.get(field)) and value < int(caps.get(field)):
 			unit.stats.set(field, value + 1)
 			up[field] = 1
-	if up.has(&"hp"):
-		unit.current_hp += 1
 	return up

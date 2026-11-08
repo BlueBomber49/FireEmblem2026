@@ -2,7 +2,8 @@ class_name ExpPopup
 extends PanelContainer
 ## A placeholder shown after a fight: "Lyn  EXP +33" with the bar filling from the
 ## old value, then on a level-up "LEVEL UP!" and the stats that rose. Battle
-## awaits [method play]; confirm or a click skips ahead.
+## awaits [method play]. Each screen waits for confirm or a click; one during the
+## fill finishes it at once.
 
 ## FE's short stat names, for the level-up lines.
 const SHORT_NAMES := {
@@ -12,12 +13,15 @@ const SHORT_NAMES := {
 const GAINS_PER_LINE := 4
 
 
-## Seconds for the bar to fill, then to rest, then to show each level-up.
+## Seconds for the bar to fill.
 @export var fill_time := 0.6
+## Wait for confirm or a click on each screen. Off (tests), each just holds
+## for hold_time seconds instead.
+@export var wait_for_player := true
 @export var hold_time := 0.8
-@export var level_up_time := 1.6
 
-var _skip := false
+## A confirm or click arrived (finishes a fill, or moves on from a screen).
+var _pressed := false
 var _tween: Tween
 
 @onready var _title: Label = %Title
@@ -35,7 +39,7 @@ func _ready() -> void:
 ## reaches level 20), so the bar never has to work it out. Returns once it's gone.
 func play(unit_name: String, start_exp: int, amount: int, level_ups: Array[Dictionary],
 		end_exp: int) -> void:
-	_skip = false
+	_pressed = false
 	_title.text = "%s   EXP +%d" % [unit_name, amount]
 	_gains.hide()
 	_bar.value = start_exp
@@ -43,7 +47,7 @@ func play(unit_name: String, start_exp: int, amount: int, level_ups: Array[Dicti
 	# Up to 100 on a level-up; the leftover is shown after the last one.
 	var levelled := not level_ups.is_empty()
 	await _fill(float(Experience.PER_LEVEL if levelled else end_exp))
-	await _wait(hold_time)
+	await _next()
 	for i in level_ups.size():
 		_bar.value = 0
 		_title.text = "%s   LEVEL UP!" % unit_name
@@ -51,17 +55,15 @@ func play(unit_name: String, start_exp: int, amount: int, level_ups: Array[Dicti
 		_gains.show()
 		if i == level_ups.size() - 1:
 			await _fill(float(end_exp))
-		await _wait(level_up_time)
+		await _next()
 	_stop_tween()
 	hide()
 
 
-## Tweens the bar to `value`; a skip jumps it there.
+## Tweens the bar to `value`; a press during it jumps the bar there.
 func _fill(value: float) -> void:
 	_stop_tween()
-	if _skip:
-		_bar.value = value
-		return
+	_pressed = false
 	_tween = create_tween()
 	_tween.tween_property(_bar, ^"value", value, fill_time)
 	# Frame by frame rather than awaiting finished: a skip kills the tween, and a
@@ -93,11 +95,14 @@ func _stop_tween() -> void:
 		_tween = null
 
 
-func _wait(seconds: float) -> void:
-	var left := seconds
-	while left > 0.0 and not _skip:
+## Waits for the player to move on (or hold_time, when wait_for_player is off).
+func _next() -> void:
+	_pressed = false
+	var left := hold_time
+	while not _pressed and (wait_for_player or left > 0.0):
 		await get_tree().process_frame
 		left -= get_process_delta_time()
+	_pressed = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -106,5 +111,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
 	if event.is_action_pressed(&"confirm") or (click != null and click.pressed):
 		get_viewport().set_input_as_handled()
-		_skip = true
-		_stop_tween()  # _fill sees it gone and jumps the bar to its end
+		if _tween != null:
+			_stop_tween()  # _fill sees it gone and jumps the bar to its end
+		else:
+			_pressed = true

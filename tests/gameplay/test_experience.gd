@@ -113,10 +113,18 @@ func test_stats_stop_at_the_class_cap() -> void:
 	assert_eq(lyn.stats.speed, lyn.class_data().caps.speed)
 
 
-func test_hp_growth_raises_current_hp_too() -> void:
-	lyn.current_hp = lyn.max_hp()
+func test_hp_growth_raises_max_hp_only() -> void:
+	lyn.current_hp = lyn.max_hp() - 5
+	var wounded := lyn.current_hp
+	var max_before := lyn.max_hp()
 	Experience.gain(lyn, 100, _always(0))
-	assert_eq(lyn.current_hp, lyn.max_hp(), "a full unit stays full")
+	assert_eq(lyn.max_hp(), max_before + 1)
+	assert_eq(lyn.current_hp, wounded, "a wounded unit's HP stays put")
+	lyn.current_hp = lyn.max_hp()
+	var full := lyn.current_hp
+	Experience.gain(lyn, 100, _always(0))
+	assert_eq(lyn.current_hp, full, "a full unit stays at its old HP")
+	assert_eq(lyn.max_hp(), full + 1)
 
 
 func test_level_twenty_gains_nothing() -> void:

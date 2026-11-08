@@ -9,8 +9,8 @@ func before_each() -> void:
 	popup = PopupScene.instantiate()
 	add_child_autofree(popup)
 	popup.fill_time = 0.01
+	popup.wait_for_player = false
 	popup.hold_time = 0.0
-	popup.level_up_time = 0.0
 
 
 func test_starts_hidden() -> void:
@@ -44,20 +44,41 @@ func test_after_a_level_up_the_bar_shows_the_leftover() -> void:
 	assert_eq(popup.get_node("%Bar").value, 30.0)
 
 
-func test_a_skip_stops_the_fill_and_ends_it_at_once() -> void:
-	popup.fill_time = 5.0
-	popup.hold_time = 5.0
-	popup.play("Lyn", 10, 20, [] as Array[Dictionary], 30)  # not awaited: skipped below
-	await get_tree().process_frame
-	var confirm := InputEventAction.new()
-	confirm.action = &"confirm"
-	confirm.pressed = true
-	popup._unhandled_input(confirm)
-	await wait_until(func() -> bool: return not popup.visible, 1.0)
-	assert_false(popup.visible, "skipping didn't wait out the 5s fill or hold")
-	assert_eq(popup.get_node("%Bar").value, 30.0, "the bar ends where it should")
-	assert_null(popup._tween, "no fill left running")
+func _confirm() -> void:
+	var event := InputEventAction.new()
+	event.action = &"confirm"
+	event.pressed = true
+	popup._unhandled_input(event)
 
+
+func test_each_screen_waits_for_the_player() -> void:
+	popup.wait_for_player = true
+	popup.play("Lyn", 80, 50, [{&"hp": 1}] as Array[Dictionary], 30)  # not awaited
+	await wait_seconds(0.3)
+	assert_true(popup.visible, "the EXP screen waits")
+	_confirm()
+	await wait_seconds(0.3)
+	assert_true(popup.visible, "now the level-up screen waits")
+	assert_string_contains(popup.get_node("%Title").text, "LEVEL UP!")
+	_confirm()
+	await wait_until(func() -> bool: return not popup.visible, 1.0)
+	assert_false(popup.visible)
+
+
+func test_a_press_during_the_fill_finishes_it_and_the_next_moves_on() -> void:
+	popup.wait_for_player = true
+	popup.fill_time = 5.0
+	popup.play("Lyn", 10, 20, [] as Array[Dictionary], 30)  # not awaited
+	await get_tree().process_frame
+	_confirm()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_eq(popup.get_node("%Bar").value, 30.0, "the fill jumps to its end")
+	assert_null(popup._tween, "no fill left running")
+	assert_true(popup.visible, "and the screen still waits")
+	_confirm()
+	await wait_until(func() -> bool: return not popup.visible, 1.0)
+	assert_false(popup.visible)
 
 func test_reaching_level_twenty_ends_the_bar_at_zero() -> void:
 	# Level 19 at 80 EXP gaining 50: level 20, where EXP is 0 (not 30).
