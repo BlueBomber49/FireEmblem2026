@@ -24,7 +24,12 @@ const FACTION_COLORS := {
 }
 ## Keys this class reads; anything else in the JSON is carried through untouched.
 const KNOWN_KEYS := ["character", "class", "name", "level", "items", "stats", "faction",
-	"sprite_sheet", "start_cell", "facing", "commander"]
+	"sprite_sheet", "start_cell", "facing", "commander", "strategy", "team"]
+## Enemy AI strategies, as written in level files (EnemyAI.Strategy in play).
+const STRATEGY_AGGRESSIVE := "aggressive"
+const STRATEGY_STATIONARY := "stationary"
+const STRATEGY_DEFENSIVE := "defensive"
+const STRATEGIES: Array[String] = [STRATEGY_AGGRESSIVE, STRATEGY_STATIONARY, STRATEGY_DEFENSIVE]
 
 
 static func are_hostile(ref_a: UnitReference, ref_b: UnitReference) -> bool:
@@ -45,6 +50,12 @@ var sprite_sheet: String
 ## The enemy commander (Objective's "Defeat the enemy commander"). At most one
 ## per level, and only an enemy; the map editor enforces both.
 var commander := false
+## How the enemy AI moves this unit (one of STRATEGIES). Enemies only; written
+## to JSON only when not aggressive.
+var strategy := STRATEGY_AGGRESSIVE
+## Defensive enemies sharing a team wake up together; a blank team is a team of
+## one. Written only when set.
+var team := ""
 
 ## A named character's id (resources/characters/<id>.json), or "" for a generic unit.
 var character_id: String
@@ -181,6 +192,11 @@ static func fromJson(p_id: String, d: Dictionary) -> UnitReference:
 	ref.start_cell = JsonUtil.vec2i_from_json(d.get("start_cell"))
 	ref.facing = JsonUtil.vec2i_from_json(d.get("facing"), Vector2i.DOWN)
 	ref.commander = d.get("commander", false) == true
+	ref.strategy = str(d.get("strategy", STRATEGY_AGGRESSIVE))
+	if not ref.strategy in STRATEGIES:
+		push_warning("Level: unit '%s': unknown strategy '%s'; using aggressive." % [p_id, ref.strategy])
+		ref.strategy = STRATEGY_AGGRESSIVE
+	ref.team = str(d.get("team", ""))
 	for key in d:
 		if not key in KNOWN_KEYS:
 			ref._extra[key] = d[key]
@@ -206,5 +222,9 @@ func toJson() -> Dictionary:
 	d["facing"] = JsonUtil.vec2i_to_json(facing)
 	if commander:
 		d["commander"] = true
+	if strategy != STRATEGY_AGGRESSIVE:
+		d["strategy"] = strategy
+	if not team.is_empty():
+		d["team"] = team
 	d.merge(_extra.duplicate(true))
 	return d

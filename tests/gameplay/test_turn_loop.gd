@@ -256,3 +256,59 @@ func test_seize_wins_through_the_normal_action_check() -> void:
 	await _loop.on_player_action_completed()
 	assert_eq(_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_signal_emitted_with_parameters(_loop, "finished", [true])
+
+
+# --- Enemy strategies from the level file -----------------------------------------
+# simple_level's bandit (16, 5) and brigand (17, 11) start far from the players.
+
+const STRATEGY_LEVEL := "user://test_turn_loop_strategies.json"
+
+
+## A battle on simple_level with `edits` merged into its placements.
+func _battle_with(edits: Dictionary) -> Battle:
+	var json := JSON.parse_string(FileAccess.get_file_as_string(LEVEL_PATH)) as Dictionary
+	for id: String in edits:
+		(json["map_data"]["units"][id] as Dictionary).merge(edits[id], true)
+	var file := FileAccess.open(STRATEGY_LEVEL, FileAccess.WRITE)
+	file.store_string(JSON.stringify(json))
+	file.close()
+	var battle: Battle = BattleScene.instantiate()
+	(battle.get_node("Level") as Level).level_path = STRATEGY_LEVEL
+	battle.show_banners = false
+	add_child_autofree(battle)
+	DirAccess.remove_absolute(STRATEGY_LEVEL)
+	return battle
+
+
+func _cell(battle: Battle, id: String) -> Vector2i:
+	return battle.level.level_state.level_units[id].cell
+
+
+func test_a_stationary_enemy_from_the_file_holds_its_cell() -> void:
+	var battle := _battle_with({"bandit": {"strategy": "stationary"}})
+	var bandit_start := _cell(battle, "bandit")
+	var brigand_start := _cell(battle, "brigand")
+	await battle.turn_loop.end_player_turn()
+	assert_eq(_cell(battle, "bandit"), bandit_start)
+	assert_ne(_cell(battle, "brigand"), brigand_start, "the brigand is aggressive by default")
+
+
+func test_a_defensive_enemy_with_no_team_wakes_on_its_own() -> void:
+	var battle := _battle_with({"bandit": {"strategy": "defensive"}, "brigand": {"strategy": "stationary"}})
+	var start := _cell(battle, "bandit")
+	await battle.turn_loop.end_player_turn()
+	assert_eq(_cell(battle, "bandit"), start, "nobody in reach: it waits")
+	battle.level.place_unit(battle.level.unit_nodes["lyn"], start + Vector2i(-3, 0))
+	await battle.turn_loop.end_player_turn()
+	assert_ne(_cell(battle, "bandit"), start, "a lone Defensive unit is its own team")
+	# Let the fight's last signals finish before GUT frees the battle.
+	await wait_process_frames(2)
+
+
+func test_a_defensive_team_wakes_together() -> void:
+	var battle := _battle_with({"bandit": {"strategy": "defensive", "team": "camp"},
+			"brigand": {"strategy": "defensive", "team": "camp"}})
+	var brigand_start := _cell(battle, "brigand")
+	battle.level.place_unit(battle.level.unit_nodes["lyn"], _cell(battle, "bandit") + Vector2i(-3, 0))
+	await battle.turn_loop.end_player_turn()
+	assert_ne(_cell(battle, "brigand"), brigand_start, "the brigand wakes with the bandit")

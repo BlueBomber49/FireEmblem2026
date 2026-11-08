@@ -291,6 +291,27 @@ disabled = true
 text = "Enemy commander"
 tooltip_text = "The unit \"Defeat the enemy commander\" targets. Enemies only, one per level; marking one clears the last."
 
+[node name="AIRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+
+[node name="AILabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+layout_mode = 2
+text = "AI"
+
+[node name="StrategyOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+tooltip_text = "How the enemy AI moves this unit. Aggressive: goes after you. Stationary: never moves, attacks what it can reach. Defensive: waits until you come within its reach (or its team's)."
+
+[node name="TeamEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Defensive enemies with the same team wake up together. Blank: this unit wakes up on its own."
+placeholder_text = "own team"
+editable = false
+
 [node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
 unique_name_in_owner = true
 layout_mode = 2

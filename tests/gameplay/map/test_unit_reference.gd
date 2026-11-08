@@ -186,3 +186,21 @@ func test_commander_is_written_only_when_set() -> void:
 	assert_eq(ref.toJson()["commander"], true)
 	assert_true(UnitReference.fromJson("bandit", ref.toJson()).commander)
 	assert_false(UnitReference.fromJson("bandit", ref.toJson()).toJson().has("_extra"))
+
+
+func test_strategy_and_team_are_written_only_when_set() -> void:
+	var ref := UnitReference.fromJson("x", {"class": "fighter", "faction": "enemy"})
+	assert_eq(ref.strategy, UnitReference.STRATEGY_AGGRESSIVE, "aggressive by default")
+	assert_false(ref.toJson().has("strategy"))
+	assert_false(ref.toJson().has("team"))
+	ref.strategy = UnitReference.STRATEGY_DEFENSIVE
+	ref.team = "camp"
+	var reread := UnitReference.fromJson("x", ref.toJson())
+	assert_eq(reread.strategy, "defensive")
+	assert_eq(reread.team, "camp")
+
+
+func test_an_unknown_strategy_falls_back_to_aggressive() -> void:
+	var ref := UnitReference.fromJson("x", {"class": "fighter", "faction": "enemy", "strategy": "sneaky"})
+	assert_eq(ref.strategy, UnitReference.STRATEGY_AGGRESSIVE)
+	assert_push_warning("sneaky")

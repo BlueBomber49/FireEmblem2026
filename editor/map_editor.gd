@@ -11,6 +11,8 @@ extends Node2D
 ## Both: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE }
+## Enemy AI strategies, in the AI dropdown's order.
+const STRATEGIES := UnitReference.STRATEGIES
 enum Brush { PAINT, ERASE }
 
 const PAN_SPEED := 400.0
@@ -37,6 +39,8 @@ const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
 @onready var units_box: VBoxContainer = %UnitsBox
 @onready var objective_box: VBoxContainer = %ObjectiveBox
 @onready var commander_check: CheckBox = %CommanderCheck
+@onready var strategy_option: OptionButton = %StrategyOption
+@onready var team_edit: LineEdit = %TeamEdit
 @onready var layer_list: ItemList = %LayerList
 @onready var name_edit: LineEdit = %NameEdit
 @onready var terrain_option: OptionButton = %TerrainOption
@@ -142,6 +146,11 @@ func _ready() -> void:
 	items_edit.focus_exited.connect(_apply_inspector)
 	override_check.toggled.connect(_on_override_toggled)
 	commander_check.toggled.connect(_on_commander_toggled)
+	for strategy in STRATEGIES:
+		strategy_option.add_item(strategy.capitalize())
+	strategy_option.item_selected.connect(_on_strategy_picked)
+	team_edit.text_submitted.connect(func(_text: String) -> void: _on_team_edited())
+	team_edit.focus_exited.connect(_on_team_edited)
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
 	deselect_button.pressed.connect(_select_unit.bind(""))
 	%UndoButton.pressed.connect(undo)
@@ -573,6 +582,12 @@ func _fill_inspector() -> void:
 	# Only an enemy that can be built can be the commander.
 	commander_check.disabled = not editing or broken or ref.faction != UnitReference.Faction.ENEMY
 	commander_check.set_pressed_no_signal(editing and ref.commander)
+	# Enemy AI: enemies only; the team only matters for Defensive.
+	var enemy := editing and ref.faction == UnitReference.Faction.ENEMY
+	strategy_option.disabled = not enemy
+	strategy_option.selected = maxi(STRATEGIES.find(ref.strategy), 0) if enemy else 0
+	team_edit.editable = enemy and ref.strategy == UnitReference.STRATEGY_DEFENSIVE
+	team_edit.text = ref.team if enemy else ""
 	deselect_button.disabled = not editing
 	if editing:
 		var data := ref.build_unit_data()
@@ -696,6 +711,8 @@ func _apply_inspector(respawn := false) -> void:
 	ref.faction = new_faction
 	if new_faction != UnitReference.Faction.ENEMY:
 		ref.commander = false  # only an enemy can command
+		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
+		ref.team = ""
 
 	var picked := String(_picked_character())
 	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
@@ -1020,6 +1037,39 @@ func _draw_overlay() -> void:
 
 
 # --- Commander -----------------------------------------------------------------
+
+
+func _on_strategy_picked(index: int) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	ref.strategy = STRATEGIES[index]
+	if ref.strategy != UnitReference.STRATEGY_DEFENSIVE:
+		ref.team = ""
+	_commit(before)
+	_fill_inspector()
+
+
+## Enter or leaving the box applies the team (blank: the unit's own team).
+func _on_team_edited() -> void:
+	var ref := _selected_enemy()
+	if ref == null or ref.strategy != UnitReference.STRATEGY_DEFENSIVE:
+		return
+	var team := team_edit.text.strip_edges()
+	if team == ref.team:
+		return
+	var before := _snapshot()
+	ref.team = team
+	_commit(before)
+
+
+## The selected placement while it's an enemy and the inspector isn't syncing.
+func _selected_enemy() -> UnitReference:
+	if _syncing:
+		return null
+	var ref: UnitReference = level.level_state.map_data.units.get(selected_unit_id)
+	return ref if ref != null and ref.faction == UnitReference.Faction.ENEMY else null
 
 
 ## Marks or unmarks the selected enemy as the commander. Only one per level, so

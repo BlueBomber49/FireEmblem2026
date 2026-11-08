@@ -705,3 +705,53 @@ func test_a_seize_cell_must_be_on_the_map() -> void:
 	assert_string_contains(editor.status.text, "map")
 	editor._objective_click(FREE_CELL)
 	assert_true(editor.has_pending(), "a cell on the map is fine")
+
+
+# --- Enemy AI (Units mode) -----------------------------------------------------------
+
+
+func _pick_strategy(strategy: String) -> void:
+	var i := MapEditor.STRATEGIES.find(strategy)
+	editor.strategy_option.select(i)
+	editor.strategy_option.item_selected.emit(i)
+
+
+func test_only_enemies_have_an_ai_setting() -> void:
+	editor._select_unit("lyn")
+	assert_true(editor.strategy_option.disabled)
+	assert_false(editor.team_edit.editable)
+	editor._select_unit("bandit")
+	assert_false(editor.strategy_option.disabled)
+	assert_eq(editor.strategy_option.selected, MapEditor.STRATEGIES.find("aggressive"))
+
+
+func test_the_team_box_is_only_for_defensive() -> void:
+	editor._select_unit("bandit")
+	assert_false(editor.team_edit.editable)
+	_pick_strategy("defensive")
+	assert_eq(_map_units()["bandit"].strategy, "defensive")
+	assert_true(editor.team_edit.editable)
+	editor.team_edit.text = "camp"
+	editor.team_edit.text_submitted.emit("camp")
+	assert_eq(_map_units()["bandit"].team, "camp")
+	_pick_strategy("stationary")
+	assert_eq(_map_units()["bandit"].team, "", "a team only means something for Defensive")
+	assert_false(editor.team_edit.editable)
+
+
+func test_ai_edits_can_be_undone() -> void:
+	editor._select_unit("bandit")
+	_pick_strategy("stationary")
+	editor.undo()
+	assert_eq(_map_units()["bandit"].strategy, "aggressive")
+
+
+func test_a_unit_that_stops_being_an_enemy_loses_its_ai() -> void:
+	editor._select_unit("bandit")
+	_pick_strategy("defensive")
+	editor.team_edit.text = "camp"
+	editor.team_edit.text_submitted.emit("camp")
+	editor.faction_option.selected = UnitReference.Faction.PLAYER
+	editor._apply_inspector(true)
+	assert_eq(_map_units()["bandit"].strategy, "aggressive")
+	assert_eq(_map_units()["bandit"].team, "")

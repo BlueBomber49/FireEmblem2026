@@ -42,9 +42,26 @@ func setup(p_battle: Battle, p_level: Level, p_objective: Objective = null) -> v
 	if not _has_level():
 		return
 	enemy_controller = EnemyController.new(level.level_state, level.pathfinding)
+	_apply_strategies()
 	# Not awaited: setup runs from Battle._ready, so the opening banner plays on.
 	_begin_player_phase()
 	_check_end()
+
+
+## Gives each enemy placement the strategy its level file sets (aggressive needs
+## nothing: it's EnemyController's default). Covers every placement, so units
+## that arrive later have theirs too. A Defensive enemy with no team is a team of
+## one; otherwise it would never wake up.
+func _apply_strategies() -> void:
+	const IN_PLAY := {
+		UnitReference.STRATEGY_STATIONARY: EnemyAI.Strategy.STATIONARY,
+		UnitReference.STRATEGY_DEFENSIVE: EnemyAI.Strategy.DEFENSIVE,
+	}
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		if ref.faction != UnitReference.Faction.ENEMY or not IN_PLAY.has(ref.strategy):
+			continue
+		var team := ref.team if not ref.team.is_empty() else "solo:" + ref.id
+		enemy_controller.set_strategy(StringName(ref.id), IN_PLAY[ref.strategy], StringName(team))
 
 
 func is_player_turn() -> bool:
