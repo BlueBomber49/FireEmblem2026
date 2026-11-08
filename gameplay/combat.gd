@@ -101,7 +101,7 @@ static func true_hit(displayed_hit: int, roll: Callable) -> bool:
 # --- Range -----------------------------------------------------------------------
 
 
-## Alive units hostile to `unit` that its equipped weapon reaches from where it
+## Alive units hostile to `unit` that any weapon it can use reaches from where it
 ## stands: nearest first, then clockwise from above. Empty without a weapon.
 static func hostiles_in_range(unit: LevelUnitState, level_state: LevelState) -> Array[LevelUnitState]:
 	var found: Array[LevelUnitState] = []
@@ -110,7 +110,7 @@ static func hostiles_in_range(unit: LevelUnitState, level_state: LevelState) -> 
 	for other: LevelUnitState in level_state.level_units.values():
 		if other != unit and other.is_alive() \
 				and UnitReference.are_hostile(unit.unit_ref, other.unit_ref) \
-				and can_strike(unit.unit, distance(unit, other)):
+				and not weapons_reaching(unit.unit, distance(unit, other)).is_empty():
 			found.append(other)
 	found.sort_custom(func(a: LevelUnitState, b: LevelUnitState) -> bool:
 		var da := distance(unit, a)
@@ -118,6 +118,16 @@ static func hostiles_in_range(unit: LevelUnitState, level_state: LevelState) -> 
 		if da != db:
 			return da < db
 		return _clockwise_from_above(a.cell - unit.cell) < _clockwise_from_above(b.cell - unit.cell))
+	return found
+
+
+## Inventory indices of the weapons `unit` can use that reach `gap` tiles, in
+## inventory order (so the equipped one, when it reaches, comes first).
+static func weapons_reaching(unit: Unit, gap: int) -> Array[int]:
+	var found: Array[int] = []
+	for i in unit.usable_weapon_indices():
+		if (unit.inventory.get_item(i).data as WeaponData).in_range(gap):
+			found.append(i)
 	return found
 
 

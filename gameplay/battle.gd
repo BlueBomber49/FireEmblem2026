@@ -29,12 +29,15 @@ const CURSOR_DIRECTIONS := {
 	&"ui_up": Vector2i.UP,
 	&"ui_down": Vector2i.DOWN,
 }
-## Left / up go to the previous target, right / down to the next.
+## While targeting: up goes to the previous target, down to the next.
 const TARGET_STEPS := {
-	&"ui_left": -1,
 	&"ui_up": -1,
-	&"ui_right": 1,
 	&"ui_down": 1,
+}
+## While targeting: left / right compare the weapons that reach the target.
+const WEAPON_STEPS := {
+	&"ui_left": -1,
+	&"ui_right": 1,
 }
 
 const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
@@ -105,6 +108,7 @@ func _ready() -> void:
 	item_menu.cancelled.connect(_on_item_menu_cancelled)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
+	forecast.weapon_step.connect(cycle_weapon)
 	status_screen.cycle_requested.connect(_on_status_cycle)
 	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
@@ -180,6 +184,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.is_action_pressed(action):
 				get_viewport().set_input_as_handled()
 				_cycle_target(TARGET_STEPS[action])
+				return
+		for action: StringName in WEAPON_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				cycle_weapon(WEAPON_STEPS[action])
 				return
 		return
 
@@ -379,9 +388,7 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"attack":
 			state = State.TARGETING
 			target_index = 0
-			attack_cells = _cells_in_attack_range(level.selected.state)
-			_redraw_selection()
-			_show_forecast()
+			_show_forecast()  # also draws the red cells for the weapon shown
 		&"item":
 			state = State.ITEM_MENU
 			item_menu.open(selected_unit_items())
@@ -483,9 +490,39 @@ func equip_item(index: int) -> bool:
 # --- Attack forecast ---------------------------------------------------------
 
 
+## Inventory indices of the selected unit's weapons that reach the current target.
+func weapon_choices() -> Array[int]:
+	var unit := level.selected.state
+	return Combat.weapons_reaching(unit.unit, Combat.distance(unit, targets[target_index]))
+
+
+## Shows the forecast with the next (`step` 1) or previous (-1) weapon that reaches
+## the target. Nothing is equipped until the attack is confirmed.
+func cycle_weapon(step: int) -> void:
+	if state != State.TARGETING:
+		return
+	var choices := weapon_choices()
+	if choices.size() < 2:
+		return
+	var unit := level.selected.state.unit
+	var at := maxi(choices.find(unit.weapon_preview), 0)
+	unit.weapon_preview = choices[wrapi(at + step, 0, choices.size())]
+	_show_forecast()
+
+
 func _show_forecast() -> void:
 	var target := targets[target_index]
 	cursor.set_cell(target.cell)
+	# Keep the compared weapon if it reaches this target too; otherwise the first
+	# that does (the equipped one when it reaches, since it's first in the inventory).
+	var choices := weapon_choices()
+	var unit := level.selected.state.unit
+	if not choices.has(unit.weapon_preview):
+		unit.weapon_preview = choices[0]
+	# The red cells show the compared weapon's reach.
+	attack_cells = _cells_in_attack_range(level.selected.state)
+	_redraw_selection()
+	forecast.weapon_arrows = choices.size() > 1
 	var sides := Combat.forecast(level.selected.state, target, level.level_state)
 	# Stays in its default top-left corner; set_side with _is_left_half(target.cell)
 	# would flip it away from the target instead.
@@ -510,7 +547,13 @@ func point_at_target(cell: Vector2i) -> void:
 			return
 
 
+## Attacking with the compared weapon equips it (FE moves it to the top).
 func _on_forecast_confirmed() -> void:
+	var unit := level.selected.state.unit
+	var chosen := unit.weapon_preview
+	unit.weapon_preview = -1
+	if chosen >= 0:
+		unit.equip(chosen)
 	_fight(targets[target_index])
 
 
@@ -586,6 +629,7 @@ func _random_roll() -> int:
 
 
 func _on_forecast_cancelled() -> void:
+	level.selected.state.unit.weapon_preview = -1
 	_open_unit_menu()
 
 

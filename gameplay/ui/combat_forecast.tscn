@@ -44,11 +44,36 @@ layout_mode = 2
 theme_type_variation = &"ForecastLabel"
 text = "+"
 
-[node name="PlayerWeapon" type="Label" parent="Sections/PlayerHeader/Rows"]
+[node name="WeaponRow" type="HBoxContainer" parent="Sections/PlayerHeader/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="WeaponLeft" type="Button" parent="Sections/PlayerHeader/Rows/WeaponRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Previous weapon"
+focus_mode = 0
+theme_type_variation = &"ForecastLabel"
+text = "<"
+flat = true
+
+[node name="PlayerWeapon" type="Label" parent="Sections/PlayerHeader/Rows/WeaponRow"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"ForecastLabel"
 text = "Rapier"
+
+[node name="WeaponRight" type="Button" parent="Sections/PlayerHeader/Rows/WeaponRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Next weapon"
+focus_mode = 0
+theme_type_variation = &"ForecastLabel"
+text = ">"
+flat = true
 
 [node name="Stats" type="HBoxContainer" parent="Sections"]
 layout_mode = 2

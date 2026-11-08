@@ -1102,3 +1102,123 @@ func test_a_loss_stops_the_music_instead() -> void:
 	assert_eq(battle.turn_loop.phase, TurnLoop.Phase.COMPLETE)
 	assert_false(battle.music.playing, "no victory music after a defeat")
 	assert_ne(battle.music.stream, Battle.VICTORY_MUSIC)
+
+
+# --- Weapon switching in the forecast -------------------------------------------
+# Lyn swapped for a Cavalier carrying an Iron Lance (equipped), an Iron Sword and a
+# Javelin (1-2 range), next to or 2 cells from the bandit.
+
+
+func _cavalier_attacks_from(gap: Vector2i) -> LevelUnitState:
+	lyn.unit_ref.class_id = "cavalier"
+	lyn.unit_ref.character_id = ""
+	lyn.unit_ref.items = ["iron_lance", "iron_sword", "javelin"] as Array[String]
+	var cavalier := LevelUnitState.from_reference(lyn.unit_ref)
+	cavalier.cell = LYN_CELL
+	battle.level.level_state.level_units["lyn"] = cavalier
+	battle.level.unit_nodes["lyn"].state = cavalier
+	bandit.cell = LYN_CELL + gap
+	_lyn_in_unit_menu()
+	battle.unit_menu.option_selected.emit(&"attack")
+	assert_eq(battle.state, Battle.State.TARGETING)
+	return cavalier
+
+
+func _shown_weapon() -> String:
+	return (battle.forecast.get_node("%PlayerWeapon") as Label).text
+
+
+func test_left_and_right_cycle_the_weapons_that_reach() -> void:
+	var cavalier := _cavalier_attacks_from(Vector2i.RIGHT)
+	assert_eq(battle.weapon_choices().size(), 3)
+	assert_eq(_shown_weapon(), "Iron Lance", "starts on the equipped weapon")
+	_press(&"ui_right")
+	assert_eq(_shown_weapon(), "Iron Sword")
+	_press(&"ui_right")
+	assert_eq(_shown_weapon(), "Javelin")
+	_press(&"ui_right")
+	assert_eq(_shown_weapon(), "Iron Lance", "wraps around")
+	_press(&"ui_left")
+	assert_eq(_shown_weapon(), "Javelin")
+	assert_eq(cavalier.unit.inventory.get_item(0).data.id, &"iron_lance", "cycling doesn't equip")
+
+
+func test_the_forecast_numbers_follow_the_compared_weapon() -> void:
+	_cavalier_attacks_from(Vector2i.RIGHT)
+	var lance_hit := (battle.forecast.get_node("%PlayerHit") as Label).text
+	_press(&"ui_right")  # Iron Sword: beats the bandit's axe
+	assert_ne((battle.forecast.get_node("%PlayerHit") as Label).text, lance_hit)
+
+
+func test_two_cells_away_only_the_javelin_is_offered() -> void:
+	_cavalier_attacks_from(Vector2i(2, 0))
+	assert_eq(battle.weapon_choices().size(), 1)
+	assert_eq(_shown_weapon(), "Javelin")
+	assert_eq((battle.forecast.get_node("%EnemyDamage") as Label).text, "--", "the axe can't counter at 2")
+	assert_false(battle.forecast.arrow(1).visible, "no arrows with one choice")
+
+
+func test_attacking_with_another_weapon_equips_it() -> void:
+	var cavalier := _cavalier_attacks_from(Vector2i.RIGHT)
+	battle.roll = _always(99)
+	_press(&"ui_right")
+	battle._on_forecast_confirmed()
+	assert_eq(cavalier.unit.equipped_weapon(), GameData.get_item(&"iron_sword"))
+	assert_eq(cavalier.unit.weapon_preview, -1)
+
+
+func test_cancelling_keeps_the_equipped_weapon() -> void:
+	var cavalier := _cavalier_attacks_from(Vector2i.RIGHT)
+	_press(&"ui_right")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_eq(cavalier.unit.weapon_preview, -1)
+	assert_eq(cavalier.unit.equipped_weapon(), GameData.get_item(&"iron_lance"))
+
+
+func test_the_arrow_buttons_cycle_weapons() -> void:
+	_cavalier_attacks_from(Vector2i.RIGHT)
+	assert_true(battle.forecast.arrow(1).visible)
+	assert_true(battle.forecast.arrow(-1).visible)
+	battle.forecast.arrow(1).pressed.emit()
+	assert_eq(_shown_weapon(), "Iron Sword")
+	battle.forecast.arrow(-1).pressed.emit()
+	assert_eq(_shown_weapon(), "Iron Lance")
+	assert_eq(battle.state, Battle.State.TARGETING, "an arrow doesn't attack")
+
+
+func test_up_and_down_still_cycle_targets() -> void:
+	bandit.cell = LYN_CELL + Vector2i.RIGHT
+	var brigand := LevelUnitState.from_reference(bandit.unit_ref)
+	brigand.cell = LYN_CELL + Vector2i.DOWN
+	battle.level.level_state.level_units["brigand"] = brigand
+	_select_lyn()
+	battle.confirm()
+	battle.unit_menu.option_selected.emit(&"attack")
+	_press(&"ui_down")
+	assert_eq(battle.cursor.cell, brigand.cell)
+	_press(&"ui_up")
+	assert_eq(battle.cursor.cell, bandit.cell)
+	_press(&"ui_right")
+	assert_eq(battle.cursor.cell, bandit.cell, "left/right are weapons now")
+
+
+func test_a_new_target_keeps_the_compared_weapon_when_it_reaches() -> void:
+	var cavalier := _cavalier_attacks_from(Vector2i.RIGHT)
+	var brigand := LevelUnitState.from_reference(bandit.unit_ref)
+	brigand.cell = LYN_CELL + Vector2i(0, 2)  # 2 away: only the javelin reaches
+	battle.level.level_state.level_units["brigand"] = brigand
+	battle.targets = Combat.hostiles_in_range(cavalier, battle.level.level_state)
+	_press(&"ui_right")
+	assert_eq(_shown_weapon(), "Iron Sword")
+	_press(&"ui_down")
+	assert_eq(_shown_weapon(), "Javelin", "the sword doesn't reach: first that does")
+	_press(&"ui_up")
+	assert_eq(_shown_weapon(), "Javelin", "the javelin reaches here too, so it stays")
+
+
+func test_the_red_cells_follow_the_compared_weapon() -> void:
+	_cavalier_attacks_from(Vector2i.RIGHT)
+	assert_false(battle.attack_cells.has(LYN_CELL + Vector2i(2, 0)), "the lance reaches 1")
+	_press(&"ui_left")  # Javelin
+	assert_true(battle.attack_cells.has(LYN_CELL + Vector2i(2, 0)), "the javelin reaches 2")
