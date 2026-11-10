@@ -133,6 +133,37 @@ class Seize:
 		return d
 
 
+## Like Seize (cells and a unit-menu command on them), but won by the Escape
+## command, with its own flag. No name: it always reads "Escape".
+class Escape:
+	extends Seize
+
+	## Its own builder: the loader calls the registry class's from_json, and a
+	## subclass that doesn't override a static function runs the parent's (which
+	## would build a Seize).
+	static func from_json(d: Dictionary) -> Condition:
+		if not d.get("cells") is Array:
+			return null
+		var escape := Escape.new()
+		for raw: Variant in d["cells"]:
+			escape.cells.append(JsonUtil.vec2i_from_json(raw))
+		return escape
+
+	func is_met(state: LevelState) -> bool:
+		return state.escaped
+
+	func describe(_state: LevelState) -> String:
+		return "Escape"
+
+	func validate(_state: LevelState) -> PackedStringArray:
+		if cells.is_empty():
+			return PackedStringArray(["escape: no cell to escape from."])
+		return PackedStringArray()
+
+	func toJson() -> Dictionary:
+		return {"type": type, "cells": cells.map(func(c: Vector2i) -> Array: return JsonUtil.vec2i_to_json(c))}
+
+
 ## Base for conditions that count turns: met once `turns` enemy phases are over
 ## (the turn counter has gone past it).
 class TurnCount:
@@ -238,6 +269,7 @@ const CONDITION_TYPES := {
 	"faction_defeated": {"class": FactionDefeated, "title": "Rout the enemy", "sides": [WIN], "settings": []},
 	"defeat_commander": {"class": DefeatCommander, "title": "Defeat the enemy commander", "sides": [WIN], "settings": [&"commander"]},
 	"seize": {"class": Seize, "title": "Seize", "sides": [WIN], "settings": [&"cells", &"name"]},
+	"escape": {"class": Escape, "title": "Escape", "sides": [WIN], "settings": [&"cells"]},
 	"survive": {"class": Survive, "title": "Survive N turns", "sides": [WIN], "settings": [&"turns"]},
 	"units_fall": {"class": UnitsFall, "title": "Units fall", "sides": [LOSE], "settings": [&"units"]},
 	"turns_pass": {"class": TurnsPass, "title": "N turns pass", "sides": [LOSE], "settings": [&"turns"]},
@@ -282,11 +314,21 @@ func lose_lines(state: LevelState) -> PackedStringArray:
 
 
 ## Every cell a seize condition lists, for highlighting and the Seize command.
+## Escape extends Seize, so it's left out here; see escape_cells().
 func seize_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	for condition in win:
-		if condition is Seize:
+		if condition is Seize and not condition is Escape:
 			cells.append_array((condition as Seize).cells)
+	return cells
+
+
+## Every cell an escape condition lists, for highlighting and the Escape command.
+func escape_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for condition in win:
+		if condition is Escape:
+			cells.append_array((condition as Escape).cells)
 	return cells
 
 

@@ -153,3 +153,97 @@ func test_only_the_commander_wears_the_crown() -> void:
 	add_child_autofree(level)
 	assert_not_null(level.unit_nodes["bandit"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
 	assert_null(level.unit_nodes["lyn"].get_node_or_null(NodePath(LevelUnit.COMMANDER_ICON_NAME)))
+
+
+# --- The roster: characters carried between chapters --------------------------------
+
+
+func _level_with_roster(roster: Dictionary) -> Level:
+	var level := Level.new()
+	level.level_path = LEVEL_PATH
+	level.roster = roster
+	add_child_autofree(level)
+	return level
+
+
+func test_the_roster_carries_a_character_in_healed() -> void:
+	var first := _level_with_roster({})
+	var lyn: Unit = first.level_state.level_units["lyn"].unit
+	lyn.level = 5
+	lyn.experience = 30
+	lyn.stats.speed += 2
+	lyn.current_hp = 3
+	var next := _level_with_roster(first.collect_roster())
+	var carried: Unit = next.level_state.level_units["lyn"].unit
+	assert_eq(carried.level, 5)
+	assert_eq(carried.experience, 30)
+	assert_eq(carried.stats.speed, lyn.stats.speed)
+	assert_eq(carried.current_hp, carried.max_hp(), "healed for the new chapter")
+
+
+func test_the_roster_holds_player_characters_only() -> void:
+	var level := _level_with_roster({})
+	var roster := level.collect_roster()
+	assert_true(roster.has("lyn"))
+	assert_false(roster.has("bandit"), "a generic enemy")
+	assert_false(roster.has("wil"), "an ally")
+
+
+func test_a_fallen_character_returns_with_its_progress() -> void:
+	var level := _level_with_roster({})
+	var lyn: LevelUnitState = level.level_state.level_units["lyn"]
+	lyn.unit.level = 3
+	lyn.current_hp = 0
+	var roster := level.collect_roster()
+	assert_true(roster.has("lyn"), "casual: the fallen come back")
+	var next := _level_with_roster(roster)
+	var back: LevelUnitState = next.level_state.level_units["lyn"]
+	assert_true(back.is_alive())
+	assert_eq(back.unit.level, 3)
+
+
+func test_the_roster_skips_a_unit_of_another_faction() -> void:
+	var level := _level_with_roster({"wil": {"level": 9}})
+	assert_ne(level.level_state.level_units["wil"].unit.level, 9, "wil is an ally here")
+
+
+
+func test_a_level_holds_reinforcements_back_only_when_set() -> void:
+	var state := LevelState.load_file(LEVEL_PATH)
+	state.map_data.units["bandit"].event = "wave_1"
+	state.events = {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+			"actions": [{"type": "spawn"}]}}
+	var editor_level := Level.new()
+	editor_level.level_state = LevelState.fromJson(state.toJson(false))
+	add_child_autofree(editor_level)
+	assert_true(editor_level.unit_nodes.has("bandit"), "the editor shows every placement")
+	var play_level := Level.new()
+	play_level.holds_reinforcements = true
+	play_level.level_state = LevelState.fromJson(state.toJson(false))
+	add_child_autofree(play_level)
+	assert_false(play_level.unit_nodes.has("bandit"), "in play it waits")
+	assert_eq(play_level.arrive("bandit"), Vector2i(10, 5))
+	assert_true(play_level.unit_nodes.has("bandit"))
+
+
+func test_arrive_finds_no_cell_on_a_full_map() -> void:
+	# One grass cell, and lyn is standing on it.
+	var level := Level.new()
+	level.holds_reinforcements = true
+	level.level_state = LevelState.fromJson({
+		"map_data": {
+			"layers": {"grass": {"z": 0, "terrain": "grass", "verts": [[0, 0]]}},
+			"units": {
+				"lyn": {"character": "lyn", "faction": "player", "start_cell": [0, 0]},
+				"wave": {"class": "fighter", "items": ["iron_axe"], "faction": "enemy",
+						"start_cell": [0, 0], "event": "wave_1"},
+			},
+		},
+		"events": {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+				"actions": [{"type": "spawn"}]}},
+	})
+	add_child_autofree(level)
+	assert_true(level.level_state.pending_units.has("wave"))
+	assert_eq(level.arrive("wave"), Vector2i(-1, -1))
+	assert_true(level.level_state.pending_units.has("wave"), "it keeps waiting")
+	assert_push_warning("wave")

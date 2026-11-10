@@ -237,7 +237,7 @@ func test_every_type_round_trips() -> void:
 
 
 func test_the_registry_lists_types_by_side() -> void:
-	assert_eq(Objective.types_for(Objective.WIN), ["faction_defeated", "defeat_commander", "seize", "survive"] as Array[String])
+	assert_eq(Objective.types_for(Objective.WIN), ["faction_defeated", "defeat_commander", "seize", "escape", "survive"] as Array[String])
 	assert_eq(Objective.types_for(Objective.LOSE), ["units_fall", "turns_pass"] as Array[String])
 	assert_eq(Objective.title_of("seize"), "Seize")
 	assert_eq(Objective.settings_of("seize"), [&"cells", &"name"] as Array[StringName])
@@ -262,3 +262,45 @@ func test_has_type() -> void:
 func test_units_fall_with_no_units_yet_still_describes_itself() -> void:
 	var fall := Objective.create("units_fall")
 	assert_eq(fall.describe(_level()), "Units fall (none chosen yet)")
+
+
+# --- Escape ----------------------------------------------------------------------
+
+
+func test_escape_read_from_json_is_an_escape_not_a_seize() -> void:
+	# The loader calls the registry class's from_json; Escape must build itself.
+	var objective := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]]}]})
+	assert_eq(objective.win.size(), 1)
+	assert_true(objective.win[0] is Objective.Escape)
+	assert_eq(objective.escape_cells(), [Vector2i(1, 2)] as Array[Vector2i])
+	assert_true(objective.seize_cells().is_empty(), "escape cells aren't seize cells")
+
+
+func test_escape_is_met_by_escaping_not_seizing() -> void:
+	var objective := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]]}]})
+	var state := LevelState.new()
+	state.seized = true
+	assert_false(objective.win[0].is_met(state))
+	state.escaped = true
+	assert_true(objective.win[0].is_met(state))
+
+
+func test_escape_text_and_round_trip() -> void:
+	var escape := Objective.fromJson({"win": [{"type": "escape", "cells": [[1, 2]], "name": "ignored"}]})
+	assert_eq(escape.win_lines(LevelState.new())[0], "Escape", "no name: always Escape")
+	assert_false(escape.toJson()["win"][0].has("name"))
+	var again := Objective.fromJson(escape.toJson())
+	assert_true(again.win[0] is Objective.Escape)
+	assert_eq(JSON.stringify(again.toJson()), JSON.stringify(escape.toJson()))
+	assert_eq(Objective.settings_of("escape"), [&"cells"] as Array[StringName], "the editor shows no name box")
+
+func test_escape_needs_a_cell_and_is_win_only() -> void:
+	var empty := Objective.fromJson({"win": [{"type": "escape", "cells": []}]})
+	assert_eq(empty.validate(LevelState.new()).size(), 1)
+	var misplaced := Objective.fromJson({"lose": [{"type": "escape", "cells": [[1, 2]]}]})
+	assert_true(misplaced.lose.is_empty())
+	assert_push_warning("escape")
+
+
+func test_create_makes_an_escape() -> void:
+	assert_true(Objective.create("escape") is Objective.Escape)

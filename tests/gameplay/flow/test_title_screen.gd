@@ -8,11 +8,27 @@ var _title: TitleScreen
 var _menu: ActionMenu
 
 
+const TEST_SAVES := "user://test_title_saves"
+
+var _real_saves: String
+
+
 func before_each() -> void:
+	# A test folder, so the player's real saves can't change what the menu shows.
+	_real_saves = SaveSlots.dir
+	SaveSlots.dir = TEST_SAVES
 	_title = TitleScene.instantiate()
 	add_child_autofree(_title)
 	_menu = _title.get_node("%Menu")
 	watch_signals(_title)
+
+
+func after_each() -> void:
+	for slot in SaveSlots.COUNT:
+		if FileAccess.file_exists(SaveSlots.path(slot)):
+			DirAccess.remove_absolute(SaveSlots.path(slot))
+	DirAccess.remove_absolute(TEST_SAVES)
+	SaveSlots.dir = _real_saves
 
 
 func _action(action: StringName) -> InputEventAction:
@@ -70,4 +86,16 @@ func test_quit_reports_quit_only() -> void:
 	_title._unhandled_input(_action(&"confirm"))
 	_press_option(&"quit")
 	assert_signal_emit_count(_title, "quit_chosen", 1)
+	assert_signal_not_emitted(_title, "new_game_chosen")
+
+
+func test_load_is_offered_only_with_a_save() -> void:
+	_title._unhandled_input(_action(&"confirm"))
+	assert_false(_menu.options.has(&"load"))
+	_menu._unhandled_input(_action(&"cancel"))
+	SaveSlots.write(0, &"prologue", 0, {})
+	_title._unhandled_input(_action(&"confirm"))
+	assert_eq(_menu.options[0], &"load", "first, when there's a save")
+	_press_option(&"load")
+	assert_signal_emit_count(_title, "load_chosen", 1)
 	assert_signal_not_emitted(_title, "new_game_chosen")

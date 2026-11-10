@@ -1,13 +1,15 @@
 class_name TitleScreen
 extends Control
-## The title: a blinking "Press Start", then a menu of New Game and Quit.
+## The title: a blinking "Press Start", then a menu of New Game and Quit, with
+## Load first when there's a save.
 ## Cancel in the menu goes back to "Press Start".
 ##
-## It only reports what was picked, through [signal new_game_chosen] and
-## [signal quit_chosen]. GameFlow decides what those do.
+## It only reports what was picked, through [signal new_game_chosen],
+## [signal load_chosen] and [signal quit_chosen]. GameFlow decides what those do.
 
 signal new_game_chosen
 signal quit_chosen
+signal load_chosen
 
 enum Stage { PRESS_START, MENU }
 
@@ -66,7 +68,10 @@ func _open_menu() -> void:
 	if _blink != null:
 		_blink.kill()
 	_press_start.hide()
-	_menu.open(OPTIONS)
+	var options := OPTIONS.duplicate()
+	if SaveSlots.has_any():
+		options.push_front(&"load")
+	_menu.open(options)
 
 
 ## ActionMenu closes itself before reporting [param option_id].
@@ -77,6 +82,8 @@ func _on_menu_option(option_id: StringName) -> void:
 				await _menu.sound_effects.finished
 			new_game_chosen.emit()
 			
+		&"load":
+			load_chosen.emit()
 		&"quit":
 			quit_chosen.emit()
 			

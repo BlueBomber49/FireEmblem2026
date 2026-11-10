@@ -26,6 +26,10 @@ const SEIZE_SHEET := preload("res://assets/battle_pack/UI Elements/RangerFinderT
 const SEIZE_OUTLINE := Color(0.35, 1.0, 0.45, 1.0)
 const SEIZE_OUTLINE_WIDTH := 2.0
 const SEIZE_OUTLINE_ON_TOP := true
+## Escape cells: a flat gold fill under the ranges (tinting a pack tile only
+## darkened it), plus a gold outline drawn with seize's.
+const ESCAPE_FILL := Color(1.0, 0.8, 0.15, 0.55)
+const ESCAPE_OUTLINE := Color(1.0, 0.85, 0.2, 1.0)
 const DRAW_OUTLINES := true
 
 ## cell -> true for each set. Both may be shown at once.
@@ -36,6 +40,8 @@ var threat_cells: Dictionary = {}
 var marked_threat_cells: Dictionary = {}
 ## cell -> true: where the Seize command wins the level.
 var seize_cells: Dictionary = {}
+## cell -> true: where the Escape command wins the level.
+var escape_cells: Dictionary = {}
 var tile_size := Vector2i(16, 16)
 var frame := 0
 
@@ -64,6 +70,14 @@ func set_seize_cells(cells: Array[Vector2i]) -> void:
 	queue_redraw()
 
 
+## The objective's escape cells (Objective.escape_cells), or none to hide them.
+func set_escape_cells(cells: Array[Vector2i]) -> void:
+	escape_cells = {}
+	for cell in cells:
+		escape_cells[cell] = true
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
 	if move_cells.is_empty() and attack_cells.is_empty() and seize_cells.is_empty():
 		return
@@ -78,6 +92,8 @@ func _draw() -> void:
 	var seize_region := Rect2(Vector2(frame * FRAME_SIZE.x, 0), FRAME_SIZE)
 	for cell in seize_cells:
 		draw_texture_rect_region(SEIZE_SHEET, _cell_rect(cell), seize_region)
+	for cell in escape_cells:
+		draw_rect(_cell_rect(cell), ESCAPE_FILL)
 	if not SEIZE_OUTLINE_ON_TOP:
 		_draw_seize_outline()
 	_draw_threat(threat_cells, THREAT_FILL, THREAT_OUTLINE)
@@ -95,6 +111,8 @@ func _draw_seize_outline() -> void:
 	var cell_scale := Vector2(tile_size)
 	for edge: Array in outline_edges(seize_cells):
 		draw_line(Vector2(edge[0]) * cell_scale, Vector2(edge[1]) * cell_scale, SEIZE_OUTLINE, SEIZE_OUTLINE_WIDTH)
+	for edge: Array in outline_edges(escape_cells):
+		draw_line(Vector2(edge[0]) * cell_scale, Vector2(edge[1]) * cell_scale, ESCAPE_OUTLINE, SEIZE_OUTLINE_WIDTH)
 
 
 func _draw_threat(cells: Dictionary, fill: Color, outline: Color) -> void:

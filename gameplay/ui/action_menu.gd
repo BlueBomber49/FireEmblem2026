@@ -11,6 +11,9 @@ signal cancelled
 ## Ids of the options to show, top to bottom. The label is the capitalized id
 ## ([code]&"end"[/code] shows as "End").
 @export var options: Array[StringName] = []
+## Option id -> text, for options whose label isn't just the id capitalized
+## (a save file's description). Replaced on each open().
+var labels: Dictionary = {}
 @onready var sound_effects: AudioStreamPlayer = $SFX
 @onready var _option_list: VBoxContainer = %Options
 
@@ -19,10 +22,12 @@ func _ready() -> void:
 
 
 ## Shows the menu with the cursor on the first option. Pass [param new_options]
-## to replace [member options] before opening.
-func open(new_options: Array[StringName] = []) -> void:
+## to replace [member options] before opening, and [param new_labels] (id -> text)
+## for any option that shouldn't show its id capitalized.
+func open(new_options: Array[StringName] = [], new_labels: Dictionary = {}) -> void:
 	if not new_options.is_empty():
 		options = new_options
+	labels = new_labels
 	_build_buttons()
 	show()
 	if _option_list.get_child_count() > 0:
@@ -52,7 +57,7 @@ func _build_buttons() -> void:
 	for option_id: StringName in options:
 		var button := Button.new()
 		button.name = String(option_id).to_pascal_case()
-		button.text = String(option_id).capitalize()
+		button.text = labels.get(option_id, String(option_id).capitalize())
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.pressed.connect(_on_option_pressed.bind(option_id))
 		button.mouse_entered.connect(button.grab_focus)

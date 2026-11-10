@@ -705,3 +705,391 @@ func test_a_seize_cell_must_be_on_the_map() -> void:
 	assert_string_contains(editor.status.text, "map")
 	editor._objective_click(FREE_CELL)
 	assert_true(editor.has_pending(), "a cell on the map is fine")
+
+
+# --- Enemy AI (Units mode) -----------------------------------------------------------
+
+
+func _pick_strategy(strategy: String) -> void:
+	var i := MapEditor.STRATEGIES.find(strategy)
+	editor.strategy_option.select(i)
+	editor.strategy_option.item_selected.emit(i)
+
+
+func test_only_enemies_have_an_ai_setting() -> void:
+	editor._select_unit("lyn")
+	assert_true(editor.strategy_option.disabled)
+	assert_false(editor.team_edit.editable)
+	editor._select_unit("bandit")
+	assert_false(editor.strategy_option.disabled)
+	assert_eq(editor.strategy_option.selected, MapEditor.STRATEGIES.find("aggressive"))
+
+
+func test_the_team_box_is_only_for_defensive() -> void:
+	editor._select_unit("bandit")
+	assert_false(editor.team_edit.editable)
+	_pick_strategy("defensive")
+	assert_eq(_map_units()["bandit"].strategy, "defensive")
+	assert_true(editor.team_edit.editable)
+	editor.team_edit.text = "camp"
+	editor.team_edit.text_submitted.emit("camp")
+	assert_eq(_map_units()["bandit"].team, "camp")
+	_pick_strategy("stationary")
+	assert_eq(_map_units()["bandit"].team, "", "a team only means something for Defensive")
+	assert_false(editor.team_edit.editable)
+
+
+func test_ai_edits_can_be_undone() -> void:
+	editor._select_unit("bandit")
+	_pick_strategy("stationary")
+	editor.undo()
+	assert_eq(_map_units()["bandit"].strategy, "aggressive")
+
+
+func test_a_unit_that_stops_being_an_enemy_loses_its_ai() -> void:
+	editor._select_unit("bandit")
+	_pick_strategy("defensive")
+	editor.team_edit.text = "camp"
+	editor.team_edit.text_submitted.emit("camp")
+	editor.faction_option.selected = UnitReference.Faction.PLAYER
+	editor._apply_inspector(true)
+	assert_eq(_map_units()["bandit"].strategy, "aggressive")
+	assert_eq(_map_units()["bandit"].team, "")
+
+
+func test_an_escape_cell_is_chosen_like_a_seize_cell() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	var escape := _objective().win[i] as Objective.Escape
+	assert_eq(escape.cells, [FREE_CELL] as Array[Vector2i])
+	assert_string_contains(editor.row_text(Objective.WIN, i), "Escape")
+	assert_true(_objective().seize_cells().is_empty())
+
+
+# --- Events mode: reinforcements ------------------------------------------------------
+# simple_level: lyn, wil, kent (players), bandit, brigand (enemies); no events.
+
+const EVENTS_SAVE := "user://test_map_editor_events.json"
+
+
+func _events_mode() -> void:
+	editor._set_mode(MapEditor.Mode.EVENTS)
+
+
+func _events() -> Dictionary:
+	return editor.level.level_state.events
+
+
+## Adds an event from its panel button and returns its id.
+func _add_event() -> String:
+	editor.add_event_button.pressed.emit()
+	return _events().keys()[-1]
+
+
+## Puts `ids` into `event_id` with Choose -> click each -> Confirm.
+func _pick_into(event_id: String, ids: Array) -> void:
+	(editor.event_control(event_id, &"choose") as Button).pressed.emit()
+	for id: String in ids:
+		editor._events_click(_map_units()[id].start_cell)
+	(editor.event_control(event_id, &"confirm") as Button).pressed.emit()
+
+
+func test_events_mode_shows_its_panel() -> void:
+	_events_mode()
+	assert_true(editor.events_box.visible)
+	assert_false(editor.units_box.visible)
+	assert_false(editor.objective_box.visible)
+
+
+func test_adding_an_event_gives_a_turn_and_phase_row() -> void:
+	_events_mode()
+	var id := _add_event()
+	var event: Dictionary = _events()[id]
+	assert_eq(event["trigger"]["type"], "turn_start")
+	assert_eq(int(event["trigger"]["turn"]), 2)
+	assert_eq(event["trigger"]["phase"], "enemy")
+	var spin := editor.event_control(id, &"turn") as SpinBox
+	spin.value = 4
+	assert_eq(int(_events()[id]["trigger"]["turn"]), 4)
+	assert_same(editor.event_control(id, &"turn"), spin, "editing doesn't rebuild the row")
+	var phase := editor.event_control(id, &"phase") as OptionButton
+	phase.select(1)
+	phase.item_selected.emit(1)
+	assert_eq(_events()[id]["trigger"]["phase"], "player")
+	assert_eq(editor.event_title(id), "Turn 4 reinforcements")
+	var name_edit := editor.event_control(id, &"name") as LineEdit
+	name_edit.text = "Bandit wave"
+	name_edit.text_changed.emit("Bandit wave")
+	assert_eq(editor.event_title(id), "Bandit wave")
+
+
+func test_units_are_added_by_choose_click_confirm_and_removed_by_chip() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"choose") as Button).pressed.emit()
+	editor._events_click(_map_units()["bandit"].start_cell)
+	assert_eq(_map_units()["bandit"].event, "", "nothing changes until Confirm")
+	editor._events_click(_map_units()["lyn"].start_cell)
+	assert_string_contains(editor.status.text, "enem", "only enemies arrive later")
+	(editor.event_control(id, &"confirm") as Button).pressed.emit()
+	assert_eq(_map_units()["bandit"].event, id)
+	assert_eq(_map_units()["lyn"].event, "")
+	assert_eq(editor.event_units(id), ["bandit"])
+	var select := editor.event_chip(id, "bandit").get_parent().get_child(0) as Button
+	select.pressed.emit()
+	assert_eq(editor.selected_unit_id, "bandit", "the name selects it on the map")
+	editor.event_chip(id, "bandit").pressed.emit()
+	assert_eq(_map_units()["bandit"].event, "")
+
+
+func test_cancelling_an_event_pick_changes_nothing() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"choose") as Button).pressed.emit()
+	editor._events_click(_map_units()["bandit"].start_cell)
+	_press_key(KEY_ESCAPE)
+	assert_false(editor.is_picking_event())
+	assert_eq(_map_units()["bandit"].event, "")
+
+
+func test_deleting_an_event_returns_its_units_to_the_start() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit", "brigand"])
+	(editor.event_control(id, &"remove") as Button).pressed.emit()
+	assert_false(_events().has(id))
+	assert_eq(_map_units()["bandit"].event, "")
+	assert_eq(_map_units()["brigand"].event, "")
+	editor.undo()
+	assert_true(_events().has(id), "undo brings it back")
+	assert_eq(_map_units()["bandit"].event, id)
+
+
+func test_the_arrives_dropdown_edits_the_same_data() -> void:
+	_events_mode()
+	var id := _add_event()
+	editor._set_mode(MapEditor.Mode.UNITS)
+	editor._select_unit("brigand")
+	assert_false(editor.arrives_option.disabled)
+	editor.arrives_option.select(1)
+	editor.arrives_option.item_selected.emit(1)
+	assert_eq(_map_units()["brigand"].event, id)
+	assert_eq(editor.event_units(id), ["brigand"], "the Events row sees it")
+	editor.arrives_option.select(0)
+	editor.arrives_option.item_selected.emit(0)
+	assert_eq(_map_units()["brigand"].event, "", "At the start")
+
+
+func test_only_enemies_can_arrive_later() -> void:
+	_events_mode()
+	var id := _add_event()
+	editor._set_mode(MapEditor.Mode.UNITS)
+	editor._select_unit("lyn")
+	assert_true(editor.arrives_option.disabled)
+	_pick_into(id, ["bandit"])
+	editor._select_unit("bandit")
+	editor.faction_option.selected = UnitReference.Faction.PLAYER
+	editor._apply_inspector(true)
+	assert_eq(_map_units()["bandit"].event, "", "no longer an enemy: it starts on the map")
+
+
+func test_place_new_units_preselects_the_event() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"place") as Button).pressed.emit()
+	assert_eq(editor.mode, MapEditor.Mode.UNITS)
+	assert_eq(editor.preselected_event, id)
+	assert_true(editor.preselect_row.visible)
+	assert_string_contains(editor.preselect_label.text, editor.event_title(id))
+	_select_class(&"fighter")
+	editor._place_unit(FREE_CELL)
+	var placed: UnitReference = _map_units()[editor.selected_unit_id]
+	assert_eq(placed.faction, UnitReference.Faction.ENEMY)
+	assert_eq(placed.event, id)
+	assert_lt(editor.level.unit_nodes[placed.id].self_modulate.a, 1.0)
+
+
+func test_the_preselection_clears_on_x_esc_and_leaving_units_mode() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"place") as Button).pressed.emit()
+	editor.preselect_clear_button.pressed.emit()
+	assert_eq(editor.preselected_event, "")
+	assert_false(editor.preselect_row.visible)
+	editor._preselect_event(id)
+	editor._select_unit("bandit")
+	_press_key(KEY_ESCAPE)
+	assert_eq(editor.preselected_event, "", "Esc clears the preselection first")
+	assert_eq(editor.selected_unit_id, "bandit", "and doesn't deselect yet")
+	_press_key(KEY_ESCAPE)
+	assert_eq(editor.selected_unit_id, "", "then Esc deselects as before")
+	editor._preselect_event(id)
+	editor._set_mode(MapEditor.Mode.TERRAIN)
+	assert_eq(editor.preselected_event, "")
+
+
+func test_reinforcements_are_faded_with_a_turn_badge() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["brigand"])
+	var node: LevelUnit = editor.level.unit_nodes["brigand"]
+	assert_lt(node.self_modulate.a, 1.0, "the sprite fades; its badges don't")
+	var badge := node.get_node_or_null(NodePath(LevelUnit.ARRIVAL_BADGE_NAME)) as LevelUnit.ArrivalBadge
+	assert_not_null(badge)
+	assert_eq(badge.text, "T2")
+	editor._select_unit("brigand")
+	assert_lt(editor.level.unit_nodes["brigand"].self_modulate.a, 1.0, "selecting doesn't wipe the fade")
+	assert_eq(editor.level.unit_nodes["brigand"].modulate, MapEditor.SELECTED_TINT)
+	assert_eq(editor.level.unit_nodes["bandit"].self_modulate.a, 1.0)
+
+
+func test_event_problems_block_saving() -> void:
+	_events_mode()
+	var id := _add_event()
+	assert_false(editor.event_problems().is_empty(), "an event with no units")
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	assert_false(FileAccess.file_exists(EVENTS_SAVE))
+	_events()["broken"] = {"trigger": {"type": "full_moon"}, "actions": []}
+	assert_eq(editor.event_problems().size(), 2, "and an unknown trigger")
+
+
+func test_the_commander_row_says_when_it_arrives() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit"])
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
+	assert_string_contains(editor.row_control(Objective.WIN, i, &"arrives").text, "arrives on turn 2")
+
+
+func test_rout_with_reinforcements_notes_how_many_arrive_later() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["brigand"])
+	assert_string_contains(" ".join(editor.objective_notes()), "1 more arrive")
+
+
+func test_rout_with_only_reinforcement_enemies_blocks_saving() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit", "brigand"])
+	assert_string_contains(" ".join(editor.objective_problems()), "No enemy starts on the map")
+	# Arriving on turn 1's player phase counts as starting there.
+	_events()[id]["trigger"]["turn"] = 1
+	_events()[id]["trigger"]["phase"] = "player"
+	assert_false(" ".join(editor.objective_problems()).contains("No enemy starts"))
+
+
+func test_an_empty_new_level_still_saves() -> void:
+	editor._new()
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	assert_true(FileAccess.file_exists(EVENTS_SAVE))
+	DirAccess.remove_absolute(EVENTS_SAVE)
+
+
+func test_a_saved_reinforcement_waits_then_arrives_in_play() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["brigand"])
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	assert_true(FileAccess.file_exists(EVENTS_SAVE))
+	var battle: Battle = (load("res://gameplay/battle.tscn") as PackedScene).instantiate()
+	(battle.get_node("Level") as Level).level_path = EVENTS_SAVE
+	battle.show_banners = false
+	add_child_autofree(battle)
+	DirAccess.remove_absolute(EVENTS_SAVE)
+	assert_false(battle.level.level_state.level_units.has("brigand"), "waits off the map")
+	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
+	await battle.turn_loop.end_player_turn()
+	await battle.turn_loop.end_player_turn()  # turn 2's enemy phase
+	assert_true(battle.level.level_state.level_units.has("brigand"))
+
+
+func test_a_unit_pointing_at_a_missing_event_is_cleared_on_load() -> void:
+	var state := LevelState.load_file("res://resources/levels/simple_level.json")
+	state.map_data.units["bandit"].event = "nowhere"
+	state.save_file(EVENTS_SAVE, false)
+	editor.path_edit.text = EVENTS_SAVE
+	editor._load()
+	DirAccess.remove_absolute(EVENTS_SAVE)
+	assert_eq(_map_units()["bandit"].event, "")
+	assert_push_warning("nowhere")
+
+
+func test_changing_an_events_turn_updates_the_other_modes() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit"])
+	editor._select_unit("bandit")
+	editor.commander_check.button_pressed = true
+	_objective_mode()
+	var i := _add(Objective.WIN, "defeat_commander")
+	_events_mode()
+	(editor.event_control(id, &"turn") as SpinBox).value = 5
+	assert_string_contains(editor.row_control(Objective.WIN, i, &"arrives").text, "arrives on turn 5")
+	assert_eq(editor.arrives_option.get_item_text(1), "Turn 5 reinforcements")
+
+
+func test_the_event_being_worked_on_is_outlined() -> void:
+	_events_mode()
+	var first := _add_event()
+	var second := _add_event()
+	assert_eq(editor.outlined_event(), second, "the one just added")
+	(editor.event_control(first, &"choose") as Button).pressed.emit()
+	assert_eq(editor.outlined_event(), first, "the one being chosen for")
+
+
+func test_several_cells_are_chosen_in_one_pick() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	for cell in [FREE_CELL, FREE_CELL + Vector2i.RIGHT, FREE_CELL + Vector2i(2, 0)]:
+		editor._objective_click(cell)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)  # clicked again: unselected
+	assert_eq(editor.pending_cells(), [FREE_CELL, FREE_CELL + Vector2i(2, 0)] as Array[Vector2i])
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty(), "nothing set before Confirm")
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq((_objective().win[i] as Objective.Escape).cells, [FREE_CELL, FREE_CELL + Vector2i(2, 0)] as Array[Vector2i])
+	assert_eq(editor.status.text, "Escape: 2 cell(s) set.")
+	editor.undo()
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty(), "one undo step for the whole pick")
+
+
+func test_a_pick_can_remove_cells_already_set() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "seize")
+	var seize := _objective().win[i] as Objective.Seize
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	assert_eq(editor.pending_cells(), seize.cells, "starts from the cells already set")
+	editor._objective_click(FREE_CELL)
+	(editor.row_control(Objective.WIN, i, &"confirm") as Button).pressed.emit()
+	assert_eq(seize.cells, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
+
+
+func test_cancelling_a_multi_cell_pick_changes_nothing() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	(editor.row_control(Objective.WIN, i, &"choose") as Button).pressed.emit()
+	editor._objective_click(FREE_CELL)
+	editor._objective_click(FREE_CELL + Vector2i.RIGHT)
+	(editor.row_control(Objective.WIN, i, &"cancel") as Button).pressed.emit()
+	assert_true((_objective().win[i] as Objective.Escape).cells.is_empty())
+
+
+func test_the_escape_row_has_no_name_box() -> void:
+	_objective_mode()
+	var i := _add(Objective.WIN, "escape")
+	assert_null(editor.row_control(Objective.WIN, i, &"name"))
+	assert_eq(editor.row_text(Objective.WIN, i), "Escape")

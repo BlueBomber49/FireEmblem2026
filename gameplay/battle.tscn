@@ -17,6 +17,7 @@
 [ext_resource type="PackedScene" path="res://gameplay/ui/status_screen.tscn" id="15_status_screen"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/phase_banner.tscn" id="16_phase_banner"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/end_screen.tscn" id="17_end_screen"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/exp_popup.tscn" id="18_exp_popup"]
 
 [node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
@@ -30,6 +31,7 @@ script = ExtResource("9_arrow")
 [node name="Level" type="Node2D" parent="." unique_id=1705077647]
 script = ExtResource("2_level")
 level_path = "res://resources/levels/prologue.json"
+holds_reinforcements = true
 
 [node name="TurnLoop" type="Node" parent="." unique_id=1980547913]
 script = ExtResource("11_turn_loop")
@@ -89,6 +91,9 @@ visible = false
 unique_name_in_owner = true
 
 [node name="PhaseBanner" parent="UI" instance=ExtResource("16_phase_banner")]
+unique_name_in_owner = true
+
+[node name="ExpPopup" parent="UI" instance=ExtResource("18_exp_popup")]
 unique_name_in_owner = true
 
 [node name="EndScreen" parent="UI" instance=ExtResource("17_end_screen")]

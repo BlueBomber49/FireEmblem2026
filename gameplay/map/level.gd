@@ -35,6 +35,14 @@ var acting_faction := UnitReference.Faction.PLAYER
 var moving := false
 
 
+## Character id -> Unit.save_state(): the army's progress from earlier chapters
+## (GameFlow's roster). Set before the Level enters the tree; applied on load.
+var roster: Dictionary = {}
+## True in a battle: reinforcements wait off the map until their event. False in
+## the editor, which shows every placement where it arrives.
+@export var holds_reinforcements := false
+
+
 func _ready() -> void:
 	if level_state == null:
 		if level_path.is_empty():
@@ -42,7 +50,32 @@ func _ready() -> void:
 		level_state = LevelState.load_file(level_path)
 		if level_state == null:
 			return
+	apply_roster()
+	if holds_reinforcements:
+		level_state.hold_back_reinforcements()
 	rebuild()
+
+
+## Gives each player character its roster entry (level, EXP, stats, items), healed
+## to full for the new chapter.
+func apply_roster() -> void:
+	for state: LevelUnitState in level_state.level_units.values():
+		var id := state.unit_ref.character_id
+		if state.unit_ref.faction != UnitReference.Faction.PLAYER or id.is_empty() or not roster.has(id):
+			continue
+		state.unit.apply_saved_state(roster[id])
+		state.unit.current_hp = state.unit.max_hp()
+
+
+## Every player character's state, by character id, for the roster. Fallen ones
+## too: casual mode, so they return next chapter with what they'd earned.
+func collect_roster() -> Dictionary:
+	var out := {}
+	for state: LevelUnitState in level_state.level_units.values():
+		var id := state.unit_ref.character_id
+		if state.unit_ref.faction == UnitReference.Faction.PLAYER and not id.is_empty():
+			out[id] = state.unit.save_state()
+	return out
 
 
 # --- Scene construction ----------------------------------------------------
@@ -185,6 +218,49 @@ func update_tints() -> void:
 			unit.modulate = ACTED_TINT
 		else:
 			unit.modulate = Color.WHITE
+
+
+## Brings a pending reinforcement onto the map: on its start cell, or the nearest
+## free cell it can stand on when that one's taken. Returns the cell, or (-1, -1)
+## when there's none; then it keeps waiting.
+func arrive(id: String) -> Vector2i:
+	var state: LevelUnitState = level_state.pending_units.get(id)
+	if state == null:
+		return Vector2i(-1, -1)
+	var cell := _nearest_free_cell(state, state.cell)
+	if cell.x < 0:
+		push_warning("Level: no free cell for reinforcement '%s'; it waits." % id)
+		return cell
+	level_state.pending_units.erase(id)
+	level_state.level_units[id] = state
+	state.cell = cell
+	var unit := LevelUnit.create(state.unit_ref, state)
+	units_root.add_child(unit)
+	unit.global_position = cell_center(cell)
+	unit_nodes[id] = unit
+	return cell
+
+
+## Breadth-first from `start`: the first in-bounds cell `state` can stand on with
+## no living unit on it.
+func _nearest_free_cell(state: LevelUnitState, start: Vector2i) -> Vector2i:
+	var taken := {}
+	for other: LevelUnitState in level_state.level_units.values():
+		if other.is_alive():
+			taken[other.cell] = true
+	var bounds := level_state.map_data.bounds()
+	var seen := {start: true}
+	var queue: Array[Vector2i] = [start]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		if not taken.has(cell) and pathfinding.move_cost(state, cell) != TerrainData.IMPASSABLE:
+			return cell
+		for step: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+			var next := cell + step
+			if bounds.has_point(next) and not seen.has(next):
+				seen[next] = true
+				queue.append(next)
+	return Vector2i(-1, -1)
 
 
 ## Puts `unit` on `cell` at once, with no walk (used to undo a move).

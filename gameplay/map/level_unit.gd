@@ -9,6 +9,8 @@ const COMMANDER_ICON_NAME := &"CommanderIcon"
 ## crown in code; set a small texture (about 5x5) here to replace it everywhere,
 ## game and editor.
 const COMMANDER_ICON: Texture2D = null
+## Name of the child that shows when a reinforcement arrives (the map editor only).
+const ARRIVAL_BADGE_NAME := &"ArrivalBadge"
 
 var reference: UnitReference
 var state: LevelUnitState
@@ -65,6 +67,45 @@ class CommanderIcon:
 		var points := PackedVector2Array([o + Vector2(0, 5) * s, o + Vector2(0, 1) * s, o + Vector2(1.5, 3) * s,
 				o + Vector2(3, 0) * s, o + Vector2(4.5, 3) * s, o + Vector2(6, 1) * s, o + Vector2(6, 5) * s])
 		draw_colored_polygon(points, GOLD)
+
+
+## Shows "T<turn>" on the unit (a reinforcement, in the map editor), or removes
+## it when `turn` is 0.
+func set_arrival_turn(turn: int) -> void:
+	var badge := get_node_or_null(NodePath(ARRIVAL_BADGE_NAME)) as ArrivalBadge
+	if turn <= 0:
+		if badge != null:
+			remove_child(badge)
+			badge.queue_free()
+		return
+	if badge == null:
+		badge = ArrivalBadge.new()
+		badge.name = ARRIVAL_BADGE_NAME
+		add_child(badge)
+	badge.text = "T%d" % turn
+	badge.queue_redraw()
+
+
+## When a reinforcement arrives, in the bottom-left corner of its cell like the
+## commander's badge in the top-right, so neither covers the sprite's middle.
+class ArrivalBadge:
+	extends Node2D
+
+	const TOP_LEFT := Vector2(-8, 1)
+	const SIZE := Vector2(11, 7)
+	const FONT_SIZE := 7
+	const BACK := Color(0.08, 0.05, 0.12, 0.9)
+	const INK := Color(1.0, 0.85, 0.3)
+
+	var text := ""
+
+	func _ready() -> void:
+		z_index = 1
+
+	func _draw() -> void:
+		draw_rect(Rect2(TOP_LEFT, SIZE), BACK)
+		draw_string(ThemeDB.fallback_font, TOP_LEFT + Vector2(1, SIZE.y - 1), text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, INK)
 
 
 ## Plays a one-shot action such as "attack" toward `direction`, waits for it

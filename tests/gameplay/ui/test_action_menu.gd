@@ -70,3 +70,16 @@ func test_cancel_closes_and_emits_cancelled() -> void:
 	_menu._unhandled_input(event)
 	assert_signal_emitted(_menu, "cancelled")
 	assert_false(_menu.visible)
+
+
+func test_open_can_label_options() -> void:
+	_menu.open([&"slot_0", &"slot_1"] as Array[StringName], {&"slot_0": "File 1   Prologue"})
+	assert_eq((_buttons()[0] as Button).text, "File 1   Prologue")
+	assert_eq((_buttons()[1] as Button).text, "Slot 1", "no label: the id capitalized")
+
+
+func test_labels_reset_on_the_next_open() -> void:
+	_menu.open([&"slot_0"] as Array[StringName], {&"slot_0": "File 1"})
+	await get_tree().process_frame
+	_menu.open([&"slot_0"] as Array[StringName])
+	assert_eq((_buttons()[0] as Button).text, "Slot 0")
