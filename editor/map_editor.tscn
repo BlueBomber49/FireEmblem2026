@@ -1,104 +1,104 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://d2mh01ypu0k6k"]
 
-[ext_resource type="Script" path="res://editor/map_editor.gd" id="1_editor"]
-[ext_resource type="Script" path="res://gameplay/map/level.gd" id="2_level"]
+[ext_resource type="Script" uid="uid://sdt02xqjr56r" path="res://editor/map_editor.gd" id="1_editor"]
+[ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://gameplay/map/level.gd" id="2_level"]
 
-[node name="MapEditor" type="Node2D"]
+[node name="MapEditor" type="Node2D" unique_id=1892263183]
 script = ExtResource("1_editor")
 
-[node name="Level" type="Node2D" parent="."]
+[node name="Level" type="Node2D" parent="." unique_id=1892975863]
 script = ExtResource("2_level")
 create_camera = false
 
-[node name="Overlay" type="Node2D" parent="."]
+[node name="Overlay" type="Node2D" parent="." unique_id=90638254]
 z_index = 100
 
-[node name="Camera" type="Camera2D" parent="."]
+[node name="Camera" type="Camera2D" parent="." unique_id=1137232518]
 zoom = Vector2(2, 2)
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=1281860021]
 
-[node name="Panel" type="PanelContainer" parent="UI"]
+[node name="Panel" type="PanelContainer" parent="UI" unique_id=1919558464]
 unique_name_in_owner = true
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 300.0
 grow_vertical = 2
 
-[node name="Margin" type="MarginContainer" parent="UI/Panel"]
+[node name="Margin" type="MarginContainer" parent="UI/Panel" unique_id=1088314201]
 layout_mode = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="Scroll" type="ScrollContainer" parent="UI/Panel/Margin"]
+[node name="Scroll" type="ScrollContainer" parent="UI/Panel/Margin" unique_id=87587757]
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="VBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll"]
+[node name="VBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll" unique_id=1063993558]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="FileLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="FileLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox" unique_id=279218585]
 layout_mode = 2
 text = "File"
 
-[node name="PathEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="PathEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox" unique_id=2034817022]
 unique_name_in_owner = true
 layout_mode = 2
 placeholder_text = "res://resources/levels/level.json"
 
-[node name="FileButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="FileButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=2014103520]
 layout_mode = 2
 
-[node name="LoadButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+[node name="LoadButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons" unique_id=1526835438]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Load"
 
-[node name="SaveButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+[node name="SaveButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons" unique_id=1814868425]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Save"
 
-[node name="NewButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons"]
+[node name="NewButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons" unique_id=453191057]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "New"
 
-[node name="EditButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="EditButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=43958200]
 layout_mode = 2
 
-[node name="UndoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons"]
+[node name="UndoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons" unique_id=4652570]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
 text = "Undo"
 
-[node name="RedoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons"]
+[node name="RedoButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/EditButtons" unique_id=1146127411]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
 text = "Redo"
 
-[node name="Sep1" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="Sep1" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox" unique_id=2116899186]
 layout_mode = 2
 
-[node name="ModeRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="ModeRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1619366398]
 layout_mode = 2
 
-[node name="ModeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/ModeRow"]
+[node name="ModeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/ModeRow" unique_id=1988107877]
 layout_mode = 2
 text = "Mode"
 
-[node name="ModeOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/ModeRow"]
+[node name="ModeOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/ModeRow" unique_id=914837208]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -113,66 +113,65 @@ popup/item_2/id = 2
 popup/item_3/text = "Events"
 popup/item_3/id = 3
 
-[node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="TerrainBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1126095632]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="LayersLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="LayersLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=121149925]
 layout_mode = 2
 text = "Layers"
 
-[node name="LayerList" type="ItemList" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="LayerList" type="ItemList" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=668379151]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 140)
 layout_mode = 2
 
-[node name="NewLayer" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="NewLayer" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=356913616]
 layout_mode = 2
 
-[node name="NameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+[node name="NameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer" unique_id=1280441192]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "name"
 
-[node name="TerrainOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+[node name="TerrainOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer" unique_id=303561852]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="ZSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer"]
+[node name="ZSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/NewLayer" unique_id=1106434137]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = -10.0
-max_value = 100.0
 prefix = "z"
 
-[node name="LayerButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="LayerButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=1597539694]
 layout_mode = 2
 
-[node name="AddLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons"]
+[node name="AddLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons" unique_id=613693492]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Add layer"
 
-[node name="RemoveLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons"]
+[node name="RemoveLayerButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/LayerButtons" unique_id=134854970]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Remove layer"
 
-[node name="Sep2" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="Sep2" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=1218145667]
 layout_mode = 2
 
-[node name="BrushLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="BrushLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=1553143857]
 layout_mode = 2
 text = "Brush"
 
-[node name="BrushRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="BrushRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=1241855318]
 layout_mode = 2
 
-[node name="BrushOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+[node name="BrushOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow" unique_id=317604707]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -183,85 +182,85 @@ popup/item_0/id = 0
 popup/item_1/text = "Erase"
 popup/item_1/id = 1
 
-[node name="SizeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+[node name="SizeLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow" unique_id=499494319]
 layout_mode = 2
 text = "Size"
 
-[node name="SizeSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow"]
+[node name="SizeSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox/BrushRow" unique_id=126499194]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 1.0
 max_value = 12.0
 value = 1.0
 
-[node name="TerrainHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox"]
+[node name="TerrainHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/TerrainBox" unique_id=501830506]
 layout_mode = 2
 text = "Left: paint   Right: erase"
 autowrap_mode = 3
 
-[node name="UnitsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="UnitsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=455467596]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="UnitHeader" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="UnitHeader" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=757636218]
 unique_name_in_owner = true
 layout_mode = 2
 text = "New unit template"
 
-[node name="CharacterRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="CharacterRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=279830166]
 layout_mode = 2
 
-[node name="CharacterLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow"]
+[node name="CharacterLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow" unique_id=21963746]
 layout_mode = 2
 text = "character"
 
-[node name="CharacterOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow"]
+[node name="CharacterOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/CharacterRow" unique_id=1140422049]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "A named character from resources/characters, or None for a generic unit of the class below."
 
-[node name="ClassRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="ClassRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=1933467994]
 layout_mode = 2
 
-[node name="ClassOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow"]
+[node name="ClassOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow" unique_id=1098321981]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="FactionOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow"]
+[node name="FactionOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ClassRow" unique_id=445879197]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Fields" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="Fields" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=977223912]
 layout_mode = 2
 columns = 2
 
-[node name="IdLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="IdLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=1921980633]
 layout_mode = 2
 text = "id"
 
-[node name="IdEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="IdEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=1326891753]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="NameLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="NameLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=155480640]
 layout_mode = 2
 text = "name"
 
-[node name="UnitNameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="UnitNameEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=1582946037]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="LevelLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="LevelLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=427611977]
 layout_mode = 2
 text = "level"
 
-[node name="LevelSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="LevelSpin" type="SpinBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=1499762426]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -269,44 +268,44 @@ min_value = 1.0
 max_value = 40.0
 value = 1.0
 
-[node name="ItemsLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="ItemsLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=1926768324]
 layout_mode = 2
 text = "items"
 
-[node name="ItemsEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields"]
+[node name="ItemsEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/Fields" unique_id=602783489]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "iron_axe, vulnerary"
 tooltip_text = "Item ids, comma-separated, in inventory order (see resources/weapons and resources/consumables)."
+placeholder_text = "iron_axe, vulnerary"
 
-[node name="OverrideCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="OverrideCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=289325463]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Override class stats"
 tooltip_text = "Off: the unit uses its class's base stats. On: edit the stats below (movement always comes from the class)."
+text = "Override class stats"
 
-[node name="CommanderCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="CommanderCheck" type="CheckBox" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=441815554]
 unique_name_in_owner = true
 layout_mode = 2
+tooltip_text = "The unit \"Defeat the enemy commander\" targets. Enemies only, one per level; marking one clears the last."
 disabled = true
 text = "Enemy commander"
-tooltip_text = "The unit \"Defeat the enemy commander\" targets. Enemies only, one per level; marking one clears the last."
 
-[node name="AIRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="AIRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=21186058]
 layout_mode = 2
 
-[node name="AILabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+[node name="AILabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow" unique_id=139573815]
 layout_mode = 2
 text = "AI"
 
-[node name="StrategyOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+[node name="StrategyOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow" unique_id=630640100]
 unique_name_in_owner = true
 layout_mode = 2
-disabled = true
 tooltip_text = "How the enemy AI moves this unit. Aggressive: goes after you. Stationary: never moves, attacks what it can reach. Defensive: waits until you come within its reach (or its team's)."
+disabled = true
 
-[node name="TeamEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow"]
+[node name="TeamEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/AIRow" unique_id=1215144144]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -314,26 +313,26 @@ tooltip_text = "Defensive enemies with the same team wake up together. Blank: th
 placeholder_text = "own team"
 editable = false
 
-[node name="ArrivesRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="ArrivesRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=487970460]
 layout_mode = 2
 
-[node name="ArrivesLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow"]
+[node name="ArrivesLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow" unique_id=100400002]
 layout_mode = 2
 text = "Arrives"
 
-[node name="ArrivesOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow"]
+[node name="ArrivesOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/ArrivesRow" unique_id=1908643654]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-disabled = true
 tooltip_text = "At the start, or with a reinforcement event (set up in Events mode). Enemies only."
+disabled = true
 
-[node name="PreselectRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="PreselectRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=1894502074]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
-[node name="PreselectLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow"]
+[node name="PreselectLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow" unique_id=374385634]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -341,58 +340,58 @@ theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
 text = "New enemies arrive with: Turn 2 reinforcements"
 autowrap_mode = 3
 
-[node name="PreselectClearButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow"]
+[node name="PreselectClearButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow" unique_id=274186342]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Stop: new units start on the map again"
 text = "X"
 
-[node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="StatsGrid" type="GridContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=888137883]
 unique_name_in_owner = true
 layout_mode = 2
 columns = 4
 
-[node name="DeleteUnitButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="DeleteUnitButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=2124115196]
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
 text = "Delete unit"
 
-[node name="DeselectButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="DeselectButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=1951569101]
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
 text = "Deselect (X / Esc)"
 
-[node name="UnitsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="UnitsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=907343813]
 layout_mode = 2
 text = "Left: place / click to select / drag to move
 Right: delete
 X / Esc: deselect, to place a different unit"
 autowrap_mode = 3
 
-[node name="ObjectiveBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="ObjectiveBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=978978861]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="EventsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="EventsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1287564692]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="Sep3" type="HSeparator" parent="UI/Panel/Margin/Scroll/VBox" unique_id=299262462]
 layout_mode = 2
 
-[node name="Help" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="Help" type="Label" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1000185835]
 layout_mode = 2
 text = "Middle-drag / arrows: pan   Wheel: zoom
 Ctrl+Z: undo   Ctrl+Shift+Z: redo"
 autowrap_mode = 3
 
-[node name="Status" type="Label" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="Status" type="Label" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1737858424]
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3

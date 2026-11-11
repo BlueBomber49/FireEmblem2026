@@ -114,7 +114,7 @@ Optional `objective` at the top level of the level file: how the level is won or
 "objective": {
 	"win":  [{ "type": "seize", "cells": [[12, 4]], "name": "the gate" }],
 	"lose": [{ "type": "units_fall", "units": ["adelard"] },
-	         { "type": "turns_pass", "turns": 10 }]
+			 { "type": "turns_pass", "turns": 10 }]
 }
 ```
 
@@ -197,6 +197,7 @@ Each line:
 | `speaker` | A character id, or empty for narration (no name, both portraits dimmed). The portrait is `assets/portraits/<speaker>.png`; without one, the speaker just has no portrait |
 | `side` | Optional. `left` (default) or `right`. A portrait stays on its side until another speaker takes it |
 | `text` | What they say |
+| `background` | Optional. An image id to switch to from this line on, or `none` to clear it to the plain dark background. Without it, the background stays as it was. (So no image can be called `none.png`) |
 
 A line with an unknown key, unknown speaker or bad side is reported and dropped; the rest still play.
 
