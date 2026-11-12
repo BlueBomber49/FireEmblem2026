@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://d2mh01ypu0k6k"]
+[gd_scene format=3 uid="uid://b7oiaoayaj5wc"]
 
 [ext_resource type="Script" uid="uid://sdt02xqjr56r" path="res://editor/map_editor.gd" id="1_editor"]
 [ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://gameplay/map/level.gd" id="2_level"]
