@@ -1,0 +1,7 @@
+{
+	"id": "level_2_outro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "adelard", "side": "right", "text":"blah blah blah" },
+	]
+}
