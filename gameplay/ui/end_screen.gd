@@ -7,8 +7,8 @@ extends Control
 signal continue_requested
 
 const FADE_TIME := 0.4
-const CLEAR_ART: Texture2D = preload("res://assets/art/ui/banners/stage_clear.png")
-const DEFEAT_ART: Texture2D = preload("res://assets/art/ui/banners/defeat.png")
+const CLEAR_ART: Texture2D = preload("res://assets/banners/stage_clear.png")
+const DEFEAT_ART: Texture2D = preload("res://assets/banners/defeat.png")
 
 @onready var _band: PanelContainer = %Band
 @onready var _title: TextureRect = %Title

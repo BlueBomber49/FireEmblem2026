@@ -1,0 +1,11 @@
+{
+	"id": "level_1_outro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "adelard", "side": "right", "text":"That was close!  Man, they were really paranoid about being followed." },
+		{ "speaker": "leora", "side": "back_right", "text": "Shh!  We're not out of the woods yet." },
+		{ "speaker": "adelard", "side": "right", "text": "..." },
+		{ "speaker": "leora", "side": "back_right", "text": "Pun not intended.  Look, let's just put some more distance between us and them, then we can get some sleep and continue following their tracks in the morning" },
+		{ "speaker": "adelard", "side": "right", "text": "Alright, good plan." },
+	]
+}

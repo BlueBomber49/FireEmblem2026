@@ -30,7 +30,7 @@ script = ExtResource("9_arrow")
 
 [node name="Level" type="Node2D" parent="." unique_id=1705077647]
 script = ExtResource("2_level")
-level_path = "res://resources/levels/prologue.json"
+level_path = "res://resources/levels/level_1.json"
 holds_reinforcements = true
 
 [node name="TurnLoop" type="Node" parent="." unique_id=1980547913]
@@ -90,13 +90,13 @@ visible = false
 [node name="StatusScreen" parent="UI" unique_id=1514398062 instance=ExtResource("15_status_screen")]
 unique_name_in_owner = true
 
-[node name="PhaseBanner" parent="UI" instance=ExtResource("16_phase_banner")]
+[node name="PhaseBanner" parent="UI" unique_id=363991679 instance=ExtResource("16_phase_banner")]
 unique_name_in_owner = true
 
-[node name="ExpPopup" parent="UI" instance=ExtResource("18_exp_popup")]
+[node name="ExpPopup" parent="UI" unique_id=256821876 instance=ExtResource("18_exp_popup")]
 unique_name_in_owner = true
 
-[node name="EndScreen" parent="UI" instance=ExtResource("17_end_screen")]
+[node name="EndScreen" parent="UI" unique_id=653238110 instance=ExtResource("17_end_screen")]
 unique_name_in_owner = true
 
 [node name="Music" type="AudioStreamPlayer" parent="." unique_id=97659043]

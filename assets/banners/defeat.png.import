@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b4dfyifgppqpa"
-path="res://.godot/imported/stage_clear.png-dc0cdaafd974d2277e56414f416b5408.ctex"
+uid="uid://cdqwtnxeh1fb7"
+path="res://.godot/imported/defeat.png-766b883630353bbd7099ff95047ac4fe.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/ui/banners/stage_clear.png"
-dest_files=["res://.godot/imported/stage_clear.png-dc0cdaafd974d2277e56414f416b5408.ctex"]
+source_file="res://assets/banners/defeat.png"
+dest_files=["res://.godot/imported/defeat.png-766b883630353bbd7099ff95047ac4fe.ctex"]
 
 [params]
 

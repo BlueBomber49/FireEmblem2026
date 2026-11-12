@@ -95,7 +95,7 @@ func _start() -> void:
 	_occupants.clear()
 	for slot: TextureRect in _slots.values():
 		slot.texture = null
-	var backdrop_path := dialogue.background_path()
+	var backdrop_path := DialogueData.background_path(dialogue.background)
 	_backdrop.texture = load(backdrop_path) if ResourceLoader.exists(backdrop_path) else null
 	if dialogue.lines.is_empty():
 		_finish()
@@ -112,6 +112,12 @@ func _show_line(index: int) -> void:
 	for side: StringName in _slots:
 		var lit := not narration and side == line.side
 		(_slots[side] as TextureRect).modulate = Color.WHITE if lit else DIM_TINT
+	# Empty keeps whatever is showing.
+	if line.background == DialogueData.NO_BACKGROUND:
+		_backdrop.texture = null
+	elif not line.background.is_empty():
+		var backdrop_path := DialogueData.background_path(line.background)
+		_backdrop.texture = load(backdrop_path) if ResourceLoader.exists(backdrop_path) else null
 	_name_label.text = line.display_name()
 	_name_label.visible = not narration
 	_text.text = line.text

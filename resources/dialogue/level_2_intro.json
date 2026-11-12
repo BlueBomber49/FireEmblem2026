@@ -1,0 +1,9 @@
+{
+	"id": "level_2_intro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "adelard", "side": "back_right", "face_outside": true, "text":"There it is!" },
+		{ "speaker": "leora", "side": "right", "face_outside": true, "text":"The bandit's camp." },
+		{ "speaker": "gerrard", "side": "left", "text":"Who are you two?" },
+	]
+}

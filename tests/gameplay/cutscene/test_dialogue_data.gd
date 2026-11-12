@@ -54,3 +54,11 @@ func test_missing_file_is_reported() -> void:
 	var d := DialogueData.read(FIXTURES.path_join("does_not_exist.json"))
 	assert_eq(d.errors.size(), 1)
 	assert_eq(d.lines.size(), 0)
+
+
+func test_a_line_background_with_no_image_drops_only_that_line() -> void:
+	var d := DialogueData.read(FIXTURES.path_join("bad_line_background.json"))
+	assert_eq(d.errors.size(), 1)
+	assert_string_contains(d.errors[0], "lines[0]")
+	assert_eq(d.lines.size(), 1, "'none' isn't an image, so it isn't checked for one")
+	assert_eq(d.lines[0].background, DialogueData.NO_BACKGROUND)

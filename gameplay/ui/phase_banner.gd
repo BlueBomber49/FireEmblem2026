@@ -11,8 +11,8 @@ signal finished
 
 ## The pixel-art lettering for each phase.
 const ART := {
-	TurnLoop.Phase.PLAYER: preload("res://assets/art/ui/banners/player_phase.png"),
-	TurnLoop.Phase.ENEMY: preload("res://assets/art/ui/banners/enemy_phase.png"),
+	TurnLoop.Phase.PLAYER: preload("res://assets/banners/player_phase.png"),
+	TurnLoop.Phase.ENEMY: preload("res://assets/banners/enemy_phase.png"),
 }
 const VARIATION := {
 	TurnLoop.Phase.PLAYER: &"PhaseBannerPlayer",
