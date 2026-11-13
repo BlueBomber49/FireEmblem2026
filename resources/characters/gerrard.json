@@ -1,0 +1,21 @@
+{
+	"id": "gerrard",
+	"name": "Gerrard",
+	"class": "knight",
+	"level": 1,
+	"stats": {
+		"hp": 17,
+		"strength": 5,
+		"magic": 0,
+		"skill": 2,
+		"speed": 0,
+		"luck": 0,
+		"defense": 9,
+		"resistance": 0,
+		"constitution": 13,
+		"movement": 4
+	},
+	"items": [
+		"iron_lance", "vulnerary"
+	]
+}

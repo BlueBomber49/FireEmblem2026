@@ -1,0 +1,50 @@
+{
+	"id": "cavalier",
+	"name": "Cavalier",
+	"movement_type": "mounted",
+	"weapon_types": [
+		"sword",
+		"lance"
+	],
+	"base_stats": {
+		"hp": 20,
+		"strength": 5,
+		"magic": 0,
+		"skill": 2,
+		"speed": 5,
+		"luck": 0,
+		"defense": 6,
+		"resistance": 0,
+		"constitution": 9,
+		"movement": 7
+	},
+	"growths": {
+		"hp": 75,
+		"strength": 35,
+		"magic": 0,
+		"skill": 40,
+		"speed": 28,
+		"luck": 30,
+		"defense": 15,
+		"resistance": 15
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [
+		"mounted"
+	],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/LanceCavalier/LanceCavalier_ShortHair_{color}1.png"
+}

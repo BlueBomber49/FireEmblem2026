@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://db6r7lledy23i"]
+
+[ext_resource type="Script" uid="uid://bcsto6w4m48g1" path="res://gameplay/ui/action_menu.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
+[ext_resource type="AudioStream" uid="uid://bi5locmf4rry1" path="res://assets/audio/SFX/button-press.wav" id="3_w6cah"]
+
+[node name="ActionMenu" type="PanelContainer" unique_id=938251021]
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1244493069]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Options" type="VBoxContainer" parent="MarginContainer" unique_id=1580537079]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SFX" type="AudioStreamPlayer" parent="." unique_id=299131465]
+stream = ExtResource("3_w6cah")

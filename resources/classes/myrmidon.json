@@ -1,0 +1,47 @@
+{
+	"id": "myrmidon",
+	"name": "Myrmidon",
+	"movement_type": "foot",
+	"weapon_types": [
+		"sword"
+	],
+	"base_stats": {
+		"hp": 16,
+		"strength": 4,
+		"magic": 0,
+		"skill": 9,
+		"speed": 9,
+		"luck": 0,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 8,
+		"movement": 5
+	},
+	"growths": {
+		"hp": 70,
+		"strength": 35,
+		"magic": 0,
+		"skill": 40,
+		"speed": 40,
+		"luck": 30,
+		"defense": 15,
+		"resistance": 20
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/SwordFighter/SwordFighter_LongHair_{color}1.png"
+}

@@ -1,0 +1,47 @@
+{
+	"id": "fighter",
+	"name": "Fighter",
+	"movement_type": "foot",
+	"weapon_types": [
+		"axe"
+	],
+	"base_stats": {
+		"hp": 20,
+		"strength": 5,
+		"magic": 0,
+		"skill": 2,
+		"speed": 4,
+		"luck": 0,
+		"defense": 2,
+		"resistance": 0,
+		"constitution": 11,
+		"movement": 5
+	},
+	"growths": {
+		"hp": 85,
+		"strength": 55,
+		"magic": 0,
+		"skill": 35,
+		"speed": 30,
+		"luck": 15,
+		"defense": 15,
+		"resistance": 15
+	},
+	"caps": {
+		"hp": 60,
+		"strength": 20,
+		"magic": 20,
+		"skill": 20,
+		"speed": 20,
+		"luck": 30,
+		"defense": 20,
+		"resistance": 20,
+		"constitution": 20,
+		"movement": 15
+	},
+	"crit_bonus": 0,
+	"class_power": 3,
+	"promoted": false,
+	"tags": [],
+	"sprite": "res://assets/battle_pack/Sprite Sheets/AxeFighter/AxeFighter_ShortHair_{color}1.png"
+}

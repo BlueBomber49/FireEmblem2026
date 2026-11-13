@@ -1,0 +1,242 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gameplay/ui/status_screen.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
+
+[node name="StatusScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_type_variation = &"StatusPanel"
+
+[node name="Rows" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Center/Panel/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="PortraitFrame" type="PanelContainer" parent="Center/Panel/Rows/Header"]
+layout_mode = 2
+size_flags_vertical = 0
+theme_type_variation = &"PortraitFrame"
+
+[node name="Portrait" type="TextureRect" parent="Center/Panel/Rows/Header/PortraitFrame"]
+unique_name_in_owner = true
+texture_filter = 1
+custom_minimum_size = Vector2(192, 160)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Identity" type="VBoxContainer" parent="Center/Panel/Rows/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="NameBanner" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"UnitPanelPlayer"
+
+[node name="UnitName" type="Label" parent="Center/Panel/Rows/Header/Identity/NameBanner"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+text = "Lyn"
+horizontal_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="ClassName" type="Label" parent="Center/Panel/Rows/Header/Identity"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "Myrmidon"
+horizontal_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="LevelLine" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LevelBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity/LevelLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"StatusBox"
+
+[node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity/LevelLine/LevelBox"]
+layout_mode = 2
+
+[node name="LevelLabel" type="Label" parent="Center/Panel/Rows/Header/Identity/LevelLine/LevelBox/Line"]
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "LV"
+
+[node name="Level" type="Label" parent="Center/Panel/Rows/Header/Identity/LevelLine/LevelBox/Line"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ItemLabel"
+text = "1"
+horizontal_alignment = 2
+
+[node name="ExpBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity/LevelLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"StatusBox"
+
+[node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity/LevelLine/ExpBox"]
+layout_mode = 2
+
+[node name="ExpLabel" type="Label" parent="Center/Panel/Rows/Header/Identity/LevelLine/ExpBox/Line"]
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "EXP"
+
+[node name="Experience" type="Label" parent="Center/Panel/Rows/Header/Identity/LevelLine/ExpBox/Line"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ItemLabel"
+text = "0"
+horizontal_alignment = 2
+
+[node name="HpBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity"]
+layout_mode = 2
+theme_type_variation = &"StatusBox"
+
+[node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity/HpBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HpLabel" type="Label" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "HP"
+
+[node name="Hp" type="Label" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "16/16"
+horizontal_alignment = 2
+
+[node name="HpBar" type="ProgressBar" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"HpBar"
+value = 100.0
+show_percentage = false
+
+[node name="Side" type="VBoxContainer" parent="Center/Panel/Rows/Header"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MoveBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Side"]
+layout_mode = 2
+theme_type_variation = &"StatusBox"
+
+[node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Side/MoveBox"]
+layout_mode = 2
+
+[node name="MoveLabel" type="Label" parent="Center/Panel/Rows/Header/Side/MoveBox/Line"]
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "Mov"
+
+[node name="Movement" type="Label" parent="Center/Panel/Rows/Header/Side/MoveBox/Line"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ItemLabel"
+text = "5"
+horizontal_alignment = 2
+
+[node name="ConBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Side"]
+layout_mode = 2
+theme_type_variation = &"StatusBox"
+
+[node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Side/ConBox"]
+layout_mode = 2
+
+[node name="ConLabel" type="Label" parent="Center/Panel/Rows/Header/Side/ConBox/Line"]
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "Con"
+
+[node name="Constitution" type="Label" parent="Center/Panel/Rows/Header/Side/ConBox/Line"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ItemLabel"
+text = "5"
+horizontal_alignment = 2
+
+[node name="Body" type="HBoxContainer" parent="Center/Panel/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="StatsBox" type="PanelContainer" parent="Center/Panel/Rows/Body"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_type_variation = &"StatusBox"
+
+[node name="StatGrid" type="GridContainer" parent="Center/Panel/Rows/Body/StatsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 0
+columns = 2
+
+[node name="ItemsBox" type="PanelContainer" parent="Center/Panel/Rows/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"StatusBox"
+
+[node name="ItemRows" type="VBoxContainer" parent="Center/Panel/Rows/Body/ItemsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Hint" type="Label" parent="Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ItemLabel"
+text = "X: close"
+horizontal_alignment = 2

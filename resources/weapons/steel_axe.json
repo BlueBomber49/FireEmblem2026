@@ -1,0 +1,11 @@
+{
+	"id": "steel_axe",
+	"name": "Steel Axe",
+	"type": "axe",
+	"might": 11,
+	"hit": 65,
+	"crit": 0,
+	"weight": 15,
+	"min_range": 1,
+	"max_range": 1
+}

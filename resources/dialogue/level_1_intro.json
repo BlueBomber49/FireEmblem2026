@@ -1,0 +1,18 @@
+{
+	"id": "level_1_intro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "adelard", "side": "left", "text": "Ow... Where am I?" },
+		{ "speaker": "leora", "side": "right", "text": "Adelard!  Are you ok?" },
+		{ "speaker": "adelard", "side": "left", "text": "Yeah... that's going to leave a mark though.  Where's Rowland?" },
+		{ "speaker": "leora", "side": "right", "text": "Rowland?  I haven't seen him around.  What have you two been doing, throwing clubs at each other?" },
+		{ "speaker": "adelard", "side": "left", "text": "No, we were just out training, and then we got ambushed by bandits!  I thought we had fought them all off, but one must have snuck up on us as we were on our way out." },
+		{ "speaker": "leora", "side": "right", "text": "Ugh, why is it always bandits?" },
+		{ "speaker": "adelard", "side": "left", "text": "I know, right?  You'd think we have a more original plot or something." },
+		{ "speaker": "leora", "side": "right", "text": "These seem like their tracks.  We should go get the town watch to come track them down.  That's their job, after all." },
+		{ "speaker": "adelard", "side": "left", "text": "Get help?  No way!  We don't have time to waste.  Rowland is in danger!" },
+		{ "speaker": "leora", "side": "right", "text": "Which means I get to come make sure you don't get yourself killed.  Well, it's a good thing I didn't have plans today or anything." },
+		{ "speaker": "adelard", "side": "left", "text": "Yup, good thing!  Let's go, sis!" },
+		{ "speaker": "", "background":"none", "text": "As they're on the bandits trail, they realize they are being followed and have to escape into the woods."},
+	]
+}

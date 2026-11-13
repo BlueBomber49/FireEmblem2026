@@ -1,0 +1,1022 @@
+class_name Battle
+extends Node2D
+## The playable map: a Level plus the cursor, menus, forecast and terrain
+## panel, and the rules for what confirm, cancel, the unit key and the arrows
+## do in each state. Level only draws; this node decides.
+##
+## Keyboard: arrows move the cursor, confirm (Z / Enter / Space) selects and
+## commits, cancel (X / Esc) backs out, unit (A) acts without moving, status
+## (R / pad Y) opens the status screen of the unit under the cursor, and
+## danger_zone (D / right shoulder) shows or hides every enemy's threat.
+## Mouse: hovering moves the cursor (or picks the target in the forecast), left
+## click confirms (anywhere, in the forecast), right click cancels, or opens the
+## status screen of a unit when nothing is selected.
+##
+## Ranges: hovering a unit shows where it can move (blue) and attack (red), with
+## any weapon it carries; your units that have acted show nothing. Confirm on an
+## enemy marks it, so its threat stays drawn in a deeper red. The danger zone
+## follows a unit's projected move once its unit menu opens, and hides during
+## the enemy phase.
+
+## The level is over; GameFlow decides what plays next.
+signal ended(won: bool)
+## A player unit gained EXP after a fight: [param level_ups] holds one entry per
+## level gained (stat -> amount), from Experience.gain. A hook for UI.
+signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
+
+enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
+
+const CURSOR_DIRECTIONS := {
+	&"ui_left": Vector2i.LEFT,
+	&"ui_right": Vector2i.RIGHT,
+	&"ui_up": Vector2i.UP,
+	&"ui_down": Vector2i.DOWN,
+}
+## While targeting: up goes to the previous target, down to the next.
+const TARGET_STEPS := {
+	&"ui_up": -1,
+	&"ui_down": 1,
+}
+## While targeting: left / right compare the weapons that reach the target.
+const WEAPON_STEPS := {
+	&"ui_left": -1,
+	&"ui_right": 1,
+}
+
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/Music/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Music/Victory.mp3")
+const MELEE_SFX_1: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 1.wav")
+const MELEE_SFX_2: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 5.wav")
+const MELEE_SFX_3: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 6.wav")
+const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack Short 1.wav")
+const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
+const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
+const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
+
+@onready var level: Level = $Level
+@onready var range_overlay: RangeOverlay = $Range
+@onready var arrow: PathArrow = $Arrow
+@onready var cursor: MapCursor = $Cursor
+@onready var map_menu: ActionMenu = %MapMenu
+@onready var unit_menu: ActionMenu = %UnitMenu
+@onready var item_menu: ItemMenu = %ItemMenu
+@onready var forecast: CombatForecast = %Forecast
+@onready var terrain_panel: TerrainPanel = %TerrainPanel
+@onready var unit_panel: UnitPanel = %UnitPanel
+@onready var status_screen: StatusScreen = %StatusScreen
+@onready var phase_banner: PhaseBanner = %PhaseBanner
+@onready var end_screen: EndScreen = %EndScreen
+@onready var exp_popup: ExpPopup = %ExpPopup
+@onready var turn_loop: TurnLoop = $TurnLoop
+@onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SoundEffects
+
+## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
+## adding the scene, so phases change instantly.
+@export var show_banners := true
+
+var state := State.FREE
+## cell -> true; where the selected unit may move. Empty when nothing is selected.
+var reachable: Dictionary = {}
+## cell -> true; the selected unit's attack range while picking a target.
+var attack_cells: Dictionary = {}
+## cell -> true; what the selected unit could attack after moving (its red fringe
+## while choosing a destination). Separate from attack_cells, the targeting cells.
+var selected_fringe: Dictionary = {}
+## Which enemy threat is shown: the global toggle and the marked enemies.
+var danger_zone := DangerZone.new()
+## Where the selected unit stood before moving, so cancel can put it back.
+var move_origin := Vector2i.ZERO
+var origin_has_moved := false
+## Hostile units next to the selected unit while picking an attack target.
+var targets: Array[LevelUnitState] = []
+var target_index := 0
+## The state to go back to when the status screen closes.
+var status_return_state := State.FREE
+## The unit the status screen shows.
+var status_unit: LevelUnit
+## The last unit the free cursor was on; the unit panel keeps showing it.
+var last_hovered: LevelUnit
+## 0-99 for Combat.resolve; replace it to script a fight.
+var roll: Callable = _random_roll
+var rng := RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	map_menu.option_selected.connect(_on_map_menu_option)
+	map_menu.cancelled.connect(_on_map_menu_cancelled)
+	unit_menu.option_selected.connect(_on_unit_menu_option)
+	unit_menu.cancelled.connect(_on_unit_menu_cancelled)
+	item_menu.action_chosen.connect(_on_item_action)
+	item_menu.cancelled.connect(_on_item_menu_cancelled)
+	forecast.confirmed.connect(_on_forecast_confirmed)
+	forecast.cancelled.connect(_on_forecast_cancelled)
+	forecast.weapon_step.connect(cycle_weapon)
+	status_screen.cycle_requested.connect(_on_status_cycle)
+	status_screen.closed.connect(_on_status_closed)
+	cursor.moved.connect(_on_cursor_moved)
+	turn_loop.phase_changed.connect(_on_phase_changed)
+	# Before setup: a level can be over at once (no enemies), ending inside it.
+	turn_loop.finished.connect(_on_battle_finished)
+	end_screen.continue_requested.connect(_on_end_screen_continue)
+	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
+	turn_loop.units_arrived.connect(_on_units_arrived)
+	if level.level_state != null:
+		start()
+		turn_loop.setup(self, level, level.level_state.objective)
+
+
+## Resets the cursor and UI for the level currently built in `level`.
+func start() -> void:
+	var bounds := level.level_state.map_data.bounds()
+	cursor.bounds = bounds
+	cursor.tile_size = level.tile_size
+	# Same z as the units, but earlier in the tree, so they show under the units.
+	range_overlay.z_index = level.units_root.z_index
+	range_overlay.tile_size = level.tile_size
+	arrow.z_index = level.units_root.z_index
+	arrow.tile_size = level.tile_size
+	_deselect()
+	state = State.FREE
+	var first := _first_player_unit()
+	cursor.set_cell(first.state.cell if first != null else bounds.get_center())
+	cursor.queue_redraw()
+	_refresh_danger_zone()
+	_enter_free_state()
+
+
+# --- Input -------------------------------------------------------------------
+# Menus and the forecast are descendants, so they see confirm and cancel first
+# while open. Everything here is also guarded by `state`.
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if phase_banner.is_playing():
+		return
+	if turn_loop != null and not turn_loop.is_player_turn():
+		return
+	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
+		return
+
+	if event is InputEventMouseMotion:
+		if _cursor_is_free():
+			cursor.set_cell(level.cell_at(get_global_mouse_position()))
+		elif state == State.TARGETING:
+			point_at_target(level.cell_at(get_global_mouse_position()))
+		return
+
+	var click := event as InputEventMouseButton
+	if click != null:
+		if not click.pressed:
+			return
+		if click.button_index == MOUSE_BUTTON_LEFT and _cursor_is_free():
+			get_viewport().set_input_as_handled()
+			cursor.set_cell(level.cell_at(get_global_mouse_position()))
+			confirm()
+		elif click.button_index == MOUSE_BUTTON_LEFT and state == State.TARGETING:
+			# Anywhere on screen attacks the target the forecast shows.
+			get_viewport().set_input_as_handled()
+			forecast.close()
+			_on_forecast_confirmed()
+		elif click.button_index == MOUSE_BUTTON_RIGHT:
+			get_viewport().set_input_as_handled()
+			right_click(level.cell_at(get_global_mouse_position()))
+		return
+
+	if state == State.TARGETING:
+		for action: StringName in TARGET_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				_cycle_target(TARGET_STEPS[action])
+				return
+		for action: StringName in WEAPON_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				cycle_weapon(WEAPON_STEPS[action])
+				return
+		return
+
+	if not _cursor_is_free():
+		return
+	if event.is_action_pressed(&"confirm"):
+		get_viewport().set_input_as_handled()
+		confirm()
+	elif event.is_action_pressed(&"cancel"):
+		get_viewport().set_input_as_handled()
+		cancel()
+	elif event.is_action_pressed(&"unit"):
+		get_viewport().set_input_as_handled()
+		act_in_place()
+	elif event.is_action_pressed(&"status"):
+		get_viewport().set_input_as_handled()
+		var unit := level.unit_at(cursor.cell)
+		if unit != null:
+			open_status(unit, true)
+	elif event.is_action_pressed(&"danger_zone"):
+		get_viewport().set_input_as_handled()
+		toggle_danger_zone()
+	else:
+		for action: StringName in CURSOR_DIRECTIONS:
+			# allow_echo so holding an arrow keeps the cursor moving.
+			if event.is_action_pressed(action, true):
+				get_viewport().set_input_as_handled()
+				move_cursor(CURSOR_DIRECTIONS[action])
+				return
+
+
+func _cursor_is_free() -> bool:
+	return state == State.FREE or state == State.UNIT_SELECTED
+
+
+# --- Commands ----------------------------------------------------------------
+
+
+func move_cursor(direction: Vector2i) -> void:
+	if _cursor_is_free() and (turn_loop == null or turn_loop.is_player_turn()):
+		cursor.move(direction)
+
+
+## Confirm on the cursor's cell: select a unit, mark an enemy's danger zone, pick
+## a destination, or open the map menu.
+func confirm() -> void:
+	if turn_loop != null and not turn_loop.is_player_turn():
+		return
+	match state:
+		State.FREE:
+			var unit := level.unit_at(cursor.cell)
+			if _is_commandable(unit):
+				_select(unit)
+			elif unit != null and unit.reference.faction == UnitReference.Faction.ENEMY:
+				danger_zone.toggle_mark(unit.reference.id)
+				_refresh_danger_zone()
+			else:
+				_open_map_menu()
+		State.UNIT_SELECTED:
+			if not reachable.has(cursor.cell):
+				return
+			if cursor.cell == level.selected.state.cell:
+				_open_unit_menu()
+				return
+			# Walk the route the player traced, or the shortest one if the arrow isn't on this cell.
+			var path := arrow.path
+			if path.is_empty() or path[-1] != cursor.cell:
+				path = level.pathfinding.find_path(level.selected.state, cursor.cell)
+			if not path.is_empty():
+				_move_along(path)
+
+
+## Backs out one step: deselect, undo a move, leave the item menu or the forecast,
+## or close the map menu or the status screen.
+func cancel() -> void:
+	match state:
+		State.UNIT_SELECTED:
+			_deselect()
+			_enter_free_state()
+		State.UNIT_MENU:
+			unit_menu.close()
+			_on_unit_menu_cancelled()
+		State.ITEM_MENU:
+			item_menu.back()
+		State.TARGETING:
+			forecast.close()
+			_on_forecast_cancelled()
+		State.MAP_MENU:
+			map_menu.close()
+			_on_map_menu_cancelled()
+		State.STATUS:
+			status_screen.close()
+			_on_status_closed()
+
+
+## Right click on `cell`: the status screen of a unit there while nothing is
+## selected (cancel does nothing then anyway), otherwise cancel.
+func right_click(cell: Vector2i) -> void:
+	var unit := level.unit_at(cell)
+	if state == State.FREE and unit != null:
+		open_status(unit, true)
+	else:
+		cancel()
+
+
+## The unit key: open the unit menu for the unit under the cursor without moving it.
+func act_in_place() -> void:
+	if state != State.FREE or (turn_loop != null and not turn_loop.is_player_turn()):
+		return
+	var unit := level.unit_at(cursor.cell)
+	if _is_commandable(unit):
+		_select(unit)
+		_open_unit_menu()
+
+
+# --- Selection and movement --------------------------------------------------
+
+
+func _is_commandable(unit: LevelUnit) -> bool:
+	return unit != null \
+			and unit.reference.faction == UnitReference.Faction.PLAYER \
+			and not unit.state.has_acted
+
+
+func _select(unit: LevelUnit) -> void:
+	sound_effects.stream = BUTTON_PRESS
+	sound_effects.play()
+	level.select(unit)
+	move_origin = unit.state.cell
+	origin_has_moved = unit.state.has_moved
+	var ranges := _ranges_for(unit.state)
+	reachable = ranges.move_cells
+	selected_fringe = ranges.attack_cells
+	state = State.UNIT_SELECTED
+	_redraw_selection()
+	_update_arrow()
+	_update_panels()
+
+
+func _deselect() -> void:
+	level.select(null)
+	reachable = {}
+	attack_cells = {}
+	selected_fringe = {}
+	targets = []
+	_redraw_selection()
+	arrow.set_path([])
+
+
+func _move_along(path: Array[Vector2i]) -> void:
+	state = State.MOVING
+	reachable = {}
+	selected_fringe = {}
+	_redraw_selection()
+	arrow.set_path([])
+	_update_panels()
+	await level.walk(level.selected, path)
+	_open_unit_menu()
+
+
+## The selected unit is done: it keeps its cell and can't be commanded again this turn.
+func _finish_action() -> void:
+	level.selected.state.has_moved = true
+	level.selected.state.has_acted = true
+	_deselect()
+	_refresh_danger_zone()
+	_enter_free_state()
+	turn_loop.on_player_action_completed()
+
+
+# --- Unit menu ---------------------------------------------------------------
+
+
+func _open_unit_menu() -> void:
+	state = State.UNIT_MENU
+	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
+	var options: Array[StringName] = [&"status", &"wait"]
+	if level.selected.state.unit.inventory.size() > 0:
+		options.push_front(&"item")
+	if not targets.is_empty():
+		options.push_front(&"attack")
+	# Seize and Escape come first, as in FE: on that cell it's what the player came for.
+	if level.level_state.objective.seize_cells().has(level.selected.state.cell):
+		options.push_front(&"seize")
+	if level.level_state.objective.escape_cells().has(level.selected.state.cell):
+		options.push_front(&"escape")
+	cursor.set_cell(level.selected.state.cell)
+	attack_cells = {}
+	_redraw_selection()
+	arrow.set_path([])
+	# The preview: enemy threat as if the unit stays where it now stands.
+	_refresh_danger_zone()
+	unit_menu.open(options)
+	_update_panels()
+
+
+func _on_unit_menu_option(option_id: StringName) -> void:
+	match option_id:
+		&"attack":
+			state = State.TARGETING
+			target_index = 0
+			_show_forecast()  # also draws the red cells for the weapon shown
+		&"item":
+			state = State.ITEM_MENU
+			item_menu.open(selected_unit_items())
+			_update_panels()
+		&"status":
+			open_status(level.selected, false)
+		&"wait":
+			_finish_action()
+		&"escape":
+			# Ends like Seize: the completion check then sees the escape and wins.
+			turn_loop.mark_escaped()
+			_finish_action()
+		&"seize":
+			# Ends like any action: the completion check then sees the seize and wins.
+			turn_loop.mark_seized()
+			_finish_action()
+
+
+## Cancel in the unit menu undoes the move and goes back to choosing a destination.
+func _on_unit_menu_cancelled() -> void:
+	var unit := level.selected
+	if unit.state.cell != move_origin:
+		level.place_unit(unit, move_origin)
+	unit.state.has_moved = origin_has_moved
+	var ranges := _ranges_for(unit.state)
+	reachable = ranges.move_cells
+	selected_fringe = ranges.attack_cells
+	state = State.UNIT_SELECTED
+	_redraw_selection()
+	cursor.set_cell(move_origin)
+	# Back where it started: the preview goes away.
+	_refresh_danger_zone()
+	_update_panels()
+
+
+# --- Item menu -----------------------------------------------------------------
+# The unit menu's Item command opens item_menu with selected_unit_items(); its
+# Equip and Use call equip_item / use_item with a slot index. They act on the
+# unit whose unit or item menu is open, like Attack and Wait.
+
+
+func _on_item_action(action_id: StringName, index: int) -> void:
+	var done := false
+	match action_id:
+		&"equip":
+			done = equip_item(index)
+		&"use":
+			done = use_item(index)
+	if not done:
+		item_menu.refresh(selected_unit_items(), index)
+
+
+## Cancel in the item menu goes back to the unit menu, with targets for
+## whatever weapon is now equipped. The move isn't undone.
+func _on_item_menu_cancelled() -> void:
+	_open_unit_menu()
+
+
+func _can_command_items() -> bool:
+	return (state == State.UNIT_MENU or state == State.ITEM_MENU) \
+			and level.selected != null \
+			and (turn_loop == null or turn_loop.is_player_turn())
+
+
+## What's in the selected unit's inventory, or null when no unit is selected.
+func selected_unit_items() -> UnitInfo:
+	if level.selected == null:
+		return null
+	return UnitInfo.from_unit(level.selected.state.unit)
+
+
+## Uses the consumable in `index` (e.g. a Vulnerary). Like FE, this ends the
+## unit's action. Returns false, changing nothing, for a weapon, an empty slot,
+## a healing item at full HP, or when no unit or item menu is open.
+func use_item(index: int) -> bool:
+	if not _can_command_items():
+		return false
+	if not level.selected.state.unit.use_item(index):
+		return false
+	unit_menu.close()
+	item_menu.close()
+	_finish_action()
+	return true
+
+
+## Equips the weapon in `index` (moves it to the front). Doesn't end the action.
+## From the item menu, the list redraws with the weapon on top; from the unit
+## menu, it reopens with targets for the new weapon's range. Returns false,
+## changing nothing, for a consumable, a weapon the class can't use, or when no
+## unit or item menu is open.
+func equip_item(index: int) -> bool:
+	if not _can_command_items():
+		return false
+	if not level.selected.state.unit.equip(index):
+		return false
+	if state == State.ITEM_MENU:
+		item_menu.refresh(selected_unit_items())
+	else:
+		_open_unit_menu()
+	return true
+
+
+# --- Attack forecast ---------------------------------------------------------
+
+
+## Inventory indices of the selected unit's weapons that reach the current target.
+func weapon_choices() -> Array[int]:
+	var unit := level.selected.state
+	return Combat.weapons_reaching(unit.unit, Combat.distance(unit, targets[target_index]))
+
+
+## Shows the forecast with the next (`step` 1) or previous (-1) weapon that reaches
+## the target. Nothing is equipped until the attack is confirmed.
+func cycle_weapon(step: int) -> void:
+	if state != State.TARGETING:
+		return
+	var choices := weapon_choices()
+	if choices.size() < 2:
+		return
+	var unit := level.selected.state.unit
+	var at := maxi(choices.find(unit.weapon_preview), 0)
+	unit.weapon_preview = choices[wrapi(at + step, 0, choices.size())]
+	_show_forecast()
+
+
+func _show_forecast() -> void:
+	var target := targets[target_index]
+	cursor.set_cell(target.cell)
+	# Keep the compared weapon if it reaches this target too; otherwise the first
+	# that does (the equipped one when it reaches, since it's first in the inventory).
+	var choices := weapon_choices()
+	var unit := level.selected.state.unit
+	if not choices.has(unit.weapon_preview):
+		unit.weapon_preview = choices[0]
+	# The red cells show the compared weapon's reach.
+	attack_cells = _cells_in_attack_range(level.selected.state)
+	_redraw_selection()
+	forecast.weapon_arrows = choices.size() > 1
+	var sides := Combat.forecast(level.selected.state, target, level.level_state)
+	# Stays in its default top-left corner; set_side with _is_left_half(target.cell)
+	# would flip it away from the target instead.
+	forecast.open(sides[0], sides[1])
+	_update_panels()
+
+
+func _cycle_target(step: int) -> void:
+	target_index = wrapi(target_index + step, 0, targets.size())
+	_show_forecast()
+
+
+## Mouse hover while picking a target: switch to the enemy on `cell`, if it's one
+## of the targets in range.
+func point_at_target(cell: Vector2i) -> void:
+	if state != State.TARGETING:
+		return
+	for i in targets.size():
+		if targets[i].cell == cell and i != target_index:
+			target_index = i
+			_show_forecast()
+			return
+
+
+## Attacking with the compared weapon equips it (FE moves it to the top).
+func _on_forecast_confirmed() -> void:
+	var unit := level.selected.state.unit
+	var chosen := unit.weapon_preview
+	unit.weapon_preview = -1
+	if chosen >= 0:
+		unit.equip(chosen)
+	_fight(targets[target_index])
+
+
+## Plays out the fight strike by strike, then spends the attacker's action.
+func _fight(target: LevelUnitState) -> void:
+	state = State.COMBAT
+	attack_cells = {}
+	selected_fringe = {}
+	_redraw_selection()
+	_update_panels()
+	# Keep the state, not the node: a fallen attacker's node is gone by the end.
+	var attacker := level.selected.state
+	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
+	for strike in strikes:
+		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
+	if attacker.is_alive():
+		attacker.has_moved = true
+		attacker.has_acted = true
+	_deselect()
+	_refresh_danger_zone()
+	_enter_free_state()
+	turn_loop.on_player_action_completed()
+
+
+## Runs an enemy's already planned attack using the same combat and animation
+## code as a player fight. The turn loop owns when this is called.
+func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> void:
+	state = State.COMBAT
+	_update_panels()
+	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
+	for strike in strikes:
+		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
+	if attacker.is_alive():
+		attacker.has_moved = true
+		attacker.has_acted = true
+	_enter_free_state()
+
+
+func _play_strike(strike: Combat.Strike) -> void:
+
+	var striker: LevelUnit = level.unit_nodes[strike.attacker.unit_ref.id]
+	var target: LevelUnit = level.unit_nodes[strike.defender.unit_ref.id]
+	play_strike_sound_effect(strike)
+	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
+	strike.defender.current_hp = strike.hp_after
+	
+	if not strike.defender.is_alive():
+		await level.fade_out_unit(target)
+		
+func play_strike_sound_effect(strike: Combat.Strike) -> void:
+	if strike.hit:
+		match strike.attacker.unit.equipped_weapon().weapon_type:
+			Enums.WeaponType.BOW:
+				sound_effects.stream = RANGED_SFX
+			_:
+				sound_effects.stream = [MELEE_SFX_1, MELEE_SFX_2, MELEE_SFX_3, MELEE_SFX_4].pick_random()
+	else:
+		sound_effects.stream = MISS_SFX
+	sound_effects.play()
+
+
+## The straight direction to face for a strike along `offset`. A ranged strike can
+## be diagonal (a bow at (-1, 1)), but sprites only face the four directions, so the
+## horizontal side wins, as the side view is what shows an attack best.
+static func strike_direction(offset: Vector2i) -> Vector2i:
+	if offset.x != 0:
+		return Vector2i(signi(offset.x), 0)
+	return Vector2i(0, signi(offset.y))
+
+
+# --- Experience --------------------------------------------------------------
+
+
+## After a fight: the player unit in it gains EXP (attacking or defending), if it
+## survived and isn't at level 20. Shows the popup when show_banners is on, and
+## returns once it's gone. Allies and enemies never gain EXP.
+func award_experience(a: LevelUnitState, b: LevelUnitState, strikes: Array[Combat.Strike]) -> void:
+	for pair: Array[LevelUnitState] in [[a, b], [b, a]] as Array[Array]:
+		var me := pair[0]
+		var them := pair[1]
+		if me.unit_ref.faction != UnitReference.Faction.PLAYER or not me.is_alive() \
+				or me.unit.level >= UnitData.MAX_LEVEL:
+			continue
+		var dealt := false
+		for strike in strikes:
+			if strike.attacker == me and strike.hit and strike.damage > 0:
+				dealt = true
+		var amount := Experience.for_fight(me.unit, them.unit, dealt, not them.is_alive(),
+				them.unit_ref.commander, Experience.is_thief(them.unit.class_data()))
+		var start := me.unit.experience
+		var level_ups := Experience.gain(me.unit, amount, roll)
+		experience_gained.emit(me.unit_ref.id, amount, level_ups)
+		if show_banners:
+			await exp_popup.play(me.unit_ref.display_name(), start, amount, level_ups, me.unit.experience)
+
+
+func _random_roll() -> int:
+	return rng.randi_range(0, 99)
+
+
+func _on_forecast_cancelled() -> void:
+	level.selected.state.unit.weapon_preview = -1
+	_open_unit_menu()
+
+
+# --- Status screen -------------------------------------------------------------
+# Opened on any unit from the free cursor (cycling through its faction), or on the
+# acting unit from the unit menu (no cycling; closing goes back to that menu).
+
+
+func open_status(unit: LevelUnit, can_cycle: bool) -> void:
+	status_return_state = state
+	status_unit = unit
+	state = State.STATUS
+	status_screen.open(UnitInfo.from_level_unit(unit), can_cycle)
+	_update_panels()
+
+
+## Steps to the previous (-1) or next (1) unit on the shown unit's side, wrapping.
+func _on_status_cycle(step: int) -> void:
+	var units := _faction_units(status_unit.reference.faction)
+	var index := units.find(status_unit)
+	status_unit = units[posmod(index + step, units.size())]
+	status_screen.show_unit(UnitInfo.from_level_unit(status_unit))
+
+
+func _on_status_closed() -> void:
+	state = status_return_state
+	if state == State.UNIT_MENU:
+		_open_unit_menu()
+		return
+	# Leave the cursor on the last unit looked at, as Fire Emblem does.
+	cursor.set_cell(status_unit.state.cell)
+	_update_arrow()
+	_update_panels()
+	_update_hover()
+
+
+## Units of `faction` still on the map, in map order.
+func _faction_units(faction: UnitReference.Faction) -> Array[LevelUnit]:
+	var units: Array[LevelUnit] = []
+	for unit: LevelUnit in level.unit_nodes.values():
+		if unit.reference.faction == faction:
+			units.append(unit)
+	return units
+
+
+# --- Map menu ----------------------------------------------------------------
+
+
+func _open_map_menu() -> void:
+	state = State.MAP_MENU
+	range_overlay.set_cells({}, {})  # the hover goes away behind the menu
+	map_menu.open()
+	_update_panels()
+
+
+## Danger Zone toggles the enemy threat and End ends the turn; the other options
+## just close the menu.
+func _on_map_menu_option(option_id: StringName) -> void:
+	match option_id:
+		&"danger_zone":
+			toggle_danger_zone()
+		&"end":
+			turn_loop.end_player_turn()
+	_enter_free_state()
+
+
+func _on_map_menu_cancelled() -> void:
+	_enter_free_state()
+
+
+# --- Panels and drawing ------------------------------------------------------
+
+
+## What the terrain panel shows for `cell`: the terrain rules the game uses there
+## (MapData.rules_terrain_at), with the move cost for the selected unit, or for a
+## foot unit when nothing is selected.
+func terrain_info_at(cell: Vector2i) -> TerrainInfo:
+	var info := TerrainInfo.new()
+	var terrain := level.pathfinding.terrain_at(cell)
+	if terrain == null:
+		info.terrain_name = "None"
+		info.move_cost = TerrainInfo.IMPASSABLE
+		return info
+	info.terrain_name = terrain.display_name
+	info.defense = terrain.defense
+	info.avoid = terrain.avoid
+	info.heal_percent = terrain.heal_percent
+	var movement_type := Enums.MovementType.FOOT
+	if level.selected != null:
+		movement_type = level.selected.state.unit.class_data().movement_type
+	info.move_cost = terrain.move_cost(movement_type)
+	return info
+
+
+func _on_cursor_moved(_cell: Vector2i) -> void:
+	_update_arrow()
+	_update_panels()
+	_update_hover()
+
+
+## While choosing a destination the arrow traces the cursor, Fire Emblem style,
+## so the player picks the exact route. Stepping to a cell next to the arrow's
+## end extends it (if the unit can enter it and the route's terrain cost stays
+## within its movement), stepping back onto the arrow cuts it
+## there, a jump elsewhere in range rebuilds the shortest route, and leaving
+## the range leaves the arrow as it was.
+func _update_arrow() -> void:
+	var unit := level.selected
+	if state != State.UNIT_SELECTED or unit == null:
+		arrow.set_path([])
+		return
+	var cell := cursor.cell
+	if cell == unit.state.cell:
+		arrow.set_path([])
+		return
+
+	var path := arrow.path
+	var index := path.find(cell)
+	if index >= 0:
+		arrow.set_path(path.slice(0, index + 1))
+		return
+
+	var tail: Vector2i = path[-1] if not path.is_empty() else unit.state.cell
+	var adjacent := (cell - tail).abs() == Vector2i(1, 0) or (cell - tail).abs() == Vector2i(0, 1)
+	var extended: Array[Vector2i] = path.duplicate()
+	if extended.is_empty():
+		extended.append(unit.state.cell)
+	extended.append(cell)
+	# The traced route must stay on terrain the unit can enter, within its movement.
+	if adjacent and level.pathfinding.is_passable(unit.state, cell) \
+			and level.pathfinding.path_cost(unit.state, extended) <= unit.state.unit.stats.movement:
+		arrow.set_path(extended)
+	elif reachable.has(cell):
+		arrow.set_path(level.pathfinding.find_path(unit.state, cell))
+	# Otherwise the cursor is outside the range: keep the arrow where it was.
+
+
+## The terrain and unit panels are only for free-cursor play. The terrain panel
+## stays in its default bottom-left corner; to flip it away from the cursor
+## instead, call terrain_panel.set_side(RIGHT if _is_left_half(cursor.cell) else LEFT).
+## The unit panel, top-left, keeps showing the last unit the cursor was on, and
+## hides during the enemy phase.
+func _update_panels() -> void:
+	if _banner_up():
+		terrain_panel.hide()
+		unit_panel.hide()
+		return
+	terrain_panel.visible = _cursor_is_free()
+	if terrain_panel.visible:
+		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
+	if _cursor_is_free():
+		var hovered := level.unit_at(cursor.cell)
+		if hovered != null:
+			last_hovered = hovered
+	# A unit that fell is freed, so drop it rather than show a dead reference.
+	if not is_instance_valid(last_hovered):
+		last_hovered = null
+	var player_turn := turn_loop == null or turn_loop.is_player_turn()
+	unit_panel.visible = _cursor_is_free() and player_turn and last_hovered != null
+	if unit_panel.visible:
+		unit_panel.set_unit(UnitInfo.from_level_unit(last_hovered))
+
+
+## Unused while the panels stay on the left; kept for flipping them with set_side.
+func _is_left_half(cell: Vector2i) -> bool:
+	var bounds := level.level_state.map_data.bounds()
+	return cell.x < bounds.position.x + bounds.size.x / 2.0
+
+
+## Cells on the map that `unit`'s equipped weapon reaches from where it stands
+## (its min-max range, so a bow skips the cells next to it). Empty without a weapon.
+func _cells_in_attack_range(unit: LevelUnitState) -> Dictionary:
+	var cells := {}
+	var weapon := unit.unit.equipped_weapon()
+	if weapon == null:
+		return cells
+	var bounds := level.level_state.map_data.bounds()
+	var reach := weapon.max_range
+	for dx in range(-reach, reach + 1):
+		for dy in range(-reach, reach + 1):
+			var cell := unit.cell + Vector2i(dx, dy)
+			if weapon.in_range(absi(dx) + absi(dy)) and bounds.has_point(cell):
+				cells[cell] = true
+	return cells
+
+
+func _first_player_unit() -> LevelUnit:
+	for unit: LevelUnit in level.unit_nodes.values():
+		if unit.reference.faction == UnitReference.Faction.PLAYER:
+			return unit
+	return null
+	
+	
+# --- Hover ranges and the danger zone ------------------------------------------
+
+
+## Returns to free-cursor play, redrawing the panels and the hover even though
+## the cursor may not have moved. Every way back to State.FREE goes through here.
+func _enter_free_state() -> void:
+	state = State.FREE
+	_update_panels()
+	_update_hover()
+
+
+## Shows or hides every enemy's threat. Marked enemies show either way.
+func toggle_danger_zone() -> void:
+	danger_zone.toggle()
+	_refresh_danger_zone()
+
+
+## The move and attack ranges of `unit` on the current board. An enemy the AI
+## never moves only attacks from where it stands.
+func _ranges_for(unit: LevelUnitState) -> UnitRanges:
+	var stays_put := unit.unit_ref.faction == UnitReference.Faction.ENEMY \
+			and _enemy_stays_put(unit.unit_ref.id)
+	return UnitRanges.compute(level.pathfinding, unit, level.level_state.map_data.bounds(), stays_put)
+
+
+## True for an enemy the AI never moves (Stationary), so its danger zone is only
+## its weapon range from where it stands.
+func _enemy_stays_put(unit_id: String) -> bool:
+	var controller := turn_loop.enemy_controller
+	return controller != null and controller.strategy_for(unit_id) == EnemyAI.Strategy.STATIONARY
+
+
+## The selected unit's ranges, drawn by state: its blue and red fringe while
+## choosing a destination, the targeting cells while picking a target, and just
+## the blue otherwise. In State.FREE the layer belongs to the hover, so this
+## leaves it alone.
+func _redraw_selection() -> void:
+	match state:
+		State.FREE:
+			return
+		State.UNIT_SELECTED:
+			range_overlay.set_cells(reachable, selected_fringe)
+		State.TARGETING:
+			range_overlay.set_cells(reachable, attack_cells)
+		_:
+			range_overlay.set_cells(reachable, {})
+
+
+func _update_hover() -> void:
+	_update_hover_for(turn_loop.phase)
+
+
+## In free-cursor play, shows the range of the unit under the cursor: any enemy or
+## ally, or one of your units that hasn't acted. Clears it on anything else, and
+## outside the player phase. Other states own the layer, so it's left alone.
+func _update_hover_for(phase: TurnLoop.Phase) -> void:
+	if state != State.FREE:
+		return
+	if _banner_up():
+		range_overlay.set_cells({}, {})
+		return
+	var unit := level.unit_at(cursor.cell)
+	if phase != TurnLoop.Phase.PLAYER or unit == null \
+			or (unit.reference.faction == UnitReference.Faction.PLAYER and unit.state.has_acted):
+		range_overlay.set_cells({}, {})
+		return
+	var ranges := _ranges_for(unit.state)
+	range_overlay.set_cells(ranges.move_cells, ranges.attack_cells)
+
+
+func _refresh_danger_zone() -> void:
+	_refresh_danger_zone_for(turn_loop.phase)
+
+
+## Recomputes and draws the enemy threat from where everyone stands now. Hidden
+## outside the player phase; the toggle and marks are kept for the next one.
+func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
+	if phase != TurnLoop.Phase.PLAYER:
+		danger_zone.drop_dead_marks(level.level_state)
+		range_overlay.set_threat({}, {})
+		return
+	danger_zone.recompute(level.level_state, level.pathfinding, _enemy_stays_put)
+	range_overlay.set_threat(danger_zone.normal_cells, danger_zone.marked_cells)
+
+
+## The seize cells are highlighted during the player phase, like the danger zone.
+## Seize and escape cells stay marked in every phase, like the series' map art:
+## where the goal is matters while the enemy moves too.
+func _refresh_seize_cells(_phase: TurnLoop.Phase) -> void:
+	range_overlay.set_seize_cells(level.level_state.objective.seize_cells())
+	range_overlay.set_escape_cells(level.level_state.objective.escape_cells())
+
+
+## Reinforcements changed the board: tints, the danger zone and hover follow.
+func _on_units_arrived(_ids: Array[String]) -> void:
+	level.update_tints()
+	_refresh_danger_zone_for(turn_loop.phase)
+	_update_hover_for(turn_loop.phase)
+
+
+# --- Music -----------------------------------------------------------------
+func _on_phase_changed(phase: TurnLoop.Phase) -> void:
+	# COMPLETE is left to _on_battle_finished, which knows who won.
+	match phase:
+		TurnLoop.Phase.PLAYER:
+			music.stream = PLAYER_MUSIC
+			music.play()
+		TurnLoop.Phase.ENEMY:
+			music.stream = ENEMY_MUSIC
+			music.play()
+	# Go by the phase given, not turn_loop.phase: they agree in play, and this
+	# way the ranges can't depend on when the turn loop updates its own value.
+	_refresh_danger_zone_for(phase)
+	_refresh_seize_cells(phase)
+	_update_hover_for(phase)
+	_update_panels()
+
+
+# --- Phase banner and end screen ---------------------------------------------
+
+
+## Plays the banner for a new phase; TurnLoop awaits this before anyone acts.
+## The panels and hover ranges stay hidden until the banner has gone.
+func announce_phase(phase: TurnLoop.Phase) -> void:
+	if not show_banners:
+		return
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	await phase_banner.play(phase)
+	_update_panels()
+	_update_hover()
+
+
+func _banner_up() -> bool:
+	return phase_banner.is_playing() or end_screen.visible
+
+
+## Victory music on a win, silence on a defeat; the end screen waits for the
+## player, then hands the result on through [signal ended].
+func _on_battle_finished(won: bool) -> void:
+	if won:
+		music.stream = VICTORY_MUSIC
+		music.play()
+	else:
+		music.stop()
+	range_overlay.set_cells({}, {})
+	end_screen.show_result(won)
+	_update_panels()
+
+
+## GameFlow listens to [signal ended] (outro on a win, a retry on a loss). Run on
+## its own (F6) nothing listens, so the scene reloads instead.
+func _on_end_screen_continue() -> void:
+	if ended.get_connections().is_empty():
+		get_tree().reload_current_scene()
+		return
+	ended.emit(end_screen.won)

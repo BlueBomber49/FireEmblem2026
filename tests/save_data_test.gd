@@ -1,9 +1,9 @@
 extends GutTest
 ## Base for tests of tolerant save loading.
 ##
-## GUT fails a test on any engine error, and it counts push_warning as one. Tolerant
-## loading deliberately warns (every message starts with "Save data:"), so these
-## helpers mark those warnings as expected. Any other error still fails the test.
+## Tolerant loading deliberately warns (every message starts with "Save data:").
+## GUT tracks push_warning but doesn't fail a test on one, so these helpers let a
+## test assert that save-data warnings did or didn't happen, and mark them handled.
 ## Not collected as a test itself because its name doesn't start with "test_".
 
 const WARNING_PREFIX := "Save data:"
@@ -23,7 +23,7 @@ func allow_save_warnings() -> void:
 func assert_no_save_warnings(msg := "") -> void:
 	var count := 0
 	for err in get_errors():
-		if err.is_engine_error() and err.contains_text(WARNING_PREFIX):
+		if err.is_push_warning() and err.contains_text(WARNING_PREFIX):
 			count += 1
 	assert_eq(count, 0, "expected no '%s' warnings. %s" % [WARNING_PREFIX, msg])
 
@@ -31,7 +31,7 @@ func assert_no_save_warnings(msg := "") -> void:
 func _handle_save_warnings() -> int:
 	var count := 0
 	for err in get_errors():
-		if err.is_engine_error() and err.contains_text(WARNING_PREFIX) and not err.handled:
+		if err.is_push_warning() and err.contains_text(WARNING_PREFIX) and not err.handled:
 			err.handled = true
 			count += 1
 	return count

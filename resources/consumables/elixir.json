@@ -1,0 +1,6 @@
+{
+	"id": "elixir",
+	"name": "Elixir",
+	"max_uses": 3,
+	"heal": "full"
+}

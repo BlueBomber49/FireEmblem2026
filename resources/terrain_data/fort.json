@@ -1,0 +1,15 @@
+{
+	"id": "fort",
+	"name": "Fort",
+	"defense": 2,
+	"avoid": 20,
+	"heal_percent": 20,
+	"move_costs": {
+		"foot": 2,
+		"armored": 2,
+		"mounted": 2,
+		"flier": 1,
+		"mage": 2
+	},
+	"tiles": []
+}

@@ -1,0 +1,12 @@
+{
+	"id": "prologue_outro",
+	"background": "cutscene_background_1",
+	"lines": [
+		{ "speaker": "rowland", "side": "left", "face_outside": false, "text": "Whew, that was close.  Bandits, huh?  Was not expecting that!" },
+		{ "speaker": "adelard", "side": "right", "face_outside": false, "text": "Yeah, me neither." },
+		{ "speaker": "rowland", "side": "back_left", "face_outside": true, "text": "Glad we made it out safe!"},
+		{ "speaker": "adelard", "side": "left", "face_outside": true, "text": "Me too!"},
+		{ "speaker": "bandit_lord", "side": "right", "text": "Heh heh heh... they were just a distraction!"},
+		{ "speaker":"", "text":"*thud*", "background":"none"}
+	]
+}

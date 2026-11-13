@@ -1,0 +1,18 @@
+{
+	"id": "plains",
+	"name": "Plains",
+	"defense": 0,
+	"avoid": 0,
+	"heal_percent": 0,
+	"move_costs": {
+		"foot": 1,
+		"armored": 1,
+		"mounted": 1,
+		"flier": 1,
+		"mage": 1
+	},
+	"tiles": [
+		"grass",
+		"dirt"
+	]
+}

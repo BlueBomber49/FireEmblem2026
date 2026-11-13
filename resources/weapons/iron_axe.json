@@ -1,0 +1,11 @@
+{
+	"id": "iron_axe",
+	"name": "Iron Axe",
+	"type": "axe",
+	"might": 8,
+	"hit": 75,
+	"crit": 0,
+	"weight": 10,
+	"min_range": 1,
+	"max_range": 1
+}

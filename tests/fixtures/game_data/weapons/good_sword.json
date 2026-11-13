@@ -1,0 +1,11 @@
+{
+	"id": "good_sword",
+	"name": "Good Sword",
+	"type": "sword",
+	"might": 5,
+	"hit": 90,
+	"crit": 0,
+	"weight": 5,
+	"min_range": 1,
+	"max_range": 1
+}

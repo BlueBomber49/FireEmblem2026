@@ -1,0 +1,7 @@
+{
+	"id": "typo_key",
+	"lines": [
+		{ "speeker": "adelard", "text": "Hello." },
+		{ "speaker": "rowland", "text": "This line is fine." }
+	]
+}

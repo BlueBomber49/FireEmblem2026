@@ -1,0 +1,15 @@
+{
+	"id": "gate",
+	"name": "Gate",
+	"defense": 3,
+	"avoid": 20,
+	"heal_percent": 10,
+	"move_costs": {
+		"foot": 1,
+		"armored": 1,
+		"mounted": 1,
+		"flier": 1,
+		"mage": 1
+	},
+	"tiles": []
+}

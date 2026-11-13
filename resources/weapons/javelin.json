@@ -1,0 +1,11 @@
+{
+	"id": "javelin",
+	"name": "Javelin",
+	"type": "lance",
+	"might": 6,
+	"hit": 65,
+	"crit": 0,
+	"weight": 11,
+	"min_range": 1,
+	"max_range": 2
+}
