@@ -206,3 +206,14 @@ func test_event_problems() -> void:
 	assert_ne(LevelState.event_problem(_turn_event(2, "dusk")), "", "unknown phase")
 	assert_ne(LevelState.event_problem({"trigger": {"type": "full_moon"}}), "", "unknown trigger")
 	assert_ne(LevelState.event_problem(["hello"]), "", "not an event at all")
+
+
+func test_event_actions_must_be_known_and_dialogue_needs_a_file() -> void:
+	var trigger := {"type": "turn_start", "turn": 2, "phase": "enemy"}
+	assert_eq(LevelState.event_problem({"trigger": trigger, "actions": [{"type": "spawn"},
+			{"type": "dialogue", "dialogue": "hurry"}]}), "")
+	assert_eq(LevelState.event_problem({"trigger": trigger}), "", "no actions: just its units arrive")
+	assert_string_contains(LevelState.event_problem({"trigger": trigger, "actions": [{"type": "dance"}]}), "dance")
+	assert_string_contains(LevelState.event_problem({"trigger": trigger, "actions": [{"type": "dialogue"}]}),
+			"no file")
+	assert_string_contains(LevelState.event_problem({"trigger": trigger, "actions": "spawn"}), "list")

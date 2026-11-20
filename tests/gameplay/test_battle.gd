@@ -1578,3 +1578,61 @@ func test_giving_away_the_equipped_weapon_equips_the_next_one() -> void:
 	battle.trade_menu.choose(TradeMenu.RIGHT, 4)
 	assert_eq(lyn.unit.equipped_weapon().id, &"slim_sword")
 	assert_has(_inventory_ids(wil), &"iron_sword")
+
+# --- Event scenes: dialogue over the map ------------------------------------------------
+
+
+func _overlay_cutscene() -> Cutscene:
+	for child in battle.get_node("UI").get_children():
+		if child is Cutscene:
+			return child
+	return null
+
+
+func test_play_dialogue_shows_the_map_through_and_cleans_up() -> void:
+	battle.show_banners = true
+	var done := [false]
+	var play := func() -> void:
+		await battle.play_dialogue(&"level_1_intro")  # names a background image
+		done[0] = true
+	play.call()
+	var scene := _overlay_cutscene()
+	assert_not_null(scene, "added over the map")
+	assert_false(scene.get_node("Background").visible)
+	assert_false(scene.get_node("%Backdrop").visible, "the file's background stays hidden in battle")
+	scene.skip()
+	await wait_until(func() -> bool: return done[0], 1.0)
+	assert_true(done[0])
+	assert_null(_overlay_cutscene(), "removed once finished")
+
+
+func test_a_missing_dialogue_is_skipped_without_waiting() -> void:
+	battle.show_banners = true
+	await battle.play_dialogue(&"no_such_dialogue")
+	assert_push_warning("no_such_dialogue")
+	assert_null(_overlay_cutscene())
+
+
+func test_a_dialogue_whose_lines_all_fail_is_skipped_without_waiting() -> void:
+	battle.show_banners = true
+	battle.dialogue_dir = "res://tests/fixtures/dialogue"
+	await battle.play_dialogue(&"unknown_speaker")
+	assert_push_warning("unknown_speaker")
+	assert_null(_overlay_cutscene())
+
+
+func test_input_waits_while_an_event_scene_plays() -> void:
+	battle.show_banners = true
+	var done := [false]
+	var steps: Array[Dictionary] = [{"type": "dialogue", "dialogue": "prologue_intro"}]
+	var play := func() -> void:
+		await battle.present(steps)
+		done[0] = true
+	play.call()
+	assert_eq(battle.state, Battle.State.SCENE)
+	battle.move_cursor(Vector2i.RIGHT)
+	_press(&"ui_right")
+	assert_eq(battle.cursor.cell, LYN_CELL, "the cursor stays put")
+	_overlay_cutscene().skip()
+	await wait_until(func() -> bool: return done[0], 1.0)
+	assert_eq(battle.state, Battle.State.FREE, "back to play")

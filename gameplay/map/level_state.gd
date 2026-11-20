@@ -45,14 +45,34 @@ static func fromJson(d: Dictionary) -> LevelState:
 	return state
 
 
-## The event trigger types and phases that exist so far.
+## The event trigger types, phases and action types that exist so far.
 const TRIGGER_TYPES: Array[String] = ["turn_start"]
 const EVENT_PHASES: Array[String] = ["enemy", "player"]
+## "spawn": the units placed with the event's id arrive. "dialogue": a dialogue
+## file ("dialogue": "<id>") plays over the map.
+const ACTION_TYPES: Array[String] = ["spawn", "dialogue"]
 
 
 ## Why `event` can't run, or "" when it's a valid event: a turn_start trigger
-## with a turn of 1 or more and a known phase.
+## with a turn of 1 or more and a known phase, and actions of known types (a
+## dialogue action naming its file).
 static func event_problem(event: Variant) -> String:
+	var problem := _trigger_problem(event)
+	if not problem.is_empty():
+		return problem
+	var actions: Variant = (event as Dictionary).get("actions", [])
+	if not actions is Array:
+		return "its actions must be a list"
+	for action: Variant in actions:
+		var type := str((action as Dictionary).get("type", "")) if action is Dictionary else ""
+		if not type in ACTION_TYPES:
+			return "unknown action '%s'" % type
+		if type == "dialogue" and str((action as Dictionary).get("dialogue", "")).is_empty():
+			return "a dialogue step has no file"
+	return ""
+
+
+static func _trigger_problem(event: Variant) -> String:
 	if not event is Dictionary or not (event as Dictionary).get("trigger") is Dictionary:
 		return "it has no trigger"
 	var trigger: Dictionary = event["trigger"]

@@ -9,6 +9,8 @@ extends Node2D
 const STEP_TIME := 0.15
 ## Seconds a defeated unit takes to fade off the map.
 const FADE_TIME := 0.3
+## Seconds an arriving unit takes to run in from the next cell.
+const RUN_IN_TIME := 0.3
 const SELECTED_TINT := Color(1.0, 1.0, 0.5)
 const ACTED_TINT := Color(0.55, 0.55, 0.55)
 
@@ -43,6 +45,9 @@ var roster: Dictionary = {}
 ## True in a battle: reinforcements wait off the map until their event. False in
 ## the editor, which shows every placement where it arrives.
 @export var holds_reinforcements := false
+## Arrivals start hidden, for Battle to show with run_in() once their event's
+## turn in the presentation comes. Off (the default), they appear at once.
+var arrivals_hidden := false
 
 
 func _ready() -> void:
@@ -268,8 +273,66 @@ func arrive(id: String) -> Vector2i:
 	var unit := LevelUnit.create(state.unit_ref, state)
 	units_root.add_child(unit)
 	unit.global_position = cell_center(cell)
+	unit.visible = not arrivals_hidden
 	unit_nodes[id] = unit
 	return cell
+
+
+## Where an arrival on `state.cell` runs in from: the next cell toward the
+## nearest map edge, else toward the other edges, nearest first. A cell beyond
+## the drawn map (outside the bounds, or with no terrain at all, like the rim of
+## partly drawn edge cells) is fine: it comes in from off the map. A cell on the
+## map must be free and one it could stand on. Its own cell when every side is
+## blocked: it fades in instead.
+func run_in_start(state: LevelUnitState) -> Vector2i:
+	var bounds := level_state.map_data.bounds()
+	var c := state.cell
+	# [distance to that edge, tie order, direction]: equal distances keep this order.
+	var sides := [
+		[c.x - bounds.position.x, 0, Vector2i.LEFT],
+		[bounds.end.x - 1 - c.x, 1, Vector2i.RIGHT],
+		[c.y - bounds.position.y, 2, Vector2i.UP],
+		[bounds.end.y - 1 - c.y, 3, Vector2i.DOWN],
+	]
+	sides.sort()
+	for side: Array in sides:
+		var cell: Vector2i = c + side[2]
+		if not bounds.has_point(cell) or not pathfinding.is_walkable(cell):
+			return cell
+		if unit_at(cell) == null and pathfinding.move_cost(state, cell) != TerrainData.IMPASSABLE:
+			return cell
+	return c
+
+
+## Shows the arrivals `ids` all at once: each walks in from run_in_start, or fades
+## in where there's no room. Only the picture moves: cells and turn flags are
+## already set (by arrive), so this never counts as a move.
+func run_in(ids: Array) -> void:
+	var tween := create_tween().set_parallel(true)
+	var walkers := {}
+	var any := false
+	for id: String in ids:
+		var unit := unit_nodes.get(id) as LevelUnit
+		if unit == null:
+			continue
+		any = true
+		unit.visible = true
+		var start := run_in_start(unit.state)
+		if start == unit.state.cell:
+			unit.modulate.a = 0.0
+			tween.tween_property(unit, "modulate:a", 1.0, FADE_TIME)
+			continue
+		walkers[unit] = unit.state.facing
+		unit.global_position = cell_center(start)
+		unit.play_animation("walk", unit.state.cell - start)
+		tween.tween_property(unit, "global_position", cell_center(unit.state.cell), RUN_IN_TIME)
+	if not any:
+		tween.kill()
+		return
+	await tween.finished
+	for unit: LevelUnit in walkers:
+		unit.state.facing = walkers[unit]
+		unit.play_animation("idle")
 
 
 ## Breadth-first from `start`: the first in-bounds cell `state` can stand on with

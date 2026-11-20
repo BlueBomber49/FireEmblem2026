@@ -427,10 +427,67 @@ func test_arrivals_show_in_the_danger_zone_at_once() -> void:
 	assert_true(battle.danger_zone.normal_cells.has(arrival_cell + Vector2i.LEFT), "the arrival's reach is drawn")
 
 
-func test_an_unknown_event_action_is_skipped_with_a_warning() -> void:
+func test_an_event_with_an_unknown_action_never_runs() -> void:
 	var battle := _battle_with({}, {"odd": {"trigger": {"type": "turn_start", "turn": 2, "phase": "player"},
 			"actions": [{"type": "dance"}]}})
 	_hold_still(battle)
 	await battle.turn_loop.end_player_turn()
-	assert_push_warning("dance")
-	assert_true(battle.level.level_state.fired_events.has("odd"))
+	assert_false(battle.level.level_state.fired_events.has("odd"))
+	assert_string_contains(LevelState.event_problem(battle.level.level_state.events["odd"]), "dance")
+
+
+# --- Event steps: dialogue and run-ins ------------------------------------------------
+
+
+## The steps queued for the player phase that's starting, captured when it begins
+## (run_events has run; Battle hasn't shown them yet).
+func _player_phase_steps(battle: Battle) -> Array:
+	var seen := []
+	battle.turn_loop.phase_changed.connect(func(p: TurnLoop.Phase) -> void:
+		if p == TurnLoop.Phase.PLAYER and not battle.turn_loop.pending_steps.is_empty():
+			seen.append(battle.turn_loop.pending_steps.duplicate(true)))
+	return seen
+
+
+func test_a_dialogue_and_spawn_event_queues_its_steps_in_order() -> void:
+	var battle := _battle_with_wave(2, "player")
+	battle.level.level_state.events["wave_1"]["actions"] = [
+			{"type": "dialogue", "dialogue": "before"}, {"type": "spawn"}, {"type": "dialogue", "dialogue": "after"}]
+	_hold_still(battle)
+	var seen := _player_phase_steps(battle)
+	await battle.turn_loop.end_player_turn()
+	assert_eq(seen.size(), 1)
+	assert_eq(seen[0], [{"type": "dialogue", "dialogue": "before"}, {"type": "spawn", "ids": ["wave_1", "wave_2"]},
+			{"type": "dialogue", "dialogue": "after"}])
+	assert_true(battle.turn_loop.pending_steps.is_empty(), "cleared once shown")
+	assert_true(battle.level.unit_nodes["wave_1"].visible, "with banners off, arrivals just appear")
+
+
+func test_an_event_without_a_spawn_step_still_brings_its_units() -> void:
+	var battle := _battle_with_wave(2, "player")
+	battle.level.level_state.events["wave_1"]["actions"] = [{"type": "dialogue", "dialogue": "only_talk"}]
+	_hold_still(battle)
+	await battle.turn_loop.end_player_turn()
+	assert_true(_on_map(battle, "wave_1"))
+	assert_true(_on_map(battle, "wave_2"))
+
+
+func test_a_dialogue_only_event_fires_once() -> void:
+	var battle := _battle_with({}, {"talk": {"trigger": {"type": "turn_start", "turn": 2, "phase": "player"},
+			"actions": [{"type": "dialogue", "dialogue": "hurry"}]}})
+	_hold_still(battle)
+	var seen := _player_phase_steps(battle)
+	for i in 3:
+		await battle.turn_loop.end_player_turn()
+	assert_eq(seen, [[{"type": "dialogue", "dialogue": "hurry"}]])
+	assert_true(battle.level.level_state.fired_events.has("talk"))
+
+
+func test_enemy_phase_arrivals_still_act_that_phase_after_their_steps() -> void:
+	var battle := _battle_with_wave(2, "enemy")
+	battle.level.level_state.events["wave_1"]["actions"] = [{"type": "dialogue", "dialogue": "here_they_come"},
+			{"type": "spawn"}]
+	_hold_still(battle)
+	await battle.turn_loop.end_player_turn()
+	await battle.turn_loop.end_player_turn()
+	assert_ne(_cell(battle, "wave_1"), Vector2i(14, 5), "it acted the phase it arrived")

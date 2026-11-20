@@ -247,6 +247,8 @@ func test_arrive_finds_no_cell_on_a_full_map() -> void:
 	assert_eq(level.arrive("wave"), Vector2i(-1, -1))
 	assert_true(level.level_state.pending_units.has("wave"), "it keeps waiting")
 	assert_push_warning("wave")
+
+
 # --- Walls and doors --------------------------------------------------------
 
 
@@ -278,3 +280,73 @@ func test_repainting_walls_refreshes_tiles_and_rules_terrain() -> void:
 	level.repaint_walls()
 	assert_eq(map_data.rules_terrain_at(INNER_GRASS), "grass")
 	assert_true(level.walls_layer.get_used_cells().is_empty())
+
+
+# --- Arrivals running in ----------------------------------------------------------------
+
+
+## A 7 x 7 all-grass level with lyn at (3, 3) and enemies at `cells` (by id).
+func _open_field(cells: Dictionary) -> Level:
+	var verts := []
+	for x in 8:
+		for y in 8:
+			verts.append([x, y])
+	var units := {"lyn": {"character": "lyn", "faction": "player", "start_cell": [3, 3]}}
+	for id: String in cells:
+		units[id] = {"class": "fighter", "items": ["iron_axe"], "faction": "enemy",
+				"start_cell": [cells[id].x, cells[id].y]}
+	var level := Level.new()
+	level.level_state = LevelState.fromJson({"map_data": {
+		"layers": {"grass": {"z": 0, "terrain": "grass", "verts": verts}}, "units": units}})
+	add_child_autofree(level)
+	return level
+
+
+func _state(level: Level, id: String) -> LevelUnitState:
+	return level.level_state.level_units[id]
+
+
+func test_an_arrival_is_hidden_only_when_asked() -> void:
+	var state := LevelState.load_file(LEVEL_PATH)
+	state.map_data.units["bandit"].event = "wave_1"
+	state.events = {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+			"actions": [{"type": "spawn"}]}}
+	for hidden in [false, true]:
+		var level := Level.new()
+		level.holds_reinforcements = true
+		level.arrivals_hidden = hidden
+		level.level_state = LevelState.fromJson(state.toJson(false))
+		add_child_autofree(level)
+		level.arrive("bandit")
+		assert_eq(level.unit_nodes["bandit"].visible, not hidden)
+
+
+func test_a_run_in_starts_toward_the_nearest_edge() -> void:
+	var level := _open_field({"near_left": Vector2i(1, 3), "on_top": Vector2i(4, 0)})
+	assert_eq(level.run_in_start(_state(level, "near_left")), Vector2i(0, 3))
+	assert_false(level.pathfinding.is_walkable(Vector2i(4, -1)), "the rim above has no terrain")
+	assert_eq(level.run_in_start(_state(level, "on_top")), Vector2i(4, -1), "so it comes from beyond the edge")
+
+
+func test_a_blocked_run_in_cell_uses_the_next_side() -> void:
+	var level := _open_field({"runner": Vector2i(1, 3), "blocker": Vector2i(0, 3)})
+	# Left is taken; up and down are both 3 from an edge, and up comes first.
+	assert_eq(level.run_in_start(_state(level, "runner")), Vector2i(1, 2))
+
+
+func test_a_surrounded_arrival_fades_in_on_its_own_cell() -> void:
+	var level := _open_field({"a": Vector2i(3, 2), "b": Vector2i(4, 3), "c": Vector2i(3, 4), "d": Vector2i(2, 3)})
+	assert_eq(level.run_in_start(_state(level, "lyn")), Vector2i(3, 3))
+
+
+func test_run_in_ends_on_the_cell_without_counting_as_a_move() -> void:
+	var level := _open_field({"runner": Vector2i(1, 3), "other": Vector2i(3, 2)})
+	for id in ["runner", "other"]:
+		level.unit_nodes[id].visible = false
+	await level.run_in(["runner", "other"])
+	for id in ["runner", "other"]:
+		var node: LevelUnit = level.unit_nodes[id]
+		assert_true(node.visible, id)
+		assert_eq(node.global_position, level.cell_center(_state(level, id).cell), id)
+		assert_eq(node.modulate.a, 1.0, id)
+		assert_false(_state(level, id).has_moved, id)

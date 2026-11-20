@@ -23,9 +23,11 @@ signal ended(won: bool)
 ## A player unit gained EXP after a fight: [param level_ups] holds one entry per
 ## level gained (stat -> amount), from Experience.gain. A hook for UI.
 signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
+## A dialogue (an event step or a quote) went up over the map.
+signal dialogue_shown(dialogue_id: StringName)
 
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS,
-		TRADE_PICK, TRADING }
+		TRADE_PICK, TRADING, SCENE }
 
 const CURSOR_DIRECTIONS := {
 	&"ui_left": Vector2i.LEFT,
@@ -54,6 +56,7 @@ const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sw
 const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
 const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
 const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
+const CutsceneScene: PackedScene = preload("res://gameplay/cutscene/cutscene.tscn")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -77,6 +80,8 @@ const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.w
 ## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
 ## adding the scene, so phases change instantly.
 @export var show_banners := true
+## Where event and quote dialogue files are read from (tests point it at fixtures).
+var dialogue_dir := DialogueData.DEFAULT_DIR
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -137,6 +142,8 @@ func _ready() -> void:
 	end_screen.continue_requested.connect(_on_end_screen_continue)
 	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
 	turn_loop.units_arrived.connect(_on_units_arrived)
+	# Arrivals stay hidden until present() runs them in.
+	level.arrivals_hidden = true
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level, level.level_state.objective)
@@ -171,7 +178,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
-	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
+	if state == State.MOVING or state == State.COMBAT or state == State.STATUS or state == State.SCENE:
 		return
 
 	if event is InputEventMouseMotion:
@@ -1163,6 +1170,67 @@ func _on_units_arrived(_ids: Array[String]) -> void:
 	level.update_tints()
 	_refresh_danger_zone_for(turn_loop.phase)
 	_update_hover_for(turn_loop.phase)
+
+
+# --- Event scenes ------------------------------------------------------------
+# What an event shows once its phase's banner is gone: dialogue over the map and
+# arrivals running in, in the event's order. TurnLoop awaits present().
+
+
+## Plays `steps` (TurnLoop.pending_steps) in order; input waits until they're
+## done. With `instant` (the level just ended), or with banners off (tests), the
+## dialogue is skipped and arrivals simply appear.
+func present(steps: Array[Dictionary], instant := false) -> void:
+	if instant or not show_banners:
+		for step in steps:
+			if step["type"] == "spawn":
+				for id: String in step["ids"]:
+					if level.unit_nodes.has(id):
+						level.unit_nodes[id].visible = true
+		return
+	var before := state
+	state = State.SCENE
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	for step in steps:
+		match step["type"]:
+			"dialogue":
+				await play_dialogue(StringName(step["dialogue"]))
+			"spawn":
+				await level.run_in(step["ids"])
+	state = before
+	_refresh_danger_zone()
+	_update_panels()
+	_update_hover()
+
+
+## Plays a dialogue file over the map, returning when it's done. The map always
+## shows through: the cutscene's dark background and any background image the
+## file names are hidden in battle. A file that's missing, or whose every line
+## failed to load, is skipped with a warning, since an empty cutscene would end
+## before anything could wait for it.
+func play_dialogue(dialogue_id: StringName) -> void:
+	var path := dialogue_dir.path_join("%s.json" % dialogue_id)
+	if not FileAccess.file_exists(path):
+		push_warning("Battle: no dialogue '%s' at %s; skipped." % [dialogue_id, path])
+		return
+	var data := DialogueData.read(path)
+	if data.lines.is_empty():
+		push_warning("Battle: dialogue '%s' has no lines that load; skipped." % dialogue_id)
+		return
+	var scene: Cutscene = CutsceneScene.instantiate()
+	scene.get_node("Background").visible = false
+	scene.get_node("%Backdrop").visible = false
+	var done := [false]
+	scene.finished.connect(func() -> void: done[0] = true)
+	scene.play(data)
+	$UI.add_child(scene)
+	dialogue_shown.emit(dialogue_id)
+	while not done[0]:
+		await scene.finished
+	$UI.remove_child(scene)
+	scene.queue_free()
 
 
 # --- Music -----------------------------------------------------------------

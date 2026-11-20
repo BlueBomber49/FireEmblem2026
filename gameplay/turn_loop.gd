@@ -32,6 +32,10 @@ var objective: Objective:
 
 ## Only used before a level is set up (or without one).
 var _objective := Objective.new()
+## What events that just fired still have to show, in order: {"type": "dialogue",
+## "dialogue": id} and {"type": "spawn", "ids": [...]}. Shown after the phase
+## banner, then cleared.
+var pending_steps: Array[Dictionary] = []
 
 
 ## Connected by Battle after its Level has loaded and built its unit nodes.
@@ -67,7 +71,11 @@ func _apply_strategies() -> void:
 
 
 ## Fires each event whose trigger is the start of this turn and `for_phase`, once.
-## Its spawn action brings in the units placed with that event's id.
+## The board changes at once: a spawn action brings in the units placed with the
+## event's id (an event without one brings them in after its other actions, so
+## none is ever left waiting). What the player should see (dialogue, units
+## running in) is queued in `pending_steps`, in action order, for Battle to show
+## after the phase banner.
 func run_events(for_phase: Phase) -> void:
 	var state := level.level_state
 	var phase_name := "enemy" if for_phase == Phase.ENEMY else "player"
@@ -79,16 +87,37 @@ func run_events(for_phase: Phase) -> void:
 		if int(trigger["turn"]) != state.turn or str(trigger["phase"]) != phase_name:
 			continue
 		state.fired_events.append(event_id)
-		for action: Variant in event.get("actions", []):
-			if not action is Dictionary or (action as Dictionary).get("type") != "spawn":
-				push_warning("Level: event '%s': unknown action %s; skipped." % [event_id, action])
-				continue
-			var arrived: Array[String] = []
-			for id: String in state.pending_units.keys():
-				if state.map_data.units[id].event == event_id and level.arrive(id).x >= 0:
-					arrived.append(id)
-			if not arrived.is_empty():
-				units_arrived.emit(arrived)
+		var spawned := false
+		for action: Dictionary in event.get("actions", []):
+			if action["type"] == "dialogue":
+				pending_steps.append({"type": "dialogue", "dialogue": str(action["dialogue"])})
+			elif not spawned:
+				spawned = true
+				_spawn(event_id)
+		if not spawned:
+			_spawn(event_id)
+
+
+## Brings in the units waiting for `event_id`, queueing their run-in.
+func _spawn(event_id: String) -> void:
+	var state := level.level_state
+	var arrived: Array[String] = []
+	for id: String in state.pending_units.keys():
+		if state.map_data.units[id].event == event_id and level.arrive(id).x >= 0:
+			arrived.append(id)
+	if not arrived.is_empty():
+		pending_steps.append({"type": "spawn", "ids": arrived})
+		units_arrived.emit(arrived)
+
+
+## Shows what the events that just ran queued (Battle.present), then clears it.
+func _present_events() -> void:
+	var steps := pending_steps.duplicate()
+	pending_steps.clear()
+	if battle == null or steps.is_empty():
+		return
+	# A level that ended meanwhile goes straight to its end screen: arrivals just appear.
+	await battle.present(steps, _is_complete())
 
 
 func is_player_turn() -> bool:
@@ -189,6 +218,8 @@ func _start_enemy_phase() -> void:
 	level.update_tints()
 	if battle != null:
 		await battle.announce_phase(phase)
+	# Arrivals and dialogue play out before any enemy moves.
+	await _present_events()
 
 
 func _execute_enemy_action(enemy: LevelUnitState, action: EnemyAIAction) -> void:
@@ -236,6 +267,7 @@ func _begin_player_phase() -> void:
 	level.update_tints()
 	if battle != null:
 		await battle.announce_phase(phase)
+	await _present_events()
 
 
 ## Finishes the level if the objective says it's over. True when it did, or when
