@@ -13,6 +13,9 @@ in the editor and run it with **F6** (Run Current Scene).
 | `reinforcements.tscn` | Rout. Two Raiders arrive at the start of turn 2's enemy phase and act at once; a Soldier arrives on turn 3's player phase. Open the level in the map editor's Events mode to see them. |
 | `ai.tscn` | Rout. The Knight is Stationary (never moves). The Fighter and Soldier are a Defensive team ("camp"): both wake when either could reach you. The Mage is Defensive on its own. |
 | `weapons.tscn` | Rout. The Lancer (a generic Cavalier) carries a lance, a sword and a javelin: attack and compare them with left / right or the arrows. |
+| `trading.tscn` | Rout. Adelard starts next to Leora, Rowland and the Lancer (whose hands are full: 5 items): choose whom to trade with using up / down or a click. Leora and Rowland are next to just him. |
+| `event_dialogue.tscn` | Rout. Turn 2's enemy phase: a bandit shouts, two Raiders run in, Leora answers. Turn 2's player phase: a dialogue-only event (Rowland). Turn 3's player phase: a Soldier just runs in. |
+| `quotes.tscn` | Rout. The Knight has a quote for Adelard, one for anyone else, and last words; the Fighter and the Mage share a taunt (each says it once). Adelard has last words too. |
 
 Losing your whole army always loses. Each level also has Leora and an enemy
 Mage with Fire, to try more of the combat.
