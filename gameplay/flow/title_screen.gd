@@ -1,23 +1,27 @@
 class_name TitleScreen
 extends Control
-## The title: a blinking "Press Start", then a menu of New Game and Quit, with
-## Load first when there's a save.
+## The title: a blinking "Press Start", then a menu of New Game, Credits and
+## Quit, with Load first when there's a save.
 ## Cancel in the menu goes back to "Press Start".
 ##
 ## It only reports what was picked, through [signal new_game_chosen],
-## [signal load_chosen] and [signal quit_chosen]. GameFlow decides what those do.
+## [signal load_chosen], [signal credits_chosen] and [signal quit_chosen]. GameFlow decides what those do.
 
 signal new_game_chosen
 signal quit_chosen
 signal load_chosen
+signal credits_chosen
 
 enum Stage { PRESS_START, MENU }
 
-const OPTIONS: Array[StringName] = [&"new_game", &"quit"]
+const OPTIONS: Array[StringName] = [&"new_game", &"credits", &"quit"]
 ## Seconds for one fade out (or back in) of "Press Start".
 const BLINK_TIME := 0.6
 
 var stage := Stage.PRESS_START
+## Play the title music here. GameFlow turns this off and plays it itself, so
+## the song carries on between the title and the credits.
+var play_music := true
 var _blink: Tween
 
 const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg")
@@ -29,7 +33,8 @@ const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg"
 
 func _ready() -> void:
 	music.stream = MENU_MUSIC
-	music.play()
+	if play_music:
+		music.play()
 	_menu.option_selected.connect(_on_menu_option)
 	_menu.cancelled.connect(_show_press_start)
 	_show_press_start()
@@ -84,6 +89,8 @@ func _on_menu_option(option_id: StringName) -> void:
 			
 		&"load":
 			load_chosen.emit()
+		&"credits":
+			credits_chosen.emit()
 		&"quit":
 			quit_chosen.emit()
 			

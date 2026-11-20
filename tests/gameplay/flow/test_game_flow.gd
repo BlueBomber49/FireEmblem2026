@@ -123,3 +123,40 @@ func test_a_new_game_clears_the_roster() -> void:
 	_flow.roster = {"lyn": {"level": 9}}
 	_flow.reset_progress()
 	assert_eq(_flow.roster, {})
+
+
+# --- The end of the campaign ----------------------------------------------------------
+
+
+func test_after_the_last_chapter_the_credits_roll() -> void:
+	var flow: Node = partial_double(GameFlowScript).new()
+	stub(flow, "_swap_to").to_do_nothing()
+	add_child_autofree(flow)
+	flow.campaign = _flow.campaign
+	flow.chapter_index = 1
+	flow.step = Step.DONE
+	watch_signals(flow)
+	flow._show_current()
+	assert_signal_emitted(flow, "campaign_finished")
+	var shown: Node = get_call_parameters(flow, "_swap_to")[0]
+	assert_true(shown is Credits, "the credits, not the title")
+	shown.free()
+
+func test_the_title_music_carries_on_between_the_title_and_the_credits() -> void:
+	var flow: Node = GameFlowScript.new()
+	add_child_autofree(flow)
+	var title: TitleScreen = (load("res://gameplay/flow/title_screen.tscn") as PackedScene).instantiate()
+	var credits: Credits = (load("res://gameplay/flow/credits.tscn") as PackedScene).instantiate()
+	var battle := Node.new()
+	assert_true(flow.update_menu_music(title), "the title starts the song")
+	assert_false(title.play_music, "and leaves playing it to GameFlow")
+	assert_false(flow.update_menu_music(credits), "the credits carry on with it")
+	assert_false(credits.play_music)
+	assert_false(flow.update_menu_music(title), "and so does the title after them")
+	flow.update_menu_music(battle)
+	assert_false(flow.menu_music.playing, "anything else stops it")
+	assert_true(flow.update_menu_music(credits), "so it starts over next time")
+	flow.menu_music.stop()  # as when the song has played to its end
+	assert_true(flow.update_menu_music(title), "a song that ended starts over")
+	for node in [title, credits, battle]:
+		node.free()
