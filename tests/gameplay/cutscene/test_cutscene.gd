@@ -70,3 +70,26 @@ func test_narration_hides_the_name_and_keeps_portraits() -> void:
 	assert_eq(_cutscene.line_index, 2)
 	assert_false(_cutscene.get_node("%NameLabel").visible)
 	assert_not_null((_cutscene.get_node("%LeftPortrait") as TextureRect).texture)
+
+
+func test_a_line_background_changes_it_until_another_line_does() -> void:
+	var data := DialogueData.new()
+	for background: String in ["", "cutscene_background_1", "", DialogueData.NO_BACKGROUND]:
+		var line := DialogueData.Line.new()
+		line.text = "Short."
+		line.background = background
+		data.lines.append(line)
+	var cutscene: Cutscene = CutsceneScene.instantiate()
+	cutscene.play(data)
+	add_child_autofree(cutscene)
+	var backdrop: TextureRect = cutscene.get_node("%Backdrop")
+	assert_null(backdrop.texture, "no background yet")
+	cutscene.advance()
+	cutscene.advance()
+	assert_not_null(backdrop.texture, "the line's background")
+	cutscene.advance()
+	cutscene.advance()
+	assert_not_null(backdrop.texture, "a line without one keeps it")
+	cutscene.advance()
+	cutscene.advance()
+	assert_null(backdrop.texture, "none clears it")

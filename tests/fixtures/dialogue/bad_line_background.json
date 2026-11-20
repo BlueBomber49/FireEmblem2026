@@ -1,0 +1,7 @@
+{
+	"id": "bad_line_background",
+	"lines": [
+		{ "speaker": "adelard", "background": "nowhere", "text": "Where are we?" },
+		{ "speaker": "adelard", "background": "none", "text": "It's dark." }
+	]
+}

@@ -10,6 +10,8 @@ extends RefCounted
 const DEFAULT_DIR := "res://resources/dialogue"
 const BACKGROUND_DIR := "res://assets/cutscenes"
 const SIDES: Array[StringName] = [&"left", &"back_left", &"right", &"back_right"]
+## A line's background value that clears the background instead of naming an image.
+const NO_BACKGROUND := "none"
 
 
 class Line:
@@ -19,6 +21,9 @@ class Line:
 	var side: StringName = &"left"
 	var text: String
 	var face_outside: bool = false
+	## An image id to switch to, NO_BACKGROUND to clear it, or empty to keep
+	## whatever is showing.
+	var background := ""
 
 
 	## The speaker's name from their character file, or "" for narration.
@@ -41,11 +46,11 @@ static func path_for(dialogue_id: StringName) -> String:
 	return DEFAULT_DIR.path_join("%s.json" % dialogue_id)
 
 
-## The background image's path, or "" when there's no background.
-func background_path() -> String:
-	if background.is_empty():
+## The image path for background [param id], or "" when there's no background.
+static func background_path(id: String) -> String:
+	if id.is_empty():
 		return ""
-	return BACKGROUND_DIR.path_join("%s.png" % background)
+	return BACKGROUND_DIR.path_join("%s.png" % id)
 
 
 ## Reads a dialogue file. Always returns a DialogueData; check `errors`.
@@ -58,8 +63,8 @@ static func read(path: String) -> DialogueData:
 		if String(d.id) != path.get_file().get_basename():
 			r.error("id '%s' doesn't match the file name." % d.id)
 		d.background = r.string("background", false)
-		if not d.background.is_empty() and not ResourceLoader.exists(d.background_path()):
-			r.error("background '%s' has no image at %s." % [d.background, d.background_path()])
+		if not d.background.is_empty() and not ResourceLoader.exists(background_path(d.background)):
+			r.error("background '%s' has no image at %s." % [d.background, background_path(d.background)])
 		d._read_lines(r)
 	d.errors = r.errors
 	if not d.errors.is_empty():
@@ -79,7 +84,7 @@ func _read_lines(r: GameData._Reader) -> void:
 		# A reader per line, so its errors say which line ("x.json lines[2]: ...").
 		var lr := GameData._Reader.new("%s lines[%d]" % [r.path, i])
 		lr.data = raw[i]
-		lr.allow_keys(["speaker", "side", "text", "face_outside"])
+		lr.allow_keys(["speaker", "side", "text", "face_outside", "background"])
 		var line := Line.new()
 		line.speaker = StringName(lr.string("speaker", false))
 		if not line.speaker.is_empty() and GameData.get_character(line.speaker) == null:
@@ -91,6 +96,10 @@ func _read_lines(r: GameData._Reader) -> void:
 			lr.error("side must be 'left', 'right', 'back_left', or 'back_right', not '%s'." % line.side)
 		line.text = lr.string("text")
 		line.face_outside = lr.boolean("face_outside", false)
+		line.background = lr.string("background", false)
+		if not line.background in ["", NO_BACKGROUND] \
+				and not ResourceLoader.exists(background_path(line.background)):
+			lr.error("background '%s' has no image at %s." % [line.background, background_path(line.background)])
 		if lr.errors.is_empty():
 			lines.append(line)
 		r.errors.append_array(lr.errors)

@@ -20,6 +20,9 @@ extends Node2D
 
 ## The level is over; GameFlow decides what plays next.
 signal ended(won: bool)
+## A player unit gained EXP after a fight: [param level_ups] holds one entry per
+## level gained (stat -> amount), from Experience.gain. A hook for UI.
+signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
 
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
 
@@ -29,18 +32,27 @@ const CURSOR_DIRECTIONS := {
 	&"ui_up": Vector2i.UP,
 	&"ui_down": Vector2i.DOWN,
 }
-## Left / up go to the previous target, right / down to the next.
+## While targeting: up goes to the previous target, down to the next.
 const TARGET_STEPS := {
-	&"ui_left": -1,
 	&"ui_up": -1,
-	&"ui_right": 1,
 	&"ui_down": 1,
 }
+## While targeting: left / right compare the weapons that reach the target.
+const WEAPON_STEPS := {
+	&"ui_left": -1,
+	&"ui_right": 1,
+}
 
-const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/player_phase.ogg")
-const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/enemy_phase.ogg")
-const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
-
+const PLAYER_MUSIC: AudioStream = preload("res://assets/audio/Music/player_phase.ogg")
+const ENEMY_MUSIC: AudioStream = preload("res://assets/audio/Music/enemy_phase.ogg")
+const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Music/Victory.mp3")
+const MELEE_SFX_1: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 1.wav")
+const MELEE_SFX_2: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 5.wav")
+const MELEE_SFX_3: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack 6.wav")
+const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sword Attack Short 1.wav")
+const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
+const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
+const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -53,9 +65,16 @@ const VICTORY_MUSIC: AudioStream = preload("res://assets/audio/Victory.mp3")
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var unit_panel: UnitPanel = %UnitPanel
 @onready var status_screen: StatusScreen = %StatusScreen
+@onready var phase_banner: PhaseBanner = %PhaseBanner
+@onready var end_screen: EndScreen = %EndScreen
+@onready var exp_popup: ExpPopup = %ExpPopup
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SoundEffects
 
+## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
+## adding the scene, so phases change instantly.
+@export var show_banners := true
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -93,12 +112,16 @@ func _ready() -> void:
 	item_menu.cancelled.connect(_on_item_menu_cancelled)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
+	forecast.weapon_step.connect(cycle_weapon)
 	status_screen.cycle_requested.connect(_on_status_cycle)
 	status_screen.closed.connect(_on_status_closed)
 	cursor.moved.connect(_on_cursor_moved)
 	turn_loop.phase_changed.connect(_on_phase_changed)
 	# Before setup: a level can be over at once (no enemies), ending inside it.
-	turn_loop.finished.connect(ended.emit)
+	turn_loop.finished.connect(_on_battle_finished)
+	end_screen.continue_requested.connect(_on_end_screen_continue)
+	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
+	turn_loop.units_arrived.connect(_on_units_arrived)
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level, level.level_state.objective)
@@ -129,6 +152,8 @@ func start() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if phase_banner.is_playing():
+		return
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
 	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
@@ -164,6 +189,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.is_action_pressed(action):
 				get_viewport().set_input_as_handled()
 				_cycle_target(TARGET_STEPS[action])
+				return
+		for action: StringName in WEAPON_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				cycle_weapon(WEAPON_STEPS[action])
 				return
 		return
 
@@ -289,6 +319,8 @@ func _is_commandable(unit: LevelUnit) -> bool:
 
 
 func _select(unit: LevelUnit) -> void:
+	sound_effects.stream = BUTTON_PRESS
+	sound_effects.play()
 	level.select(unit)
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
@@ -343,6 +375,11 @@ func _open_unit_menu() -> void:
 		options.push_front(&"item")
 	if not targets.is_empty():
 		options.push_front(&"attack")
+	# Seize and Escape come first, as in FE: on that cell it's what the player came for.
+	if level.level_state.objective.seize_cells().has(level.selected.state.cell):
+		options.push_front(&"seize")
+	if level.level_state.objective.escape_cells().has(level.selected.state.cell):
+		options.push_front(&"escape")
 	cursor.set_cell(level.selected.state.cell)
 	attack_cells = {}
 	_redraw_selection()
@@ -358,9 +395,7 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"attack":
 			state = State.TARGETING
 			target_index = 0
-			attack_cells = _cells_in_attack_range(level.selected.state)
-			_redraw_selection()
-			_show_forecast()
+			_show_forecast()  # also draws the red cells for the weapon shown
 		&"item":
 			state = State.ITEM_MENU
 			item_menu.open(selected_unit_items())
@@ -368,6 +403,14 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
+			_finish_action()
+		&"escape":
+			# Ends like Seize: the completion check then sees the escape and wins.
+			turn_loop.mark_escaped()
+			_finish_action()
+		&"seize":
+			# Ends like any action: the completion check then sees the seize and wins.
+			turn_loop.mark_seized()
 			_finish_action()
 
 
@@ -458,9 +501,39 @@ func equip_item(index: int) -> bool:
 # --- Attack forecast ---------------------------------------------------------
 
 
+## Inventory indices of the selected unit's weapons that reach the current target.
+func weapon_choices() -> Array[int]:
+	var unit := level.selected.state
+	return Combat.weapons_reaching(unit.unit, Combat.distance(unit, targets[target_index]))
+
+
+## Shows the forecast with the next (`step` 1) or previous (-1) weapon that reaches
+## the target. Nothing is equipped until the attack is confirmed.
+func cycle_weapon(step: int) -> void:
+	if state != State.TARGETING:
+		return
+	var choices := weapon_choices()
+	if choices.size() < 2:
+		return
+	var unit := level.selected.state.unit
+	var at := maxi(choices.find(unit.weapon_preview), 0)
+	unit.weapon_preview = choices[wrapi(at + step, 0, choices.size())]
+	_show_forecast()
+
+
 func _show_forecast() -> void:
 	var target := targets[target_index]
 	cursor.set_cell(target.cell)
+	# Keep the compared weapon if it reaches this target too; otherwise the first
+	# that does (the equipped one when it reaches, since it's first in the inventory).
+	var choices := weapon_choices()
+	var unit := level.selected.state.unit
+	if not choices.has(unit.weapon_preview):
+		unit.weapon_preview = choices[0]
+	# The red cells show the compared weapon's reach.
+	attack_cells = _cells_in_attack_range(level.selected.state)
+	_redraw_selection()
+	forecast.weapon_arrows = choices.size() > 1
 	var sides := Combat.forecast(level.selected.state, target, level.level_state)
 	# Stays in its default top-left corner; set_side with _is_left_half(target.cell)
 	# would flip it away from the target instead.
@@ -485,7 +558,13 @@ func point_at_target(cell: Vector2i) -> void:
 			return
 
 
+## Attacking with the compared weapon equips it (FE moves it to the top).
 func _on_forecast_confirmed() -> void:
+	var unit := level.selected.state.unit
+	var chosen := unit.weapon_preview
+	unit.weapon_preview = -1
+	if chosen >= 0:
+		unit.equip(chosen)
 	_fight(targets[target_index])
 
 
@@ -501,6 +580,7 @@ func _fight(target: LevelUnitState) -> void:
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
@@ -518,6 +598,7 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
+	await award_experience(attacker, target, strikes)
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
@@ -525,12 +606,26 @@ func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> v
 
 
 func _play_strike(strike: Combat.Strike) -> void:
+
 	var striker: LevelUnit = level.unit_nodes[strike.attacker.unit_ref.id]
 	var target: LevelUnit = level.unit_nodes[strike.defender.unit_ref.id]
+	play_strike_sound_effect(strike)
 	await striker.play_once("attack", strike_direction(strike.defender.cell - strike.attacker.cell))
 	strike.defender.current_hp = strike.hp_after
+	
 	if not strike.defender.is_alive():
 		await level.fade_out_unit(target)
+		
+func play_strike_sound_effect(strike: Combat.Strike) -> void:
+	if strike.hit:
+		match strike.attacker.unit.equipped_weapon().weapon_type:
+			Enums.WeaponType.BOW:
+				sound_effects.stream = RANGED_SFX
+			_:
+				sound_effects.stream = [MELEE_SFX_1, MELEE_SFX_2, MELEE_SFX_3, MELEE_SFX_4].pick_random()
+	else:
+		sound_effects.stream = MISS_SFX
+	sound_effects.play()
 
 
 ## The straight direction to face for a strike along `offset`. A ranged strike can
@@ -542,11 +637,38 @@ static func strike_direction(offset: Vector2i) -> Vector2i:
 	return Vector2i(0, signi(offset.y))
 
 
+# --- Experience --------------------------------------------------------------
+
+
+## After a fight: the player unit in it gains EXP (attacking or defending), if it
+## survived and isn't at level 20. Shows the popup when show_banners is on, and
+## returns once it's gone. Allies and enemies never gain EXP.
+func award_experience(a: LevelUnitState, b: LevelUnitState, strikes: Array[Combat.Strike]) -> void:
+	for pair: Array[LevelUnitState] in [[a, b], [b, a]] as Array[Array]:
+		var me := pair[0]
+		var them := pair[1]
+		if me.unit_ref.faction != UnitReference.Faction.PLAYER or not me.is_alive() \
+				or me.unit.level >= UnitData.MAX_LEVEL:
+			continue
+		var dealt := false
+		for strike in strikes:
+			if strike.attacker == me and strike.hit and strike.damage > 0:
+				dealt = true
+		var amount := Experience.for_fight(me.unit, them.unit, dealt, not them.is_alive(),
+				them.unit_ref.commander, Experience.is_thief(them.unit.class_data()))
+		var start := me.unit.experience
+		var level_ups := Experience.gain(me.unit, amount, roll)
+		experience_gained.emit(me.unit_ref.id, amount, level_ups)
+		if show_banners:
+			await exp_popup.play(me.unit_ref.display_name(), start, amount, level_ups, me.unit.experience)
+
+
 func _random_roll() -> int:
 	return rng.randi_range(0, 99)
 
 
 func _on_forecast_cancelled() -> void:
+	level.selected.state.unit.weapon_preview = -1
 	_open_unit_menu()
 
 
@@ -690,6 +812,10 @@ func _update_arrow() -> void:
 ## The unit panel, top-left, keeps showing the last unit the cursor was on, and
 ## hides during the enemy phase.
 func _update_panels() -> void:
+	if _banner_up():
+		terrain_panel.hide()
+		unit_panel.hide()
+		return
 	terrain_panel.visible = _cursor_is_free()
 	if terrain_panel.visible:
 		terrain_panel.set_terrain(terrain_info_at(cursor.cell))
@@ -794,6 +920,9 @@ func _update_hover() -> void:
 func _update_hover_for(phase: TurnLoop.Phase) -> void:
 	if state != State.FREE:
 		return
+	if _banner_up():
+		range_overlay.set_cells({}, {})
+		return
 	var unit := level.unit_at(cursor.cell)
 	if phase != TurnLoop.Phase.PLAYER or unit == null \
 			or (unit.reference.faction == UnitReference.Faction.PLAYER and unit.state.has_acted):
@@ -818,18 +947,76 @@ func _refresh_danger_zone_for(phase: TurnLoop.Phase) -> void:
 	range_overlay.set_threat(danger_zone.normal_cells, danger_zone.marked_cells)
 
 
+## The seize cells are highlighted during the player phase, like the danger zone.
+## Seize and escape cells stay marked in every phase, like the series' map art:
+## where the goal is matters while the enemy moves too.
+func _refresh_seize_cells(_phase: TurnLoop.Phase) -> void:
+	range_overlay.set_seize_cells(level.level_state.objective.seize_cells())
+	range_overlay.set_escape_cells(level.level_state.objective.escape_cells())
+
+
+## Reinforcements changed the board: tints, the danger zone and hover follow.
+func _on_units_arrived(_ids: Array[String]) -> void:
+	level.update_tints()
+	_refresh_danger_zone_for(turn_loop.phase)
+	_update_hover_for(turn_loop.phase)
+
+
 # --- Music -----------------------------------------------------------------
 func _on_phase_changed(phase: TurnLoop.Phase) -> void:
+	# COMPLETE is left to _on_battle_finished, which knows who won.
 	match phase:
 		TurnLoop.Phase.PLAYER:
 			music.stream = PLAYER_MUSIC
+			music.play()
 		TurnLoop.Phase.ENEMY:
 			music.stream = ENEMY_MUSIC
-		TurnLoop.Phase.COMPLETE:
-			music.stream = VICTORY_MUSIC
-	music.play()
+			music.play()
 	# Go by the phase given, not turn_loop.phase: they agree in play, and this
 	# way the ranges can't depend on when the turn loop updates its own value.
 	_refresh_danger_zone_for(phase)
+	_refresh_seize_cells(phase)
 	_update_hover_for(phase)
 	_update_panels()
+
+
+# --- Phase banner and end screen ---------------------------------------------
+
+
+## Plays the banner for a new phase; TurnLoop awaits this before anyone acts.
+## The panels and hover ranges stay hidden until the banner has gone.
+func announce_phase(phase: TurnLoop.Phase) -> void:
+	if not show_banners:
+		return
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	await phase_banner.play(phase)
+	_update_panels()
+	_update_hover()
+
+
+func _banner_up() -> bool:
+	return phase_banner.is_playing() or end_screen.visible
+
+
+## Victory music on a win, silence on a defeat; the end screen waits for the
+## player, then hands the result on through [signal ended].
+func _on_battle_finished(won: bool) -> void:
+	if won:
+		music.stream = VICTORY_MUSIC
+		music.play()
+	else:
+		music.stop()
+	range_overlay.set_cells({}, {})
+	end_screen.show_result(won)
+	_update_panels()
+
+
+## GameFlow listens to [signal ended] (outro on a win, a retry on a loss). Run on
+## its own (F6) nothing listens, so the scene reloads instead.
+func _on_end_screen_continue() -> void:
+	if ended.get_connections().is_empty():
+		get_tree().reload_current_scene()
+		return
+	ended.emit(end_screen.won)

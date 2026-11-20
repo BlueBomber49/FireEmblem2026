@@ -99,6 +99,9 @@ or a **generic unit** defined right there:
 ```
 
 - `faction` is `player`, `enemy` or `ally` (green, on the player's side).
+- `"commander": true` (optional) marks the enemy commander that `defeat_commander` targets. One per level, enemies only. It's drawn with a crown in play and in the editor.
+- `"strategy"` (optional, enemies only) is how the enemy AI moves it: `aggressive` (the default, not written), `stationary` (never moves; attacks what it can reach from its cell, and its danger zone shows only that) or `defensive` (waits until a player unit is within its reach, then turns aggressive for good). `"team"` (optional) groups defensive enemies: when one of a team could reach a player unit, the whole team wakes. A defensive enemy with no team wakes on its own. An unknown strategy is warned about and read as aggressive.
+- `"event"` (optional, enemies only) is the id of the event that brings it onto the map (a reinforcement; see **Events**). Without it, the unit is there from the start.
 - A generic unit's `stats` are optional **overrides**: any stat left out uses the class's base stat.
 - `sprite_sheet` (optional) is a full sprite path. Without it the unit uses its character's or class's sprite in its faction's colour. The map editor fills it in.
 - A unit whose character or class id doesn't exist is kept in the file but skipped in play; the map editor lists it in its status line.
@@ -122,18 +125,55 @@ Optional `objective` at the top level of the level file: how the level is won or
 
 ```json
 "objective": {
-	"win":  [{ "type": "faction_defeated", "faction": "enemy" }],
-	"lose": [{ "type": "faction_defeated", "faction": "player" },
-	         { "type": "unit_defeated", "unit": "adelard" }]
+	"win":  [{ "type": "seize", "cells": [[12, 4]], "name": "the gate" }],
+	"lose": [{ "type": "units_fall", "units": ["adelard"] },
+			 { "type": "turns_pass", "turns": 10 }]
 }
 ```
 
 - The level is won when **any** `win` condition holds and lost when **any** `lose` condition holds. Losing is checked first, so a lord falling in the same fight as the last enemy is a defeat.
-- A list left out keeps its default: `win` is "every enemy defeated", `lose` is "every player unit defeated". So a level with only a lord adds both `lose` conditions, as above.
-- Condition types: `faction_defeated` (`faction`: `player`, `enemy` or `ally`) and `unit_defeated` (`unit`: a unit id from this level's `map_data.units`).
-- An unknown type, a bad faction or a missing `unit` is warned about ("Objective:") and dropped. A `unit` id not in the level is warned about and never counts as defeated.
+- **Losing every player unit always loses**, whatever `lose` says. It's built in, so `lose` only lists a level's extra conditions (an old file that lists `faction_defeated` for `player` still loads; that entry is dropped as redundant).
+- `win` left out is a rout. `lose` left out (or empty) adds nothing beyond the built-in wipe.
 
-The map editor writes everything except the objective, which it keeps as it is. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell. In Walls mode, pick Wall or Door, then left-drag to paint and right-drag to erase.
+| Type | List | Settings | Met when | Shown as |
+|---|---|---|---|---|
+| `faction_defeated` | win | `faction`: `enemy` | every enemy is defeated | Rout the enemy |
+| `defeat_commander` | win | none | the unit marked `"commander": true` is defeated | Defeat the enemy commander |
+| `seize` | win | `cells`: list of `[x, y]`; optional `name` | a unit uses the **Seize** command on one of the cells | Seize the gate (or "Seize the marked cell") |
+| `escape` | win | `cells`: list of `[x, y]` | a unit uses the **Escape** command on one of the cells | Escape |
+| `survive` | win | `turns` (1+) | that many enemy phases are over | Survive 3 turns |
+| `units_fall` | lose | `units`: list of unit ids | any of them is defeated | Adelard falls / Adelard or Rowland falls |
+| `turns_pass` | lose | `turns` (1+) | that many enemy phases are over without a win | 10 turns pass |
+| *(built in)* | lose | none | every player unit is defeated | Your army is defeated |
+
+- Turns count from 1 (the first player phase) and go up after each enemy phase, so "survive 3" and "3 turns pass" both resolve right after the third enemy phase.
+- The older `{"type": "unit_defeated", "unit": "adelard"}` still reads, as `units_fall`.
+- An unknown type, a condition in the wrong list (e.g. `seize` under `lose`), or missing settings are warned about ("Objective:") and dropped. Problems that need the level's units (no commander marked for `defeat_commander`, a `seize` with no cells, a `units_fall` id that isn't in the level, more than one commander, a commander that isn't an enemy) are warned about when the level loads, and **the map editor won't save** until they're fixed. A missing commander or unit never counts as defeated.
+- **Adding a condition type** (code): a `Condition` subclass in `gameplay/map/objective.gd` plus one `CONDITION_TYPES` entry (its class, editor title, allowed lists and settings). The map editor builds its fields from the settings.
+
+The map editor edits all of it in **Objective** mode: add or remove conditions in each list, set turns, pick units, name a seize point, and choose seize or escape cells on the map (click any number, then Confirm) (seize cells show in green and escape cells in gold, as in play). Mark the enemy commander with the **Enemy commander** checkbox in Units mode, and set an enemy's **AI** (strategy and team) there too. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell. In Walls mode, pick Wall or Door, then left-drag to paint and right-drag to erase.
+
+### Events
+
+Optional `events` at the top level of the level file, by id. Today's one kind brings in reinforcements at the start of a turn:
+
+```json
+"events": {
+	"wave_1": {
+		"name": "Bandit wave",
+		"trigger": { "type": "turn_start", "turn": 3, "phase": "enemy" },
+		"actions": [{ "type": "spawn" }]
+	}
+}
+```
+
+- `trigger`: `turn_start` with `turn` (1+) and `phase` (`enemy` or `player`). `name` is optional; the editor shows "Turn 3 reinforcements" without it.
+- `spawn` brings in every enemy placed with `"event": "wave_1"`, at its `start_cell`, or the nearest free cell it can stand on when that one's taken. It fires once.
+- An enemy-phase arrival acts that same phase; a player-phase one waits for the enemy phase. Arrivals on turn 1's player phase are there from the start.
+- Until they arrive, reinforcements don't count for the objective: **Rout is won when every enemy on the map is defeated**, even with a wave still to come.
+- An event with an unknown or broken trigger, or a unit pointing at a missing event, or a non-enemy with an event, is warned about and its units start on the map. The editor won't save an event that's broken or has no units, or a Rout level whose every enemy arrives later.
+
+The map editor's **Events** mode lists the events ("WHEN turn N's enemy/player phase starts, THEN these enemies arrive"): add units by choosing them on the map, or **Place new units** to place enemies straight into an event. Units mode's **Arrives** dropdown sets the same thing for the selected enemy. Reinforcements are drawn faded with their turn ("T3") in the editor.
 
 ## Campaign: `resources/campaign.json`
 
@@ -170,10 +210,26 @@ Each line:
 | `speaker` | A character id, or empty for narration (no name, both portraits dimmed). The portrait is `assets/portraits/<speaker>.png`; without one, the speaker just has no portrait |
 | `side` | Optional. `left` (default) or `right`. A portrait stays on its side until another speaker takes it |
 | `text` | What they say |
+| `background` | Optional. An image id to switch to from this line on, or `none` to clear it to the plain dark background. Without it, the background stays as it was. (So no image can be called `none.png`) |
 
 A line with an unknown key, unknown speaker or bad side is reported and dropped; the rest still play.
 
 ## Saves
+
+### Campaign saves: `user://saves/slot_N.json`
+
+Three files, written between chapters (the "Save your progress?" prompt) and listed by **Load** on the title screen:
+
+```json
+{ "version": 1, "chapter_id": "chapter_2", "chapter_index": 1, "saved_at": "2026-11-07 15:07:48",
+  "roster": { "adelard": { "level": 3, "experience": 40, "stats": { ... }, "current_hp": 22, "inventory": [ ... ] } } }
+```
+
+- `chapter_id` / `chapter_index`: the chapter to continue from. Loading finds it by id, so adding chapters doesn't break old saves; the index is the fallback.
+- `roster`: each player character's `Unit.save_state()`, applied when a level loads (healed to full). Fallen characters are kept (casual mode: they return next chapter).
+- A missing, corrupt or incomplete file reads as empty.
+
+### Level saves
 
 A level save is the level file plus `level_units`: each unit's position, whether it has moved or acted, and its `unit` state (level, EXP, stats, current HP, and items by id with uses left). Loading tolerates hand-edited or damaged saves: missing or wrong values fall back with a "Save data:" warning.
 

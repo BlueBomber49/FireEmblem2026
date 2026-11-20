@@ -39,6 +39,7 @@ All results round down unless noted.
 - **Hit roll (FE7 "true hit")**: hits when the average of two rolls from 0–99 is below the displayed hit. Crits use a single roll.
 - Fliers get no terrain avoid or defense bonus, only HP recovery.
 - Weapon triangle: Sword beats Axe, Axe beats Lance, Lance beats Sword. Anima beats Light, Light beats Dark, Dark beats Anima.
+- **Not FE7 (our addition):** knives lose to swords, lances and axes, beat anima, light and dark, and are neutral against bows, staves and other knives.
 - Staff accuracy = 30 + 5 × Mag + Skl; staff avoid = 5 × Res + 2 × distance (later)
 
 ## Experience and levels
@@ -48,6 +49,7 @@ All results round down unless noted.
 - **EXP for a kill** = damage EXP + max(0, kill base + 20 + boss bonus (40) + thief bonus (20)), where kill base = (enemy level × enemy class power + enemy bonus B) − (level × class power + bonus B)
 - Class power: 3 for most classes; 2 for Cleric, Soldier, Troubadour, Bard, Thief and Dancer
 - Bonus A: 0 unpromoted, 20 promoted. Bonus B: 0 unpromoted, 60 promoted (40 for Assassin, female Bishop and Valkyrie)
+- **In the game** (`gameplay/experience.gd`): damage and kill EXP, the boss bonus (our level's commander), the thief bonus (classes tagged `thief`), level-ups from growth rates with class caps. Player units gain EXP attacking or defending; allies and enemies don't. A gain is capped at 100. **Not yet:** staff EXP (no staves), promotion, weapon rank EXP. Bonus B uses 60 for every promoted class (no Assassin, Bishop or Valkyrie yet).
 
 ## Terrain
 Movement costs by our movement group. A dash means impassable. FE7's other groups are omitted; see the intended differences above.

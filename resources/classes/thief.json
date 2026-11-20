@@ -42,6 +42,8 @@
 	"crit_bonus": 0,
 	"class_power": 2,
 	"promoted": false,
-	"tags": [],
+	"tags": [
+		"thief"
+	],
 	"sprite": "res://assets/battle_pack/Sprite Sheets/Thief/Thief_{color}1.png"
 }

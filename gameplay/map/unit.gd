@@ -77,8 +77,28 @@ func growths() -> Stats:
 	return source.copy() if source != null else Stats.new()
 
 
-## The first weapon in the inventory this unit's class can use, or null.
+## Inventory index of a weapon being compared in the attack forecast, or -1.
+## While set, equipped_weapon() returns it, so every combat number follows it.
+## Never saved; Battle clears it whenever targeting ends.
+var weapon_preview := -1
+
+
+## Indices of the weapons this unit's class can use, in inventory order.
+func usable_weapon_indices() -> Array[int]:
+	var found: Array[int] = []
+	var klass := class_data()
+	for i in inventory.size():
+		var entry := inventory.get_item(i)
+		if entry != null and entry.is_weapon() and klass.can_wield(entry.data as WeaponData):
+			found.append(i)
+	return found
+
+
+## The first weapon in the inventory this unit's class can use, or null. While a
+## weapon is being compared (weapon_preview), that one instead.
 func equipped_weapon() -> WeaponData:
+	if weapon_preview >= 0 and usable_weapon_indices().has(weapon_preview):
+		return inventory.get_item(weapon_preview).data as WeaponData
 	var index := inventory.first_usable_weapon_index(class_data())
 	return null if index < 0 else inventory.get_item(index).data as WeaponData
 

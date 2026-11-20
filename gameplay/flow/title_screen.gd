@@ -1,13 +1,15 @@
 class_name TitleScreen
 extends Control
-## The title: a blinking "Press Start", then a menu of New Game and Quit.
+## The title: a blinking "Press Start", then a menu of New Game and Quit, with
+## Load first when there's a save.
 ## Cancel in the menu goes back to "Press Start".
 ##
-## It only reports what was picked, through [signal new_game_chosen] and
-## [signal quit_chosen]. GameFlow decides what those do.
+## It only reports what was picked, through [signal new_game_chosen],
+## [signal load_chosen] and [signal quit_chosen]. GameFlow decides what those do.
 
 signal new_game_chosen
 signal quit_chosen
+signal load_chosen
 
 enum Stage { PRESS_START, MENU }
 
@@ -18,11 +20,16 @@ const BLINK_TIME := 0.6
 var stage := Stage.PRESS_START
 var _blink: Tween
 
+const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg")
+
 @onready var _press_start: Label = %PressStart
 @onready var _menu: ActionMenu = %Menu
-
+@onready var music: AudioStreamPlayer = $Music
+@onready var sound_effects: AudioStreamPlayer = $SFX
 
 func _ready() -> void:
+	music.stream = MENU_MUSIC
+	music.play()
 	_menu.option_selected.connect(_on_menu_option)
 	_menu.cancelled.connect(_show_press_start)
 	_show_press_start()
@@ -56,19 +63,27 @@ func _show_press_start() -> void:
 
 
 func _open_menu() -> void:
+	sound_effects.play()
 	stage = Stage.MENU
 	if _blink != null:
 		_blink.kill()
 	_press_start.hide()
-	_menu.open(OPTIONS)
+	var options := OPTIONS.duplicate()
+	if SaveSlots.has_any():
+		options.push_front(&"load")
+	_menu.open(options)
 
 
 ## ActionMenu closes itself before reporting [param option_id].
 func _on_menu_option(option_id: StringName) -> void:
 	match option_id:
 		&"new_game":
+			if _menu.sound_effects.playing:
+				await _menu.sound_effects.finished
 			new_game_chosen.emit()
 			
+		&"load":
+			load_chosen.emit()
 		&"quit":
 			quit_chosen.emit()
 			

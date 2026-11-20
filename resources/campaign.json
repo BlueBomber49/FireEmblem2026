@@ -1,5 +1,7 @@
 {
 	"chapters": [
-		{ "id": "prologue", "intro": "prologue_intro", "level": "prologue", "outro": "prologue_outro" }
+		{ "id": "prologue", "intro": "prologue_intro", "level": "prologue", "outro": "prologue_outro" },
+		{ "id": "level_1", "intro": "level_1_intro", "level": "level_1", "outro": "level_1_outro" },
+		{ "id": "level_2", "intro": "level_2_intro", "level": "level_2", "outro": "level_2_outro" }
 	]
 }

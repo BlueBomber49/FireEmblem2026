@@ -55,6 +55,22 @@ func test_weapon_triangle() -> void:
 	assert_eq(Combat.triangle(null, w.call(&"iron_sword")), 0)
 
 
+func test_knives_lose_to_physical_weapons_and_beat_magic() -> void:
+	var w := func(id: StringName) -> WeaponData: return GameData.get_item(id)
+	var knife: WeaponData = w.call(&"iron_knife")
+	for id: StringName in [&"iron_sword", &"iron_lance", &"iron_axe"]:
+		assert_eq(Combat.triangle(knife, w.call(id)), -1, "knife vs %s" % id)
+		assert_eq(Combat.triangle(w.call(id), knife), 1, "%s vs knife" % id)
+	assert_eq(Combat.triangle(knife, w.call(&"iron_bow")), 0, "bows are neutral")
+	assert_eq(Combat.triangle(w.call(&"iron_bow"), knife), 0)
+	assert_eq(Combat.triangle(knife, w.call(&"iron_knife")), 0, "same type")
+	for magic_type in [Enums.WeaponType.ANIMA, Enums.WeaponType.LIGHT, Enums.WeaponType.DARK]:
+		var tome := WeaponData.new()
+		tome.weapon_type = magic_type
+		assert_eq(Combat.triangle(knife, tome), 1, "knife beats %s" % Enums.weapon_type_name(magic_type))
+		assert_eq(Combat.triangle(tome, knife), -1)
+
+
 func test_magic_triangle() -> void:
 	var anima := WeaponData.new()
 	anima.weapon_type = Enums.WeaponType.ANIMA
@@ -133,6 +149,26 @@ func test_bow_can_attack_at_two_but_not_one() -> void:
 	assert_eq(Combat.hostiles_in_range(archer, state), [bandit] as Array[LevelUnitState])
 	bandit.cell = archer.cell + Vector2i(1, 0)
 	assert_eq(Combat.hostiles_in_range(archer, state).size(), 0, "too close for a bow")
+
+
+func test_weapons_reaching_lists_each_usable_weapon_that_reaches() -> void:
+	var cavalier := add_unit(state, "cav", "cavalier", ["iron_lance", "iron_sword", "javelin"],
+			"player", Vector2i(6, 7))
+	assert_eq(Combat.weapons_reaching(cavalier.unit, 1), [0, 1, 2] as Array[int])
+	assert_eq(Combat.weapons_reaching(cavalier.unit, 2), [2] as Array[int], "only the javelin")
+	assert_eq(Combat.weapons_reaching(cavalier.unit, 3), [] as Array[int])
+
+
+func test_weapons_reaching_skips_weapons_the_class_cant_use() -> void:
+	var cavalier := add_unit(state, "cav", "cavalier", ["iron_axe", "iron_lance"], "player", Vector2i(6, 7))
+	assert_eq(Combat.weapons_reaching(cavalier.unit, 1), [1] as Array[int])
+
+
+func test_a_carried_weapon_that_isnt_equipped_still_finds_targets() -> void:
+	# The knife is equipped (first), but the bow reaches 2 away.
+	var nomad := add_unit(state, "nomad", "nomad", ["iron_knife", "iron_bow"], "player", Vector2i(6, 7))
+	bandit.cell = nomad.cell + Vector2i(2, 0)
+	assert_eq(Combat.hostiles_in_range(nomad, state), [bandit] as Array[LevelUnitState])
 
 
 func test_melee_defender_cant_counter_a_bow_at_two() -> void:
