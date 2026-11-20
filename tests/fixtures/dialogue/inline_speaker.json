@@ -1,0 +1,8 @@
+{
+	"id": "inline_speaker",
+	"lines": [
+		{ "portrait": "bandit", "name": "Bandit", "side": "right", "text": "There they are!" },
+		{ "speaker": "adelard", "side": "left", "text": "More of them?" },
+		{ "name": "Voice", "text": "Over here!" }
+	]
+}

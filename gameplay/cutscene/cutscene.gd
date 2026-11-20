@@ -10,7 +10,6 @@ extends Control
 signal finished
 
 const CHARS_PER_SECOND := 40.0
-const PORTRAIT_DIR := "res://assets/portraits"
 const DIM_TINT := Color(0.4, 0.4, 0.4)
 
 ## For running this scene on its own (F6); GameFlow calls play() instead.
@@ -106,9 +105,9 @@ func _start() -> void:
 func _show_line(index: int) -> void:
 	line_index = index
 	var line: DialogueData.Line = dialogue.lines[index]
-	var narration := line.speaker.is_empty()
+	var narration := line.is_narration()
 	if not narration:
-		_place(line.speaker, line.side, line.face_outside)
+		_place(line, line.side, line.face_outside)
 	for side: StringName in _slots:
 		var lit := not narration and side == line.side
 		(_slots[side] as TextureRect).modulate = Color.WHITE if lit else DIM_TINT
@@ -128,16 +127,17 @@ func _show_line(index: int) -> void:
 	_typing.tween_property(_text, "visible_ratio", 1.0, line.text.length() / CHARS_PER_SECOND)
 
 
-## Puts [param speaker] in [param side]'s slot. Everyone else stays where they
-## are until replaced, except the speaker's own old slot, which empties.
+## Puts [param line]'s speaker in [param side]'s slot. Everyone else stays where
+## they are until replaced, except the speaker's own old slot, which empties.
 ## Facing is set on every line: a line without face_outside turns them back in.
-func _place(speaker: StringName, side: StringName, face_outside: bool) -> void:
+func _place(line: DialogueData.Line, side: StringName, face_outside: bool) -> void:
+	var speaker := line.slot_key()
 	for old_side: StringName in _occupants.keys():
 		if _occupants[old_side] == speaker and old_side != side:
 			(_slots[old_side] as TextureRect).texture = null
 			_occupants.erase(old_side)
 	var slot: TextureRect = _slots[side]
-	slot.texture = _portrait(speaker)
+	slot.texture = _portrait(line.portrait_id())
 	slot.flip_h = _inward_flip[side] != face_outside
 	_occupants[side] = speaker
 
@@ -151,7 +151,8 @@ func _finish() -> void:
 	finished.emit()
 
 
-## The speaker's portrait, or null when they don't have one yet.
-static func _portrait(speaker: StringName) -> Texture2D:
-	var path := PORTRAIT_DIR.path_join("%s.png" % speaker)
+## The portrait [param id] (a character's, or one named on the line), or null
+## when there's no image for it yet.
+static func _portrait(id: String) -> Texture2D:
+	var path := DialogueData.portrait_path(id)
 	return load(path) if ResourceLoader.exists(path) else null

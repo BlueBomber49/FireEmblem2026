@@ -62,3 +62,28 @@ func test_a_line_background_with_no_image_drops_only_that_line() -> void:
 	assert_string_contains(d.errors[0], "lines[0]")
 	assert_eq(d.lines.size(), 1, "'none' isn't an image, so it isn't checked for one")
 	assert_eq(d.lines[0].background, DialogueData.NO_BACKGROUND)
+
+
+# --- Speakers without a character file ---------------------------------------------
+
+
+func test_a_line_can_name_its_own_portrait_and_name() -> void:
+	var d := DialogueData.read(FIXTURES.path_join("inline_speaker.json"))
+	assert_eq(d.errors, PackedStringArray())
+	var bandit := d.lines[0]
+	assert_eq(bandit.display_name(), "Bandit")
+	assert_eq(bandit.portrait_id(), "bandit")
+	assert_false(bandit.is_narration())
+	assert_true(d.lines[1].display_name() != "", "a character line still works")
+	assert_eq(d.lines[1].portrait_id(), "adelard")
+	var voice := d.lines[2]
+	assert_false(voice.is_narration(), "a name alone is a speaker too")
+	assert_eq(voice.display_name(), "Voice")
+
+
+func test_a_portrait_with_no_image_drops_only_that_line() -> void:
+	var d := DialogueData.read(FIXTURES.path_join("bad_portrait.json"))
+	assert_eq(d.errors.size(), 1)
+	assert_string_contains(d.errors[0], "nobody_here")
+	assert_eq(d.lines.size(), 1)
+	assert_eq(d.lines[0].speaker, &"adelard")

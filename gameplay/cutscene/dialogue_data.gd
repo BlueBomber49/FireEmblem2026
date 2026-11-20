@@ -9,6 +9,7 @@ extends RefCounted
 
 const DEFAULT_DIR := "res://resources/dialogue"
 const BACKGROUND_DIR := "res://assets/cutscenes"
+const PORTRAIT_DIR := "res://assets/portraits"
 const SIDES: Array[StringName] = [&"left", &"back_left", &"right", &"back_right"]
 ## A line's background value that clears the background instead of naming an image.
 const NO_BACKGROUND := "none"
@@ -16,7 +17,7 @@ const NO_BACKGROUND := "none"
 
 class Line:
 	extends RefCounted
-	## A character id, or empty for narration (no portrait, no name).
+	## A character id, or empty: narration, unless the line names a portrait or a name.
 	var speaker: StringName
 	var side: StringName = &"left"
 	var text: String
@@ -24,10 +25,32 @@ class Line:
 	## An image id to switch to, NO_BACKGROUND to clear it, or empty to keep
 	## whatever is showing.
 	var background := ""
+	## For a speaker without a character file (a generic bandit): a portrait id
+	## (assets/portraits/<id>.png) and a name, given on the line itself.
+	var portrait := ""
+	var name := ""
 
 
-	## The speaker's name from their character file, or "" for narration.
+	## Narration: nobody speaks (no character, no inline name or portrait).
+	func is_narration() -> bool:
+		return speaker.is_empty() and name.is_empty() and portrait.is_empty()
+
+
+	## Who stands in a portrait slot: the character, or the inline portrait and name.
+	func slot_key() -> String:
+		return String(speaker) if not speaker.is_empty() else "%s|%s" % [portrait, name]
+
+
+	## The portrait id to show: the inline one, else the speaker's own.
+	func portrait_id() -> String:
+		return portrait if not portrait.is_empty() else String(speaker)
+
+
+	## The name on the line, else the speaker's from their character file, or ""
+	## for narration.
 	func display_name() -> String:
+		if not name.is_empty():
+			return name
 		if speaker.is_empty():
 			return ""
 		var data := GameData.get_character(speaker)
@@ -44,6 +67,11 @@ var errors := PackedStringArray()
 
 static func path_for(dialogue_id: StringName) -> String:
 	return DEFAULT_DIR.path_join("%s.json" % dialogue_id)
+
+
+## The image path for portrait [param id].
+static func portrait_path(id: String) -> String:
+	return PORTRAIT_DIR.path_join("%s.png" % id)
 
 
 ## The image path for background [param id], or "" when there's no background.
@@ -84,11 +112,15 @@ func _read_lines(r: GameData._Reader) -> void:
 		# A reader per line, so its errors say which line ("x.json lines[2]: ...").
 		var lr := GameData._Reader.new("%s lines[%d]" % [r.path, i])
 		lr.data = raw[i]
-		lr.allow_keys(["speaker", "side", "text", "face_outside", "background"])
+		lr.allow_keys(["speaker", "side", "text", "face_outside", "background", "portrait", "name"])
 		var line := Line.new()
 		line.speaker = StringName(lr.string("speaker", false))
 		if not line.speaker.is_empty() and GameData.get_character(line.speaker) == null:
 			lr.error("speaker '%s' isn't a known character id." % line.speaker)
+		line.portrait = lr.string("portrait", false)
+		if not line.portrait.is_empty() and not ResourceLoader.exists(portrait_path(line.portrait)):
+			lr.error("portrait '%s' has no image at %s." % [line.portrait, portrait_path(line.portrait)])
+		line.name = lr.string("name", false)
 		line.side = StringName(lr.string("side", false))
 		if line.side.is_empty():
 			line.side = &"left"

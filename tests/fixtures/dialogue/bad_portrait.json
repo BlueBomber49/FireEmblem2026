@@ -1,0 +1,7 @@
+{
+	"id": "bad_portrait",
+	"lines": [
+		{ "portrait": "nobody_here", "name": "Bandit", "text": "Who am I?" },
+		{ "speaker": "adelard", "text": "Still here." }
+	]
+}
