@@ -89,6 +89,13 @@ var danger_zone := DangerZone.new()
 ## Where the selected unit stood before moving, so cancel can put it back.
 var move_origin := Vector2i.ZERO
 var origin_has_moved := false
+## The forecast was opened by clicking an enemy while choosing a destination, so
+## cancelling it goes back to choosing one, with the unit on its start cell.
+var direct_attack := false
+## The cell the cursor was on before its latest move: hovering an enemy points
+## the arrow at the attack cell closest to it.
+var previous_cursor_cell := Vector2i(-1, -1)
+var _cursor_cell := Vector2i(-1, -1)
 ## Hostile units next to the selected unit while picking an attack target.
 var targets: Array[LevelUnitState] = []
 var target_index := 0
@@ -253,6 +260,10 @@ func confirm() -> void:
 			else:
 				_open_map_menu()
 		State.UNIT_SELECTED:
+			var enemy := attackable_enemy_at(cursor.cell)
+			if enemy != null:
+				_attack_directly(enemy)
+				return
 			if not reachable.has(cursor.cell):
 				return
 			if cursor.cell == level.selected.state.cell:
@@ -322,6 +333,7 @@ func _select(unit: LevelUnit) -> void:
 	sound_effects.stream = BUTTON_PRESS
 	sound_effects.play()
 	level.select(unit)
+	direct_attack = false
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
 	var ranges := _ranges_for(unit.state)
@@ -560,6 +572,7 @@ func point_at_target(cell: Vector2i) -> void:
 
 ## Attacking with the compared weapon equips it (FE moves it to the top).
 func _on_forecast_confirmed() -> void:
+	direct_attack = false
 	var unit := level.selected.state.unit
 	var chosen := unit.weapon_preview
 	unit.weapon_preview = -1
@@ -667,9 +680,95 @@ func _random_roll() -> int:
 	return rng.randi_range(0, 99)
 
 
+## Back to the unit menu; or, for a forecast opened by clicking an enemy, back to
+## choosing a destination with the unit on its start cell. The compared weapon is
+## dropped first either way, so the equipped one is what counters next phase.
 func _on_forecast_cancelled() -> void:
 	level.selected.state.unit.weapon_preview = -1
+	if direct_attack:
+		direct_attack = false
+		_on_unit_menu_cancelled()
+		return
 	_open_unit_menu()
+
+
+# --- Clicking an enemy to attack -------------------------------------------------
+# While choosing a destination, an enemy in the red range can be attacked straight
+# away: hovering it points the arrow at a cell the unit can hit it from, and
+# clicking (or confirming) walks there and opens the forecast on it.
+
+
+## The enemy on `cell` the selected unit could attack after moving, or null.
+func attackable_enemy_at(cell: Vector2i) -> LevelUnitState:
+	if state != State.UNIT_SELECTED or level.selected == null:
+		return null
+	var unit := level.unit_at(cell)
+	if unit == null or not UnitReference.are_hostile(level.selected.reference, unit.reference):
+		return null
+	return unit.state if not attack_cells_for(unit.state).is_empty() else null
+
+
+## Cells the selected unit can stop on and hit `enemy` from with any weapon it
+## can use. Built from `reachable`, so cells other units stand on are never in it.
+func attack_cells_for(enemy: LevelUnitState) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var me := level.selected.state
+	for cell: Vector2i in reachable:
+		if not Combat.weapons_reaching(me.unit, _gap(cell, enemy.cell)).is_empty():
+			cells.append(cell)
+	return cells
+
+
+## Hovering an enemy: the arrow stays if it ends where the unit can hit it from.
+## Otherwise it goes to the attack cell closest to where the cursor just was;
+## ties go to the shorter walk, then to the first cell in map order.
+func _arrow_for_enemy(enemy: LevelUnitState) -> void:
+	var me := level.selected.state
+	var end: Vector2i = arrow.path[-1] if not arrow.path.is_empty() else me.cell
+	var cells := attack_cells_for(enemy)
+	if cells.has(end):
+		return
+	var best := cells[0]
+	var best_key := _attack_cell_key(best)
+	for cell in cells:
+		var key := _attack_cell_key(cell)
+		if key < best_key:
+			best = cell
+			best_key = key
+	arrow.set_path([] as Array[Vector2i] if best == me.cell else level.pathfinding.find_path(me, best))
+
+
+## How good `cell` is to attack from: closer to the previous cursor cell first,
+## then a cheaper walk, then map order (row, then column).
+func _attack_cell_key(cell: Vector2i) -> Array:
+	var me := level.selected.state
+	var walk := 0
+	if cell != me.cell:
+		walk = level.pathfinding.path_cost(me, level.pathfinding.find_path(me, cell))
+	return [_gap(cell, previous_cursor_cell), walk, cell.y, cell.x]
+
+
+static func _gap(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+## Walks along the arrow (if it goes anywhere), then opens the forecast on `enemy`.
+func _attack_directly(enemy: LevelUnitState) -> void:
+	var me := level.selected
+	var path := arrow.path
+	if not path.is_empty() and path[-1] != me.state.cell:
+		state = State.MOVING
+		reachable = {}
+		selected_fringe = {}
+		_redraw_selection()
+		arrow.set_path([])
+		_update_panels()
+		await level.walk(me, path)
+	direct_attack = true
+	targets = Combat.hostiles_in_range(me.state, level.level_state)
+	target_index = maxi(targets.find(enemy), 0)
+	state = State.TARGETING
+	_show_forecast()
 
 
 # --- Status screen -------------------------------------------------------------
@@ -763,8 +862,14 @@ func terrain_info_at(cell: Vector2i) -> TerrainInfo:
 	return info
 
 
-func _on_cursor_moved(_cell: Vector2i) -> void:
-	_update_arrow()
+func _on_cursor_moved(cell: Vector2i) -> void:
+	previous_cursor_cell = _cursor_cell
+	_cursor_cell = cell
+	var enemy := attackable_enemy_at(cell)
+	if enemy != null:
+		_arrow_for_enemy(enemy)
+	else:
+		_update_arrow()
 	_update_panels()
 	_update_hover()
 

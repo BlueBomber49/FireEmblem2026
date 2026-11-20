@@ -1331,3 +1331,125 @@ func test_the_popup_ends_on_the_units_real_exp_at_level_twenty() -> void:
 	await battle._fight(bandit)
 	assert_eq(lyn.unit.level, 20)
 	assert_eq(battle.exp_popup.get_node("%Bar").value, 0.0, "level 20: no leftover EXP")
+
+
+# --- Clicking an enemy to attack ------------------------------------------------
+# Lyn (move 5, sword) at (6, 5); the stationary bandit at (10, 5).
+
+
+func _click_bandit() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.TARGETING, 3.0)
+
+
+func test_hovering_an_enemy_keeps_a_drawn_path_that_can_attack_it() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(7, 4), Vector2i(8, 4), Vector2i(9, 4), Vector2i(10, 4)])
+	var drawn := battle.arrow.path.duplicate()
+	battle.cursor.set_cell(bandit.cell)
+	assert_eq(battle.arrow.path, drawn, "it ends above the bandit, so it stays")
+
+
+func test_hovering_an_enemy_picks_the_attack_cell_closest_to_the_cursor() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(7, 6), Vector2i(8, 6)])  # (8, 6) can't hit the bandit
+	battle.cursor.set_cell(bandit.cell)
+	# (9, 5) and (10, 6) are both 2 from (8, 6); (9, 5) is the shorter walk.
+	assert_eq(battle.arrow.path[-1], Vector2i(9, 5))
+
+
+func test_an_arrow_ending_on_a_friend_is_never_kept() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	battle.level.place_unit(battle.level.unit_nodes["wil"], Vector2i(9, 5))
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(8, 5), Vector2i(9, 5)])  # walking through Wil is allowed
+	assert_eq(battle.arrow.path[-1], wil.cell, "the hand-drawn arrow can end on him")
+	await _click_bandit()
+	assert_ne(lyn.cell, wil.cell, "but Lyn never stops on his cell")
+	assert_eq(Combat.distance(lyn, bandit), 1)
+
+
+func test_clicking_an_enemy_walks_there_and_opens_the_forecast_on_it() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(8, 5)])
+	await _click_bandit()
+	assert_eq(lyn.cell, Vector2i(9, 5))
+	assert_eq(battle.targets[battle.target_index], bandit)
+	assert_true(battle.forecast.visible)
+
+
+func test_confirming_the_forecast_attacks() -> void:
+	battle.roll = func() -> int: return 0
+	_select_lyn()
+	await _click_bandit()
+	var hp := bandit.current_hp
+	battle._on_forecast_confirmed()
+	await wait_until(func() -> bool: return battle.state == Battle.State.FREE, 5.0)
+	assert_lt(bandit.current_hp, hp)
+	assert_true(lyn.has_acted)
+
+
+func test_cancelling_goes_back_to_the_start_still_selected() -> void:
+	_select_lyn()
+	await _click_bandit()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+	assert_false(lyn.has_moved)
+	assert_eq(battle.level.selected.state, lyn)
+	assert_false(battle.forecast.visible)
+
+
+func test_cancelling_drops_the_compared_weapon() -> void:
+	# Lyn as a Cavalier with a lance (equipped) and a sword, to compare weapons.
+	lyn.unit_ref.character_id = ""
+	lyn.unit_ref.class_id = "cavalier"
+	var cavalier := LevelUnitState.from_reference(lyn.unit_ref)
+	cavalier.unit.inventory = Inventory.new()
+	for id: StringName in [&"iron_lance", &"iron_sword"]:
+		cavalier.unit.inventory.add(GameData.get_item(id))
+	cavalier.cell = LYN_CELL
+	battle.level.level_state.level_units["lyn"] = cavalier
+	battle.level.unit_nodes["lyn"].state = cavalier
+	lyn = cavalier
+	_select_lyn()
+	await _click_bandit()
+	_press(&"ui_right")
+	assert_eq(lyn.unit.weapon_preview, 1, "comparing the sword")
+	battle.cancel()
+	assert_eq(lyn.unit.weapon_preview, -1)
+	assert_eq(lyn.unit.equipped_weapon().id, &"iron_lance", "the lance is still what counters")
+
+
+func test_a_normal_attack_after_a_cancelled_one_cancels_to_the_menu() -> void:
+	_select_lyn()
+	await _click_bandit()
+	battle.cancel()
+	battle.cursor.set_cell(Vector2i(9, 5))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	battle.unit_menu.option_selected.emit(&"attack")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_eq(lyn.cell, Vector2i(9, 5), "the move stays")
+
+
+func test_an_enemy_outside_the_red_range_does_nothing() -> void:
+	bandit.cell = Vector2i(14, 5)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	_select_lyn()
+	assert_null(battle.attackable_enemy_at(bandit.cell))
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+
+
+func test_a_bow_picks_a_cell_two_away() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	battle.cursor.set_cell(wil.cell)
+	battle.confirm()
+	battle.cursor.set_cell(bandit.cell)
+	var end: Vector2i = battle.arrow.path[-1] if not battle.arrow.path.is_empty() else wil.cell
+	assert_eq(absi(end.x - bandit.cell.x) + absi(end.y - bandit.cell.y), 2)
