@@ -1453,3 +1453,128 @@ func test_a_bow_picks_a_cell_two_away() -> void:
 	battle.cursor.set_cell(bandit.cell)
 	var end: Vector2i = battle.arrow.path[-1] if not battle.arrow.path.is_empty() else wil.cell
 	assert_eq(absi(end.x - bandit.cell.x) + absi(end.y - bandit.cell.y), 2)
+
+# --- Trade -------------------------------------------------------------------------
+# Wil is a player unit at (6, 7) in this fixture; Lyn moves to (6, 6), next to him.
+
+
+func _lyn_next_to_wil() -> LevelUnitState:
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(6, 6))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	return battle.level.level_state.level_units["wil"]
+
+
+func _inventory_ids(u: LevelUnitState) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for i in u.unit.inventory.size():
+		ids.append(u.unit.inventory.get_item(i).data.id)
+	return ids
+
+
+func test_trade_is_offered_next_to_a_player_unit_after_item() -> void:
+	await _lyn_next_to_wil()
+	assert_eq(battle.unit_menu.options, [&"item", &"trade", &"status", &"wait"] as Array[StringName])
+
+
+func test_no_trade_next_to_an_ally_or_alone() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	assert_has(battle.unit_menu.options, &"trade")
+	battle.cancel()
+	wil.unit_ref.faction = UnitReference.Faction.ALLY
+	battle.cursor.set_cell(Vector2i(6, 6))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	assert_does_not_have(battle.unit_menu.options, &"trade")
+
+
+func test_even_one_partner_is_chosen_first() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_eq(battle.state, Battle.State.TRADE_PICK, "chosen like a target, for consistency")
+	assert_eq(battle.cursor.cell, wil.cell)
+	assert_false(battle.trade_menu.visible)
+	_press(&"confirm")
+	assert_eq(battle.state, Battle.State.TRADING)
+	assert_true(battle.trade_menu.visible)
+	assert_false(battle.unit_menu.visible)
+	assert_eq((battle.trade_menu.get_node("%Right/Name") as Label).text, "Wil")
+
+
+func test_choosing_a_partner_shows_no_movement_range() -> void:
+	# Wil right below Lyn; her menu opened where she stands, so her range is still up.
+	battle.level.place_unit(battle.level.unit_nodes["wil"], LYN_CELL + Vector2i.DOWN)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.range_overlay.move_cells.is_empty(), "the menu still shows where she could go")
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_true(battle.range_overlay.move_cells.is_empty(), "just the partners now")
+	assert_true(battle.range_overlay.attack_cells.is_empty())
+	_press(&"confirm")
+	assert_true(battle.range_overlay.move_cells.is_empty(), "nor behind the trade screen")
+
+
+func test_several_partners_are_chosen_like_targets() -> void:
+	bandit.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = Vector2i(7, 6)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_eq(battle.state, Battle.State.TRADE_PICK)
+	assert_eq(battle.partners, [bandit, wil] as Array[LevelUnitState], "right, then down")
+	assert_eq(battle.cursor.cell, bandit.cell)
+	_press(&"ui_down")
+	assert_eq(battle.cursor.cell, wil.cell)
+	_press(&"confirm")
+	assert_eq(battle.state, Battle.State.TRADING)
+	assert_eq((battle.trade_menu.get_node("%Right/Name") as Label).text, "Wil")
+
+
+func test_cancel_while_choosing_a_partner_goes_back_to_the_menu() -> void:
+	bandit.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = Vector2i(7, 6)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_true(battle.unit_menu.visible)
+
+
+func test_after_a_trade_the_move_stays_and_the_unit_can_still_act() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.choose(TradeMenu.LEFT, 1)  # Lyn's Vulnerary
+	battle.trade_menu.choose(TradeMenu.RIGHT, 4)  # to an empty slot
+	battle.trade_menu.back()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_has(_inventory_ids(wil), &"vulnerary")
+	assert_false(lyn.has_acted, "trading doesn't use up the action")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU, "the move can't be undone after a trade")
+	assert_eq(lyn.cell, Vector2i(6, 6))
+	battle.unit_menu.option_selected.emit(&"wait")
+	assert_true(lyn.has_acted)
+
+
+func test_closing_without_trading_still_lets_the_move_be_undone() -> void:
+	await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.back()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+
+
+func test_giving_away_the_equipped_weapon_equips_the_next_one() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	lyn.unit.inventory.add(GameData.get_item(&"slim_sword"))
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.choose(TradeMenu.LEFT, 0)  # the equipped Iron Sword
+	battle.trade_menu.choose(TradeMenu.RIGHT, 4)
+	assert_eq(lyn.unit.equipped_weapon().id, &"slim_sword")
+	assert_has(_inventory_ids(wil), &"iron_sword")

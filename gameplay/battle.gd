@@ -24,7 +24,8 @@ signal ended(won: bool)
 ## level gained (stat -> amount), from Experience.gain. A hook for UI.
 signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
 
-enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
+enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS,
+		TRADE_PICK, TRADING }
 
 const CURSOR_DIRECTIONS := {
 	&"ui_left": Vector2i.LEFT,
@@ -61,6 +62,7 @@ const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.w
 @onready var map_menu: ActionMenu = %MapMenu
 @onready var unit_menu: ActionMenu = %UnitMenu
 @onready var item_menu: ItemMenu = %ItemMenu
+@onready var trade_menu: TradeMenu = %TradeMenu
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var unit_panel: UnitPanel = %UnitPanel
@@ -92,6 +94,11 @@ var origin_has_moved := false
 ## The forecast was opened by clicking an enemy while choosing a destination, so
 ## cancelling it goes back to choosing one, with the unit on its start cell.
 var direct_attack := false
+## Player units next to the selected one while choosing whom to trade with.
+var partners: Array[LevelUnitState] = []
+var partner_index := 0
+## The selected unit has traded: its move can no longer be undone (FE7).
+var has_traded := false
 ## The cell the cursor was on before its latest move: hovering an enemy points
 ## the arrow at the attack cell closest to it.
 var previous_cursor_cell := Vector2i(-1, -1)
@@ -117,6 +124,7 @@ func _ready() -> void:
 	unit_menu.cancelled.connect(_on_unit_menu_cancelled)
 	item_menu.action_chosen.connect(_on_item_action)
 	item_menu.cancelled.connect(_on_item_menu_cancelled)
+	trade_menu.closed.connect(_on_trade_closed)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
 	forecast.weapon_step.connect(cycle_weapon)
@@ -171,6 +179,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			cursor.set_cell(level.cell_at(get_global_mouse_position()))
 		elif state == State.TARGETING:
 			point_at_target(level.cell_at(get_global_mouse_position()))
+		elif state == State.TRADE_PICK:
+			_point_at_partner(level.cell_at(get_global_mouse_position()))
 		return
 
 	var click := event as InputEventMouseButton
@@ -186,9 +196,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			forecast.close()
 			_on_forecast_confirmed()
+		elif click.button_index == MOUSE_BUTTON_LEFT and state == State.TRADE_PICK:
+			get_viewport().set_input_as_handled()
+			_point_at_partner(level.cell_at(get_global_mouse_position()))
+			if partners[partner_index].cell == level.cell_at(get_global_mouse_position()):
+				open_trade(partners[partner_index])
 		elif click.button_index == MOUSE_BUTTON_RIGHT:
 			get_viewport().set_input_as_handled()
 			right_click(level.cell_at(get_global_mouse_position()))
+		return
+
+	if state == State.TRADE_PICK:
+		for action: StringName in TARGET_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				_cycle_partner(TARGET_STEPS[action])
+				return
+		if event.is_action_pressed(&"confirm"):
+			get_viewport().set_input_as_handled()
+			open_trade(partners[partner_index])
+		elif event.is_action_pressed(&"cancel"):
+			get_viewport().set_input_as_handled()
+			cancel()
 		return
 
 	if state == State.TARGETING:
@@ -292,6 +321,10 @@ func cancel() -> void:
 		State.TARGETING:
 			forecast.close()
 			_on_forecast_cancelled()
+		State.TRADE_PICK:
+			_open_unit_menu()
+		State.TRADING:
+			trade_menu.back()
 		State.MAP_MENU:
 			map_menu.close()
 			_on_map_menu_cancelled()
@@ -334,6 +367,7 @@ func _select(unit: LevelUnit) -> void:
 	sound_effects.play()
 	level.select(unit)
 	direct_attack = false
+	has_traded = false
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
 	var ranges := _ranges_for(unit.state)
@@ -383,6 +417,8 @@ func _open_unit_menu() -> void:
 	state = State.UNIT_MENU
 	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
 	var options: Array[StringName] = [&"status", &"wait"]
+	if not trade_partners().is_empty():
+		options.push_front(&"trade")
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
 	if not targets.is_empty():
@@ -412,6 +448,13 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			state = State.ITEM_MENU
 			item_menu.open(selected_unit_items())
 			_update_panels()
+		&"trade":
+			# Always choose the partner, even when there's only one, like a target.
+			partners = trade_partners()
+			partner_index = 0
+			state = State.TRADE_PICK
+			_redraw_selection()
+			cursor.set_cell(partners[0].cell)
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
@@ -426,8 +469,12 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			_finish_action()
 
 
-## Cancel in the unit menu undoes the move and goes back to choosing a destination.
+## Cancel in the unit menu undoes the move and goes back to choosing a destination;
+## after a trade the move stands, as in FE7, so the menu stays.
 func _on_unit_menu_cancelled() -> void:
+	if has_traded:
+		_open_unit_menu()
+		return
 	var unit := level.selected
 	if unit.state.cell != move_origin:
 		level.place_unit(unit, move_origin)
@@ -508,6 +555,55 @@ func equip_item(index: int) -> bool:
 	else:
 		_open_unit_menu()
 	return true
+
+
+# --- Trade -------------------------------------------------------------------------
+# FE7's Trade: with a player unit next to the selected one. It doesn't use up the
+# action (the unit can still attack or wait), but the move can't be undone after.
+
+
+## Player units next to the selected unit (acted or not; not allies), in the
+## order up, right, down, left.
+func trade_partners() -> Array[LevelUnitState]:
+	var found: Array[LevelUnitState] = []
+	var me := level.selected.state
+	for step: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		var other := level.unit_at(me.cell + step)
+		if other != null and other.reference.faction == UnitReference.Faction.PLAYER:
+			found.append(other.state)
+	return found
+
+
+## Opens the trade screen between the selected unit and `partner`.
+func open_trade(partner: LevelUnitState) -> void:
+	state = State.TRADING
+	_redraw_selection()
+	unit_menu.close()
+	var me := level.selected.state
+	trade_menu.open(me.unit, me.unit_ref.display_name(), UnitInfo.portrait_for(me.unit_ref.character_id),
+			partner.unit, partner.unit_ref.display_name(), UnitInfo.portrait_for(partner.unit_ref.character_id))
+	_update_panels()
+
+
+func _cycle_partner(step: int) -> void:
+	partner_index = wrapi(partner_index + step, 0, partners.size())
+	cursor.set_cell(partners[partner_index].cell)
+
+
+## Mouse hover while choosing whom to trade with: point at the partner on `cell`.
+func _point_at_partner(cell: Vector2i) -> void:
+	for i in partners.size():
+		if partners[i].cell == cell:
+			partner_index = i
+			cursor.set_cell(cell)
+			return
+
+
+func _on_trade_closed(traded: bool) -> void:
+	if traded:
+		has_traded = true
+		level.selected.state.has_moved = true
+	_open_unit_menu()
 
 
 # --- Attack forecast ---------------------------------------------------------
@@ -1000,9 +1096,9 @@ func _enemy_stays_put(unit_id: String) -> bool:
 
 
 ## The selected unit's ranges, drawn by state: its blue and red fringe while
-## choosing a destination, the targeting cells while picking a target, and just
-## the blue otherwise. In State.FREE the layer belongs to the hover, so this
-## leaves it alone.
+## choosing a destination, the targeting cells while picking a target, nothing
+## while trading (only the cursor on the partner), and just the blue otherwise.
+## In State.FREE the layer belongs to the hover, so this leaves it alone.
 func _redraw_selection() -> void:
 	match state:
 		State.FREE:
@@ -1011,6 +1107,8 @@ func _redraw_selection() -> void:
 			range_overlay.set_cells(reachable, selected_fringe)
 		State.TARGETING:
 			range_overlay.set_cells(reachable, attack_cells)
+		State.TRADE_PICK, State.TRADING:
+			range_overlay.set_cells({}, {})
 		_:
 			range_overlay.set_cells(reachable, {})
 
