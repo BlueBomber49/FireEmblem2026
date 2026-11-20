@@ -329,6 +329,25 @@ size_flags_horizontal = 3
 tooltip_text = "At the start, or with a reinforcement event (set up in Events mode). Enemies only."
 disabled = true
 
+[node name="QuotesBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Dialogue played before this enemy's first fight with someone (resources/dialogue). Enemies only."
+
+[node name="DeathQuoteRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+layout_mode = 2
+
+[node name="DeathQuoteLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow"]
+layout_mode = 2
+text = "Death quote"
+
+[node name="DeathQuoteOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Dialogue played when this unit falls, before it fades out. Player and enemy units."
+disabled = true
+
 [node name="PreselectRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=1894502074]
 unique_name_in_owner = true
 visible = false

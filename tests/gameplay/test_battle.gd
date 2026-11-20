@@ -1636,3 +1636,76 @@ func test_input_waits_while_an_event_scene_plays() -> void:
 	_overlay_cutscene().skip()
 	await wait_until(func() -> bool: return done[0], 1.0)
 	assert_eq(battle.state, Battle.State.FREE, "back to play")
+
+# --- Quotes ---------------------------------------------------------------------------
+
+
+func _bandit_quotes(death := "") -> void:
+	bandit.unit_ref.quotes = [{"dialogue": "bandit_vs_lyn", "with": "lyn"}, {"dialogue": "bandit_any"}] \
+			as Array[Dictionary]
+	bandit.unit_ref.death_quote = death
+
+
+## Lyn attacks the bandit from (9, 5); returns once the fight is over.
+func _lyn_fights_bandit() -> void:
+	battle.roll = func() -> int: return 0
+	_select_lyn()
+	await _click_bandit()
+	battle._on_forecast_confirmed()
+	await wait_until(func() -> bool: return battle.state == Battle.State.FREE, 5.0)
+
+
+func test_a_battle_quote_comes_before_the_strikes() -> void:
+	_bandit_quotes()
+	var hp_at_quote := []
+	battle.quote_played.connect(func(_id: String) -> void: hp_at_quote.append(bandit.current_hp))
+	var full := bandit.current_hp
+	await _lyn_fights_bandit()
+	assert_eq(hp_at_quote, [full], "one quote, before any damage")
+	assert_eq(battle.level.level_state.played_quotes.keys(), ["bandit/bandit_vs_lyn"])
+
+
+func test_the_death_quote_comes_before_the_fade() -> void:
+	_bandit_quotes("bandit_falls")
+	bandit.current_hp = 1
+	var on_map_at_quote := []
+	battle.quote_played.connect(func(id: String) -> void:
+		if id == "bandit_falls":
+			on_map_at_quote.append(battle.level.unit_nodes.has("bandit")))
+	await _lyn_fights_bandit()
+	assert_eq(on_map_at_quote, [true], "still on the map when it speaks")
+	assert_false(battle.level.unit_nodes.has("bandit"), "then it fades out")
+
+
+func test_an_attacker_killed_by_the_counter_gets_its_death_quote() -> void:
+	lyn.unit_ref.death_quote = "lyn_falls"
+	lyn.current_hp = 1
+	bandit.current_hp = bandit.unit.max_hp()
+	var quotes := []
+	battle.quote_played.connect(func(id: String) -> void: quotes.append(id))
+	await _lyn_fights_bandit()
+	assert_false(lyn.is_alive(), "every strike hits: the bandit survives Lyn's and counters")
+	assert_eq(quotes, ["lyn_falls"])
+
+
+func test_a_retry_starts_with_no_quotes_played() -> void:
+	_bandit_quotes()
+	await _lyn_fights_bandit()
+	assert_false(battle.level.level_state.played_quotes.is_empty())
+	var retry: Battle = BattleScene.instantiate()
+	(retry.get_node("Level") as Level).level_path = LEVEL_PATH
+	retry.show_banners = false
+	add_child_autofree(retry)
+	assert_true(retry.level.level_state.played_quotes.is_empty())
+
+
+func test_a_quote_whose_file_is_missing_doesnt_stop_the_fight() -> void:
+	battle.show_banners = true
+	battle.exp_popup.fill_time = 0.01
+	battle.exp_popup.wait_for_player = false
+	battle.exp_popup.hold_time = 0.0
+	bandit.unit_ref.quotes = [{"dialogue": "no_such_quote"}] as Array[Dictionary]
+	var hp := bandit.current_hp
+	await _lyn_fights_bandit()
+	assert_push_warning("no_such_quote")
+	assert_lt(bandit.current_hp, hp, "the fight went on")

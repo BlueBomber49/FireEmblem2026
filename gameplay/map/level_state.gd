@@ -27,6 +27,9 @@ var turn := 1
 var seized := false
 ## Whether a unit has used the Escape command (Objective's escape condition).
 var escaped := false
+## Quotes already played this attempt ("unit_id/dialogue_id" -> true; see Quotes).
+## Never saved: a retry starts the level fresh, quotes included.
+var played_quotes: Dictionary = {}
 
 
 static func fromJson(d: Dictionary) -> LevelState:

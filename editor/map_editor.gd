@@ -47,6 +47,8 @@ const REINFORCEMENT_ALPHA := 0.45
 @onready var objective_box: VBoxContainer = %ObjectiveBox
 @onready var events_box: VBoxContainer = %EventsBox
 @onready var arrives_option: OptionButton = %ArrivesOption
+@onready var quotes_box: VBoxContainer = %QuotesBox
+@onready var death_quote_option: OptionButton = %DeathQuoteOption
 @onready var preselect_row: HBoxContainer = %PreselectRow
 @onready var preselect_label: Label = %PreselectLabel
 @onready var preselect_clear_button: Button = %PreselectClearButton
@@ -135,6 +137,9 @@ var _event_pick := ""
 var _event_pending: Array[String] = []
 ## The event last worked on: its units are outlined in Events mode.
 var _focused_event := ""
+## The selected unit's quote rows: {&"dialogue", &"with", &"remove"} controls each.
+var _quote_rows: Array[Dictionary] = []
+var add_quote_button: Button
 
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
@@ -185,6 +190,7 @@ func _ready() -> void:
 	team_edit.text_submitted.connect(func(_text: String) -> void: _on_team_edited())
 	team_edit.focus_exited.connect(_on_team_edited)
 	arrives_option.item_selected.connect(_on_arrives_picked)
+	death_quote_option.item_selected.connect(_on_death_quote_picked)
 	preselect_clear_button.pressed.connect(_preselect_event.bind(""))
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
 	deselect_button.pressed.connect(_select_unit.bind(""))
@@ -694,6 +700,7 @@ func _fill_inspector() -> void:
 		arrives_option.add_item(event_title(event_id))
 	arrives_option.disabled = not enemy
 	arrives_option.selected = ids.find(ref.event) + 1 if enemy else 0
+	_fill_quotes(ref if editing else null)
 	deselect_button.disabled = not editing
 	if editing:
 		var data := ref.build_unit_data()
@@ -820,6 +827,9 @@ func _apply_inspector(respawn := false) -> void:
 		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
 		ref.team = ""
 		ref.event = ""  # or arrive later
+		ref.quotes = [] as Array[Dictionary]  # or have battle quotes
+	if new_faction == UnitReference.Faction.ALLY:
+		ref.death_quote = ""  # allies have no quotes at all
 
 	var picked := String(_picked_character())
 	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
@@ -986,6 +996,10 @@ func _save() -> void:
 	var event_issues := event_problems()
 	if not event_issues.is_empty():
 		status.text = "Can't save until the events are fixed: " + " ".join(event_issues)
+		return
+	var quote_issues := quote_problems()
+	if not quote_issues.is_empty():
+		status.text = "Can't save until the quotes are fixed: " + " ".join(quote_issues)
 		return
 	level_path = path_edit.text
 	if level.level_state.save_file(level_path, false) == OK:
@@ -1241,6 +1255,158 @@ func _on_commander_toggled(pressed: bool) -> void:
 	_commit(before)
 	_rebuild_units()  # the crown is drawn by the unit's node
 	_refresh_objective_panel()
+
+
+# --- Quotes --------------------------------------------------------------------------
+# Battle quotes (enemies: a dialogue, and who it's for: anyone or a character) and
+# a death quote (players and enemies). See Quotes for when they play.
+
+
+## Rebuilds the quote rows and the death quote dropdown for `ref` (null: none selected).
+func _fill_quotes(ref: UnitReference) -> void:
+	for child in quotes_box.get_children():
+		quotes_box.remove_child(child)
+		child.queue_free()
+	_quote_rows.clear()
+	var enemy := ref != null and ref.faction == UnitReference.Faction.ENEMY
+	var header := Label.new()
+	header.text = "Quotes: before its first fight with..." if enemy else "Quotes: enemies only"
+	quotes_box.add_child(header)
+	if enemy:
+		for i in ref.quotes.size():
+			_build_quote_row(ref, i)
+		add_quote_button = Button.new()
+		add_quote_button.text = "+ Add quote"
+		add_quote_button.pressed.connect(_add_quote)
+		quotes_box.add_child(add_quote_button)
+		var problems := _unit_quote_problems(ref)
+		if not problems.is_empty():
+			var problem := Label.new()
+			problem.text = "! " + " ".join(problems)
+			problem.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			problem.add_theme_color_override("font_color", PROBLEM_COLOR)
+			quotes_box.add_child(problem)
+	death_quote_option.clear()
+	death_quote_option.add_item("None")
+	var ids := dialogue_ids()
+	for id in ids:
+		death_quote_option.add_item(id)
+	var current := ref.death_quote if ref != null else ""
+	if not current.is_empty() and not ids.has(current):
+		death_quote_option.add_item("(missing) %s" % current)
+	death_quote_option.selected = 0 if current.is_empty() \
+			else (ids.find(current) + 1 if ids.has(current) else ids.size() + 1)
+	death_quote_option.disabled = ref == null or ref.faction == UnitReference.Faction.ALLY
+
+
+func _build_quote_row(ref: UnitReference, index: int) -> void:
+	var quote: Dictionary = ref.quotes[index]
+	var row := HBoxContainer.new()
+	var dialogue := _dialogue_option(str(quote["dialogue"]),
+			func(id: String) -> void: _edit_quote(index, "dialogue", id))
+	dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(dialogue)
+	var with_label := Label.new()
+	with_label.text = "with"
+	row.add_child(with_label)
+	var with := OptionButton.new()
+	with.add_item("Anyone")
+	for character_id in character_ids:
+		with.add_item(GameData.get_character(character_id).display_name)
+	with.selected = character_ids.find(StringName(str(quote.get("with", "")))) + 1
+	with.item_selected.connect(func(i: int) -> void:
+		_edit_quote(index, "with", "" if i == 0 else String(character_ids[i - 1])))
+	row.add_child(with)
+	var remove := Button.new()
+	remove.text = "X"
+	remove.tooltip_text = "Remove this quote"
+	remove.pressed.connect(_remove_quote.bind(index))
+	row.add_child(remove)
+	_quote_rows.append({&"dialogue": dialogue, &"with": with, &"remove": remove})
+	quotes_box.add_child(row)
+
+
+## A control in quote row `index` of the selected unit: &"dialogue", &"with" or &"remove".
+func quote_control(index: int, key: StringName) -> Control:
+	return _quote_rows[index][key] if index < _quote_rows.size() else null
+
+
+func _selected_ref() -> UnitReference:
+	return level.level_state.map_data.units.get(selected_unit_id)
+
+
+func _add_quote() -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	var ids := dialogue_ids()
+	ref.quotes.append({"dialogue": ids[0] if not ids.is_empty() else ""})
+	_commit(before)
+	_fill_inspector()
+
+
+## Sets `key` ("dialogue" or "with") of the selected enemy's quote `index`.
+func _edit_quote(index: int, key: String, value: String) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	if key == "with" and value.is_empty():
+		ref.quotes[index].erase("with")
+	else:
+		ref.quotes[index][key] = value
+	_commit(before)
+	_fill_inspector()
+
+
+func _remove_quote(index: int) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	ref.quotes.remove_at(index)
+	_commit(before)
+	_fill_inspector()
+
+
+func _on_death_quote_picked(index: int) -> void:
+	var ref := _selected_ref()
+	if _syncing or ref == null:
+		return
+	var ids := dialogue_ids()
+	if index > ids.size():
+		return  # the "(missing)" entry: nothing to change
+	var before := _snapshot()
+	ref.death_quote = "" if index == 0 else ids[index - 1]
+	_commit(before)
+	_fill_inspector()
+
+
+## What's wrong with `ref`'s quotes: two for the same fighter, or a file that's gone.
+func _unit_quote_problems(ref: UnitReference) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var ids := dialogue_ids()
+	var seen := {}
+	for quote in ref.quotes:
+		var who := str(quote.get("with", ""))
+		if seen.has(who):
+			problems.append("two quotes for %s." % ("anyone" if who.is_empty() else who))
+		seen[who] = true
+		if not ids.has(str(quote["dialogue"])):
+			problems.append("quote dialogue '%s' doesn't exist." % quote["dialogue"])
+	if not ref.death_quote.is_empty() and not ids.has(ref.death_quote):
+		problems.append("death quote '%s' doesn't exist." % ref.death_quote)
+	return problems
+
+
+## What stops saving: every unit's quote problems, naming the unit.
+func quote_problems() -> PackedStringArray:
+	var problems := PackedStringArray()
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		for problem in _unit_quote_problems(ref):
+			problems.append("%s: %s" % [ref.display_name(), problem])
+	return problems
 
 
 # --- Objective -----------------------------------------------------------------

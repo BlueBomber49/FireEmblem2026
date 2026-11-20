@@ -204,3 +204,32 @@ func test_an_unknown_strategy_falls_back_to_aggressive() -> void:
 	var ref := UnitReference.fromJson("x", {"class": "fighter", "faction": "enemy", "strategy": "sneaky"})
 	assert_eq(ref.strategy, UnitReference.STRATEGY_AGGRESSIVE)
 	assert_push_warning("sneaky")
+
+
+# --- Quotes ----------------------------------------------------------------------------
+
+
+func test_quotes_and_a_death_quote_round_trip() -> void:
+	var ref := UnitReference.fromJson("boss", {"class": "fighter", "faction": "enemy",
+		"quotes": [{"dialogue": "boss_vs_adelard", "with": "adelard"}, {"dialogue": "boss_any", "with": ""}],
+		"death_quote": "boss_falls"})
+	assert_eq(ref.quotes, [{"dialogue": "boss_vs_adelard", "with": "adelard"}, {"dialogue": "boss_any"}]
+			as Array[Dictionary], "an empty with means anyone")
+	assert_eq(ref.death_quote, "boss_falls")
+	var json := ref.toJson()
+	assert_eq(json["quotes"], [{"dialogue": "boss_vs_adelard", "with": "adelard"}, {"dialogue": "boss_any"}])
+	assert_eq(json["death_quote"], "boss_falls")
+	assert_false(json.has("_extra"))
+
+
+func test_no_quotes_writes_nothing() -> void:
+	var json := _bandit_placement().toJson()
+	assert_false(json.has("quotes"))
+	assert_false(json.has("death_quote"))
+
+
+func test_a_quote_without_a_dialogue_is_skipped() -> void:
+	var ref := UnitReference.fromJson("boss", {"class": "fighter", "faction": "enemy",
+		"quotes": [{"with": "adelard"}, "boss_any", {"dialogue": "ok"}]})
+	assert_eq(ref.quotes, [{"dialogue": "ok"}] as Array[Dictionary])
+	assert_push_warning("quote needs")

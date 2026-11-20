@@ -25,6 +25,8 @@ signal ended(won: bool)
 signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
 ## A dialogue (an event step or a quote) went up over the map.
 signal dialogue_shown(dialogue_id: StringName)
+## A battle or death quote's turn came (emitted even with banners off, for tests).
+signal quote_played(dialogue_id: String)
 
 enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS,
 		TRADE_PICK, TRADING, SCENE }
@@ -693,6 +695,7 @@ func _fight(target: LevelUnitState) -> void:
 	_update_panels()
 	# Keep the state, not the node: a fallen attacker's node is gone by the end.
 	var attacker := level.selected.state
+	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
@@ -711,6 +714,7 @@ func _fight(target: LevelUnitState) -> void:
 func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> void:
 	state = State.COMBAT
 	_update_panels()
+	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
@@ -730,6 +734,8 @@ func _play_strike(strike: Combat.Strike) -> void:
 	strike.defender.current_hp = strike.hp_after
 	
 	if not strike.defender.is_alive():
+		# Last words come before the fade, while the unit is still on the map.
+		await play_quote(Quotes.death_quote(strike.defender.unit_ref, level.level_state.played_quotes))
 		await level.fade_out_unit(target)
 		
 func play_strike_sound_effect(strike: Combat.Strike) -> void:
@@ -1203,6 +1209,16 @@ func present(steps: Array[Dictionary], instant := false) -> void:
 	_refresh_danger_zone()
 	_update_panels()
 	_update_hover()
+
+
+## A battle or death quote (from Quotes): plays it over the map, or does nothing
+## for "". With banners off (tests) it's only reported through quote_played.
+func play_quote(dialogue_id: String) -> void:
+	if dialogue_id.is_empty():
+		return
+	quote_played.emit(dialogue_id)
+	if show_banners:
+		await play_dialogue(StringName(dialogue_id))
 
 
 ## Plays a dialogue file over the map, returning when it's done. The map always
