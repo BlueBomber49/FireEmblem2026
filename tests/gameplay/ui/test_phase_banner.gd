@@ -50,7 +50,7 @@ func test_enemy_phase_art_and_color() -> void:
 func test_the_art_is_pixel_crisp_at_a_whole_scale() -> void:
 	assert_eq(_title().texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
 	for art: Texture2D in PhaseBanner.ART.values():
-		assert_eq(art.get_size() * 3, _title().custom_minimum_size, "%s is 240x32" % art.resource_path)
+		assert_eq(art.get_size() * 2, _title().custom_minimum_size, "%s is 240x32" % art.resource_path)
 
 
 func test_finishes_after_sliding_in_holding_and_sliding_out() -> void:

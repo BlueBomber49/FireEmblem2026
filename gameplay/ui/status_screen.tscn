@@ -32,17 +32,17 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(760, 0)
+custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
 theme_type_variation = &"StatusPanel"
 
 [node name="Rows" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 6
 
 [node name="Header" type="HBoxContainer" parent="Center/Panel/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 
 [node name="PortraitFrame" type="PanelContainer" parent="Center/Panel/Rows/Header"]
 layout_mode = 2
@@ -52,7 +52,7 @@ theme_type_variation = &"PortraitFrame"
 [node name="Portrait" type="TextureRect" parent="Center/Panel/Rows/Header/PortraitFrame"]
 unique_name_in_owner = true
 texture_filter = 1
-custom_minimum_size = Vector2(192, 160)
+custom_minimum_size = Vector2(96, 80)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
@@ -60,7 +60,7 @@ stretch_mode = 5
 [node name="Identity" type="VBoxContainer" parent="Center/Panel/Rows/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+theme_override_constants/separation = 3
 
 [node name="NameBanner" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity"]
 unique_name_in_owner = true
@@ -88,7 +88,7 @@ text_overrun_behavior = 3
 
 [node name="LevelLine" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 4
 
 [node name="LevelBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Identity/LevelLine"]
 layout_mode = 2
@@ -138,7 +138,7 @@ theme_type_variation = &"StatusBox"
 
 [node name="Line" type="HBoxContainer" parent="Center/Panel/Rows/Header/Identity/HpBox"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 6
 
 [node name="HpLabel" type="Label" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
 layout_mode = 2
@@ -147,7 +147,7 @@ text = "HP"
 
 [node name="Hp" type="Label" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(90, 0)
+custom_minimum_size = Vector2(45, 0)
 layout_mode = 2
 theme_type_variation = &"ItemLabel"
 text = "16/16"
@@ -155,7 +155,7 @@ horizontal_alignment = 2
 
 [node name="HpBar" type="ProgressBar" parent="Center/Panel/Rows/Header/Identity/HpBox/Line"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 7)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -164,9 +164,9 @@ value = 100.0
 show_percentage = false
 
 [node name="Side" type="VBoxContainer" parent="Center/Panel/Rows/Header"]
-custom_minimum_size = Vector2(130, 0)
+custom_minimum_size = Vector2(65, 0)
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 3
 
 [node name="MoveBox" type="PanelContainer" parent="Center/Panel/Rows/Header/Side"]
 layout_mode = 2
@@ -210,17 +210,17 @@ horizontal_alignment = 2
 
 [node name="Body" type="HBoxContainer" parent="Center/Panel/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 
 [node name="StatsBox" type="PanelContainer" parent="Center/Panel/Rows/Body"]
-custom_minimum_size = Vector2(200, 0)
+custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 theme_type_variation = &"StatusBox"
 
 [node name="StatGrid" type="GridContainer" parent="Center/Panel/Rows/Body/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 24
+theme_override_constants/h_separation = 12
 theme_override_constants/v_separation = 0
 columns = 2
 
@@ -232,7 +232,7 @@ theme_type_variation = &"StatusBox"
 [node name="ItemRows" type="VBoxContainer" parent="Center/Panel/Rows/Body/ItemsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 3
 
 [node name="Hint" type="Label" parent="Center/Panel/Rows"]
 unique_name_in_owner = true

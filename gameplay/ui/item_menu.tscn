@@ -6,7 +6,7 @@
 
 [node name="ItemMenu" type="HBoxContainer"]
 theme = ExtResource("2_theme")
-theme_override_constants/separation = 4
+theme_override_constants/separation = 2
 script = ExtResource("1_script")
 
 [node name="ListPanel" type="PanelContainer" parent="."]
@@ -15,16 +15,16 @@ size_flags_vertical = 0
 
 [node name="MarginContainer" type="MarginContainer" parent="ListPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 6
+theme_override_constants/margin_left = 3
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 3
+theme_override_constants/margin_bottom = 3
 
 [node name="Rows" type="VBoxContainer" parent="ListPanel/MarginContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 1
 
 [node name="StatsPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
@@ -45,7 +45,7 @@ text = "Sword"
 [node name="WeaponStats" type="GridContainer" parent="StatsPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 16
+theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 0
 columns = 4
 

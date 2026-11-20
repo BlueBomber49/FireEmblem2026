@@ -8,7 +8,7 @@ extends PanelContainer
 
 enum ScreenSide { LEFT, RIGHT }
 
-const MARGIN := 16
+const MARGIN := 8
 
 var _side := ScreenSide.LEFT
 

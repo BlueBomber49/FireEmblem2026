@@ -91,7 +91,7 @@ func test_rebuild_is_idempotent() -> void:
 	var level := _loaded_level()
 	level.rebuild()
 	level.rebuild()
-	assert_eq(level.get_child_count(), 3, "Layers, Units, Camera")
+	assert_eq(level.get_child_count(), 4, "Layers, Walls, Units, Camera")
 	assert_eq(level.unit_nodes.size(), 3)
 
 
@@ -247,3 +247,34 @@ func test_arrive_finds_no_cell_on_a_full_map() -> void:
 	assert_eq(level.arrive("wave"), Vector2i(-1, -1))
 	assert_true(level.level_state.pending_units.has("wave"), "it keeps waiting")
 	assert_push_warning("wave")
+# --- Walls and doors --------------------------------------------------------
+
+
+func test_walls_and_doors_draw_between_terrain_and_units() -> void:
+	var level := _loaded_level()
+	var map_data := level.level_state.map_data
+	map_data.walls = [Vector2i(5, 4), Vector2i(7, 4)] as Array[Vector2i]
+	map_data.doors = [Vector2i(6, 4)] as Array[Vector2i]
+	level.rebuild()
+	assert_eq(level.walls_layer.get_used_cells().size(), 3)
+	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(6, 4)), WallTiles.DOOR_COORDS)
+	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(5, 4)), Vector2i(0, 2), "left end of the run")
+	for tile_layer: TileMapLayer in level.layers_root.get_children():
+		assert_gt(level.walls_layer.z_index, tile_layer.z_index)
+	assert_gt(level.units_root.z_index, level.walls_layer.z_index)
+	assert_eq(level.layers_root.get_child_count(), map_data.layers.size(), "walls aren't a terrain layer")
+
+
+func test_repainting_walls_refreshes_tiles_and_rules_terrain() -> void:
+	var level := _loaded_level()
+	level.rebuild()
+	var map_data := level.level_state.map_data
+	assert_eq(map_data.rules_terrain_at(INNER_GRASS), "grass")
+	map_data.walls.append(INNER_GRASS)
+	level.repaint_walls()
+	assert_eq(map_data.rules_terrain_at(INNER_GRASS), MapData.WALL_TILE)
+	assert_eq(level.walls_layer.get_cell_atlas_coords(INNER_GRASS), Vector2i(2, 1))
+	map_data.walls.clear()
+	level.repaint_walls()
+	assert_eq(map_data.rules_terrain_at(INNER_GRASS), "grass")
+	assert_true(level.walls_layer.get_used_cells().is_empty())

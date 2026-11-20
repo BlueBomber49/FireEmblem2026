@@ -8,7 +8,7 @@
 		"foot": -1,
 		"armored": -1,
 		"mounted": -1,
-		"flier": -1,
+		"flier": 1,
 		"mage": -1
 	},
 	"tiles": [

@@ -4,14 +4,14 @@
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
 
 [node name="UnitPanel" type="PanelContainer"]
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(200, 0)
 theme = ExtResource("2_theme")
 theme_type_variation = &"UnitPanelPlayer"
 script = ExtResource("1_script")
 
 [node name="Columns" type="HBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 5
 
 [node name="Portrait" type="TextureRect" parent="Columns"]
 unique_name_in_owner = true
@@ -38,7 +38,7 @@ text_overrun_behavior = 3
 
 [node name="ClassLine" type="HBoxContainer" parent="Columns/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 6
 
 [node name="ClassName" type="Label" parent="Columns/Rows/ClassLine"]
 unique_name_in_owner = true
@@ -58,7 +58,7 @@ text = "Lv 1"
 
 [node name="HpLine" type="HBoxContainer" parent="Columns/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 6
 
 [node name="HpLabel" type="Label" parent="Columns/Rows/HpLine"]
 layout_mode = 2
@@ -75,7 +75,7 @@ horizontal_alignment = 2
 
 [node name="HpBar" type="ProgressBar" parent="Columns/Rows"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 10)
+custom_minimum_size = Vector2(0, 5)
 layout_mode = 2
 theme_type_variation = &"HpBar"
 value = 100.0

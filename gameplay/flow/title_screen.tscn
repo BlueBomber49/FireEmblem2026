@@ -37,20 +37,20 @@ mouse_filter = 2
 [node name="VBox" type="VBoxContainer" parent="Center" unique_id=1215836992]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 48
+theme_override_constants/separation = 24
 alignment = 1
 
 [node name="Title" type="Label" parent="Center/VBox" unique_id=1431806763]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.55, 1)
-theme_override_font_sizes/font_size = 72
+theme_override_font_sizes/font_size = 32
 text = "Flame Insignia"
 horizontal_alignment = 1
 
 [node name="PressStart" type="Label" parent="Center/VBox" unique_id=1322399850]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 16
 text = "Press Start"
 horizontal_alignment = 1
 

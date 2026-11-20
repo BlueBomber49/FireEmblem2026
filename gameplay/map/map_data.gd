@@ -1,9 +1,17 @@
 class_name MapData
 extends RefCounted
-## Everything authored for a map: its terrain layers, structures, and the units placed on it.
+## Everything authored for a map: its terrain layers, walls and doors, structures, and the units placed on it.
+
+## Tile ids walls and doors go by in the terrain rules (TerrainData.tiles).
+const WALL_TILE := "wall"
+const DOOR_TILE := "door"
 
 ## name -> MapLayer
 var layers: Dictionary = {}
+## Cells with a wall; WallTiles picks how each one draws.
+var walls: Array[Vector2i] = []
+## Cells with a door. A cell holds a wall or a door, not both.
+var doors: Array[Vector2i] = []
 ## Unimplemented for now; carried through JSON untouched.
 var structures: Dictionary = {}
 ## id -> UnitReference
@@ -24,17 +32,23 @@ func sorted_layers() -> Array[MapLayer]:
 	return out
 
 
-## Set (Dictionary cell -> true) of every cell any layer draws a tile on.
+## Set (Dictionary cell -> true) of every cell any layer, wall or door draws a tile on.
 func drawn_cells() -> Dictionary:
 	var cells := {}
 	for layer in layers.values():
 		for cell in layer.cell_masks():
 			cells[cell] = true
+	for cell in walls:
+		cells[cell] = true
+	for cell in doors:
+		cells[cell] = true
 	return cells
 
 
 ## Until per-tile terrain data exists, "something is drawn here" is walkability.
 func is_drawn(cell: Vector2i) -> bool:
+	if cell in walls or cell in doors:
+		return true
 	for layer in layers.values():
 		if CornerMask.mask_at(cell, _vert_set(layer)) != 0:
 			return true
@@ -59,6 +73,7 @@ func top_terrain_at(cell: Vector2i) -> String:
 ##   half-edges (TerrainData.half_edge_counts; forest does, sea doesn't);
 ## - otherwise the layer covering the most corners, ties to the higher layer;
 ## - but a cell with fewer than 3 corners painted at all is empty.
+## Walls and doors overrule all of that, whatever terrain is under them.
 ## top_terrain_at is for drawing; this is for rules. Cached: call
 ## invalidate_terrain_cache() after changing layers.
 func rules_terrain_at(cell: Vector2i) -> String:
@@ -98,6 +113,10 @@ func _build_rules_terrain() -> void:
 				most = layers_top_down[i].terrain
 		if _corner_count(painted) >= 3:
 			_rules_terrain[cell] = majority if not majority.is_empty() else most
+	for cell in walls:
+		_rules_terrain[cell] = WALL_TILE
+	for cell in doors:
+		_rules_terrain[cell] = DOOR_TILE
 	_rules_terrain_ready = true
 
 
@@ -138,6 +157,8 @@ static func fromJson(d: Dictionary) -> MapData:
 	var raw_layers: Dictionary = d.get("layers", {})
 	for layer_name in raw_layers:
 		data.layers[layer_name] = MapLayer.fromJson(layer_name, raw_layers[layer_name])
+	data.walls = JsonUtil.vec2i_array_from_json(d.get("walls", []))
+	data.doors = JsonUtil.vec2i_array_from_json(d.get("doors", []))
 	data.structures = d.get("structures", {}).duplicate(true)
 	var raw_units: Dictionary = d.get("units", {})
 	for id in raw_units:
@@ -154,6 +175,8 @@ func toJson() -> Dictionary:
 		raw_units[id] = units[id].toJson()
 	return {
 		"layers": raw_layers,
+		"walls": JsonUtil.vec2i_array_to_json(walls),
+		"doors": JsonUtil.vec2i_array_to_json(doors),
 		"structures": structures.duplicate(true),
 		"units": raw_units,
 	}

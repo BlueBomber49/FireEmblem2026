@@ -13,7 +13,7 @@ signal action_chosen(action_id: StringName, index: int)
 signal cancelled
 
 const UNUSABLE_COLOR := Color(0.6, 0.6, 0.6)
-const ICON_SIZE := Vector2(32, 32)
+const ICON_SIZE := Vector2(16, 16)
 
 var _items: Array[UnitInfo.ItemInfo] = []
 ## The row whose submenu is open, or -1.

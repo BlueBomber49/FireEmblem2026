@@ -16,7 +16,7 @@ signal weapon_step(step: int)
 
 enum ScreenSide { LEFT, RIGHT }
 
-const MARGIN := 16
+const MARGIN := 8
 const ADVANTAGE_COLOR := Color(0.45, 1, 0.45)
 const DISADVANTAGE_COLOR := Color(1, 0.45, 0.45)
 

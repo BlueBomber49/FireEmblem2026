@@ -53,9 +53,9 @@ func _ready() -> void:
 	for i in ITEM_ROWS:
 		var row := HBoxContainer.new()
 		row.name = "Item%d" % i
-		row.add_theme_constant_override(&"separation", 8)
+		row.add_theme_constant_override(&"separation", 4)
 		_item_rows.add_child(row)
-		row.add_child(_label("Equipped", "", 24))
+		row.add_child(_label("Equipped", "", 12))
 		var item_name := _label("ItemName", "")
 		item_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(item_name)

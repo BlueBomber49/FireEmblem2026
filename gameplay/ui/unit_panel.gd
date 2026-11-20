@@ -6,7 +6,7 @@ extends PanelContainer
 ## It only displays what it's given through [method set_unit]. Whoever owns
 ## the cursor decides when to show or hide it.
 
-const MARGIN := 16
+const MARGIN := 8
 ## Faction -> the panel's theme type variation.
 const FACTION_VARIATIONS := {
 	UnitReference.Faction.PLAYER: &"UnitPanelPlayer",

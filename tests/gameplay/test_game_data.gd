@@ -221,6 +221,8 @@ func test_game_tiles_map_to_fe7_terrain() -> void:
 	assert_eq(GameData.terrain_for_tile("grass").id, &"plains")
 	assert_eq(GameData.terrain_for_tile("trees").id, &"forest")
 	assert_eq(GameData.terrain_for_tile("water").id, &"sea")
+	assert_eq(GameData.terrain_for_tile(MapData.WALL_TILE).id, &"wall")
+	assert_eq(GameData.terrain_for_tile(MapData.DOOR_TILE).id, &"gate")
 
 
 func test_empty_tile_has_no_terrain() -> void:
