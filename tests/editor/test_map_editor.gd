@@ -819,6 +819,8 @@ func test_adding_an_event_gives_a_turn_and_phase_row() -> void:
 	phase.select(1)
 	phase.item_selected.emit(1)
 	assert_eq(_events()[id]["trigger"]["phase"], "player")
+	assert_eq(editor.event_title(id), "Turn 4 event", "no units yet")
+	_pick_into(id, ["bandit"])
 	assert_eq(editor.event_title(id), "Turn 4 reinforcements")
 	var name_edit := editor.event_control(id, &"name") as LineEdit
 	name_edit.text = "Bandit wave"
@@ -1093,6 +1095,8 @@ func test_the_escape_row_has_no_name_box() -> void:
 	var i := _add(Objective.WIN, "escape")
 	assert_null(editor.row_control(Objective.WIN, i, &"name"))
 	assert_eq(editor.row_text(Objective.WIN, i), "Escape")
+
+
 # --- Walls mode -------------------------------------------------------------
 
 
@@ -1188,3 +1192,107 @@ func test_walls_and_doors_survive_save_and_load() -> void:
 	assert_eq(_map_data().doors, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
 	assert_eq(editor.level.walls_layer.get_used_cells().size(), 2)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+
+
+# --- Events mode: steps -------------------------------------------------------------
+
+
+func _steps(event_id: String) -> Array:
+	return editor.event_steps(event_id)
+
+
+func _step(event_id: String, index: int, key: StringName) -> Control:
+	return editor.event_step_control(event_id, index, key)
+
+
+func test_a_new_event_has_just_its_units_step() -> void:
+	_events_mode()
+	var id := _add_event()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+	assert_true((_step(id, 0, &"up") as Button).disabled, "nowhere to move")
+	assert_true((_step(id, 0, &"down") as Button).disabled)
+	assert_null(_step(id, 0, &"remove"), "the units step can't be removed")
+
+
+func test_dialogue_steps_are_added_picked_moved_and_removed() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	assert_eq(_steps(id).size(), 2)
+	assert_eq(_steps(id)[1]["type"], "dialogue")
+	assert_eq(_steps(id)[1]["dialogue"], editor.dialogue_ids()[0], "starts on the first file")
+	var option := _step(id, 1, &"option") as OptionButton
+	var pick := editor.dialogue_ids().find("prologue_outro")
+	option.select(pick)
+	option.item_selected.emit(pick)
+	assert_eq(_steps(id)[1]["dialogue"], "prologue_outro")
+	(_step(id, 1, &"up") as Button).pressed.emit()
+	assert_eq(_steps(id), [{"type": "dialogue", "dialogue": "prologue_outro"}, {"type": "spawn"}],
+			"the dialogue now plays before the units arrive")
+	assert_eq(_events()[id]["actions"], _steps(id), "the order is what's saved")
+	(_step(id, 0, &"remove") as Button).pressed.emit()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+
+
+func test_a_dialogue_only_event_saves_but_an_empty_one_doesnt() -> void:
+	_events_mode()
+	var id := _add_event()
+	assert_eq(editor.event_problems().size(), 1, "nothing happens yet")
+	assert_string_contains(editor.event_problems()[0], "nothing happens")
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	assert_eq(editor.event_problems(), PackedStringArray())
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	assert_true(FileAccess.file_exists(EVENTS_SAVE))
+	DirAccess.remove_absolute(EVENTS_SAVE)
+
+
+func test_a_dialogue_step_whose_file_is_gone_is_a_problem() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit"])
+	_events()[id]["actions"] = [{"type": "spawn"}, {"type": "dialogue", "dialogue": "deleted_file"}]
+	editor._refresh_events_panel()
+	assert_string_contains(" ".join(editor.event_problems()), "deleted_file")
+	assert_string_contains((_step(id, 1, &"option") as OptionButton).text, "(missing) deleted_file")
+
+
+func test_step_edits_undo() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	(_step(id, 1, &"up") as Button).pressed.emit()
+	editor.undo()
+	assert_eq(_steps(id)[0]["type"], "spawn")
+	editor.undo()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+
+
+func test_a_hand_written_event_without_a_spawn_shows_its_units_last() -> void:
+	_events_mode()
+	var id := _add_event()
+	_events()[id]["actions"] = [{"type": "dialogue", "dialogue": "prologue_outro"}]
+	assert_eq(_steps(id), [{"type": "dialogue", "dialogue": "prologue_outro"}, {"type": "spawn"}])
+
+
+func test_saved_steps_run_in_play() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["brigand"])
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	var battle: Battle = (load("res://gameplay/battle.tscn") as PackedScene).instantiate()
+	(battle.get_node("Level") as Level).level_path = EVENTS_SAVE
+	battle.show_banners = false
+	add_child_autofree(battle)
+	DirAccess.remove_absolute(EVENTS_SAVE)
+	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
+	var seen := []
+	battle.turn_loop.units_arrived.connect(func(_ids: Array[String]) -> void:
+		seen.append(battle.turn_loop.pending_steps.duplicate(true)))
+	await battle.turn_loop.end_player_turn()
+	await battle.turn_loop.end_player_turn()
+	assert_true(battle.level.level_state.level_units.has("brigand"))
+	assert_eq(seen.size(), 1)
+	assert_eq(seen[0][0]["type"], "spawn", "the units step comes first, as saved")
