@@ -1,0 +1,11 @@
+{
+	"title": "Flame Insignia",
+	"people": [
+		{ "name": "Ethan Cox", "role": "Mechanics Engineer" },
+		{ "name": "Aidan Stay", "role": "Architect" },
+		{ "name": "Spencer Young", "role": "UI" },
+		{ "name": "Tony Johnson", "role": "QA / Levels" },
+		{ "name": "Tristan Weech", "role": "Art" }
+	],
+	"closing": "Thanks for playing!"
+}

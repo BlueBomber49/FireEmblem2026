@@ -93,3 +93,19 @@ func test_a_line_background_changes_it_until_another_line_does() -> void:
 	cutscene.advance()
 	cutscene.advance()
 	assert_null(backdrop.texture, "none clears it")
+
+
+func test_a_line_with_its_own_portrait_and_name_shows_them() -> void:
+	var data := DialogueData.read("res://tests/fixtures/dialogue/inline_speaker.json")
+	var cutscene: Cutscene = CutsceneScene.instantiate()
+	cutscene.play(data)
+	add_child_autofree(cutscene)
+	assert_eq((cutscene.get_node("%NameLabel") as Label).text, "Bandit")
+	assert_true(cutscene.get_node("%NameLabel").visible)
+	var right: TextureRect = cutscene.get_node("%RightPortrait")
+	assert_eq(right.texture.resource_path, DialogueData.portrait_path("bandit"))
+	assert_eq(right.modulate, Color.WHITE, "the speaker is lit")
+	cutscene.advance()
+	cutscene.advance()
+	assert_eq(right.texture.resource_path, DialogueData.portrait_path("bandit"), "stays while Adelard answers")
+	assert_eq(right.modulate, Cutscene.DIM_TINT)

@@ -99,3 +99,11 @@ func test_load_is_offered_only_with_a_save() -> void:
 	_press_option(&"load")
 	assert_signal_emit_count(_title, "load_chosen", 1)
 	assert_signal_not_emitted(_title, "new_game_chosen")
+
+
+func test_credits_is_offered_and_reports_credits_only() -> void:
+	_title._unhandled_input(_action(&"confirm"))
+	assert_eq(_menu.options, [&"new_game", &"credits", &"quit"] as Array[StringName])
+	_press_option(&"credits")
+	assert_signal_emit_count(_title, "credits_chosen", 1)
+	assert_signal_not_emitted(_title, "new_game_chosen")

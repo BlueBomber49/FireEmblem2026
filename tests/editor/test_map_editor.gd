@@ -819,6 +819,8 @@ func test_adding_an_event_gives_a_turn_and_phase_row() -> void:
 	phase.select(1)
 	phase.item_selected.emit(1)
 	assert_eq(_events()[id]["trigger"]["phase"], "player")
+	assert_eq(editor.event_title(id), "Turn 4 event", "no units yet")
+	_pick_into(id, ["bandit"])
 	assert_eq(editor.event_title(id), "Turn 4 reinforcements")
 	var name_edit := editor.event_control(id, &"name") as LineEdit
 	name_edit.text = "Bandit wave"
@@ -1093,6 +1095,8 @@ func test_the_escape_row_has_no_name_box() -> void:
 	var i := _add(Objective.WIN, "escape")
 	assert_null(editor.row_control(Objective.WIN, i, &"name"))
 	assert_eq(editor.row_text(Objective.WIN, i), "Escape")
+
+
 # --- Walls mode -------------------------------------------------------------
 
 
@@ -1188,3 +1192,182 @@ func test_walls_and_doors_survive_save_and_load() -> void:
 	assert_eq(_map_data().doors, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
 	assert_eq(editor.level.walls_layer.get_used_cells().size(), 2)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+
+
+# --- Events mode: steps -------------------------------------------------------------
+
+
+func _steps(event_id: String) -> Array:
+	return editor.event_steps(event_id)
+
+
+func _step(event_id: String, index: int, key: StringName) -> Control:
+	return editor.event_step_control(event_id, index, key)
+
+
+func test_a_new_event_has_just_its_units_step() -> void:
+	_events_mode()
+	var id := _add_event()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+	assert_true((_step(id, 0, &"up") as Button).disabled, "nowhere to move")
+	assert_true((_step(id, 0, &"down") as Button).disabled)
+	assert_null(_step(id, 0, &"remove"), "the units step can't be removed")
+
+
+func test_dialogue_steps_are_added_picked_moved_and_removed() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	assert_eq(_steps(id).size(), 2)
+	assert_eq(_steps(id)[1]["type"], "dialogue")
+	assert_eq(_steps(id)[1]["dialogue"], editor.dialogue_ids()[0], "starts on the first file")
+	var option := _step(id, 1, &"option") as OptionButton
+	var pick := editor.dialogue_ids().find("prologue_outro")
+	option.select(pick)
+	option.item_selected.emit(pick)
+	assert_eq(_steps(id)[1]["dialogue"], "prologue_outro")
+	(_step(id, 1, &"up") as Button).pressed.emit()
+	assert_eq(_steps(id), [{"type": "dialogue", "dialogue": "prologue_outro"}, {"type": "spawn"}],
+			"the dialogue now plays before the units arrive")
+	assert_eq(_events()[id]["actions"], _steps(id), "the order is what's saved")
+	(_step(id, 0, &"remove") as Button).pressed.emit()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+
+
+func test_a_dialogue_only_event_saves_but_an_empty_one_doesnt() -> void:
+	_events_mode()
+	var id := _add_event()
+	assert_eq(editor.event_problems().size(), 1, "nothing happens yet")
+	assert_string_contains(editor.event_problems()[0], "nothing happens")
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	assert_eq(editor.event_problems(), PackedStringArray())
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	assert_true(FileAccess.file_exists(EVENTS_SAVE))
+	DirAccess.remove_absolute(EVENTS_SAVE)
+
+
+func test_a_dialogue_step_whose_file_is_gone_is_a_problem() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["bandit"])
+	_events()[id]["actions"] = [{"type": "spawn"}, {"type": "dialogue", "dialogue": "deleted_file"}]
+	editor._refresh_events_panel()
+	assert_string_contains(" ".join(editor.event_problems()), "deleted_file")
+	assert_string_contains((_step(id, 1, &"option") as OptionButton).text, "(missing) deleted_file")
+
+
+func test_step_edits_undo() -> void:
+	_events_mode()
+	var id := _add_event()
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	(_step(id, 1, &"up") as Button).pressed.emit()
+	editor.undo()
+	assert_eq(_steps(id)[0]["type"], "spawn")
+	editor.undo()
+	assert_eq(_steps(id), [{"type": "spawn"}])
+
+
+func test_a_hand_written_event_without_a_spawn_shows_its_units_last() -> void:
+	_events_mode()
+	var id := _add_event()
+	_events()[id]["actions"] = [{"type": "dialogue", "dialogue": "prologue_outro"}]
+	assert_eq(_steps(id), [{"type": "dialogue", "dialogue": "prologue_outro"}, {"type": "spawn"}])
+
+
+func test_saved_steps_run_in_play() -> void:
+	_events_mode()
+	var id := _add_event()
+	_pick_into(id, ["brigand"])
+	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
+	editor.path_edit.text = EVENTS_SAVE
+	editor._save()
+	var battle: Battle = (load("res://gameplay/battle.tscn") as PackedScene).instantiate()
+	(battle.get_node("Level") as Level).level_path = EVENTS_SAVE
+	battle.show_banners = false
+	add_child_autofree(battle)
+	DirAccess.remove_absolute(EVENTS_SAVE)
+	battle.turn_loop.enemy_controller.set_strategy(&"bandit", EnemyAI.Strategy.STATIONARY)
+	var seen := []
+	battle.turn_loop.units_arrived.connect(func(_ids: Array[String]) -> void:
+		seen.append(battle.turn_loop.pending_steps.duplicate(true)))
+	await battle.turn_loop.end_player_turn()
+	await battle.turn_loop.end_player_turn()
+	assert_true(battle.level.level_state.level_units.has("brigand"))
+	assert_eq(seen.size(), 1)
+	assert_eq(seen[0][0]["type"], "spawn", "the units step comes first, as saved")
+
+# --- Quotes in the Units inspector ------------------------------------------------------
+
+
+func _pick(option: OptionButton, index: int) -> void:
+	option.select(index)
+	option.item_selected.emit(index)
+
+
+func test_an_enemys_quotes_are_added_edited_and_removed() -> void:
+	editor._select_unit("bandit")
+	editor.add_quote_button.pressed.emit()
+	var ref: UnitReference = _map_units()["bandit"]
+	assert_eq(ref.quotes, [{"dialogue": editor.dialogue_ids()[0]}] as Array[Dictionary], "for anyone")
+	_pick(editor.quote_control(0, &"dialogue") as OptionButton, editor.dialogue_ids().find("prologue_outro"))
+	_pick(editor.quote_control(0, &"with") as OptionButton, editor.character_ids.find(&"lyn") + 1)
+	assert_eq(ref.quotes, [{"dialogue": "prologue_outro", "with": "lyn"}] as Array[Dictionary])
+	_pick(editor.quote_control(0, &"with") as OptionButton, 0)
+	assert_eq(ref.quotes, [{"dialogue": "prologue_outro"}] as Array[Dictionary], "back to anyone")
+	(editor.quote_control(0, &"remove") as Button).pressed.emit()
+	assert_true(ref.quotes.is_empty())
+
+
+func test_only_enemies_get_quote_rows() -> void:
+	editor._select_unit("lyn")
+	assert_null(editor.quote_control(0, &"dialogue"))
+	assert_eq(editor.quotes_box.get_child_count(), 1, "just the 'enemies only' line, no + Add quote")
+
+
+func test_a_death_quote_for_a_player_and_an_enemy_but_not_an_ally() -> void:
+	for id in ["lyn", "bandit"]:
+		editor._select_unit(id)
+		assert_false(editor.death_quote_option.disabled, id)
+		_pick(editor.death_quote_option, editor.dialogue_ids().find("prologue_outro") + 1)
+		assert_eq(_map_units()[id].death_quote, "prologue_outro", id)
+		_pick(editor.death_quote_option, 0)
+		assert_eq(_map_units()[id].death_quote, "", id)
+	_map_units()["wil"].faction = UnitReference.Faction.ALLY
+	editor._select_unit("wil")
+	assert_true(editor.death_quote_option.disabled)
+
+
+func test_changing_faction_clears_quotes_it_cant_have() -> void:
+	var ref: UnitReference = _map_units()["bandit"]
+	ref.quotes = [{"dialogue": "prologue_outro"}] as Array[Dictionary]
+	ref.death_quote = "prologue_outro"
+	editor._select_unit("bandit")
+	editor.faction_option.selected = UnitReference.Faction.PLAYER
+	editor._apply_inspector()
+	assert_true(ref.quotes.is_empty(), "players have no battle quotes")
+	assert_eq(ref.death_quote, "prologue_outro", "but keep a death quote")
+	editor.faction_option.selected = UnitReference.Faction.ALLY
+	editor._apply_inspector()
+	assert_eq(ref.death_quote, "")
+
+
+func test_quote_edits_undo() -> void:
+	editor._select_unit("bandit")
+	editor.add_quote_button.pressed.emit()
+	editor.undo()
+	assert_true(_map_units()["bandit"].quotes.is_empty())
+
+
+func test_two_quotes_for_the_same_fighter_or_a_missing_file_block_saving() -> void:
+	var ref: UnitReference = _map_units()["bandit"]
+	ref.quotes = [{"dialogue": "prologue_outro"}, {"dialogue": "prologue_intro"}] as Array[Dictionary]
+	assert_string_contains(" ".join(editor.quote_problems()), "two quotes for anyone")
+	ref.quotes = [{"dialogue": "gone_file", "with": "lyn"}] as Array[Dictionary]
+	assert_string_contains(" ".join(editor.quote_problems()), "gone_file")
+	editor.path_edit.text = SAVE_PATH
+	editor._save()
+	assert_false(FileAccess.file_exists(SAVE_PATH))
+	assert_string_contains(editor.status.text, "quotes")
+	ref.quotes = [{"dialogue": "prologue_outro", "with": "lyn"}] as Array[Dictionary]
+	assert_eq(editor.quote_problems(), PackedStringArray())

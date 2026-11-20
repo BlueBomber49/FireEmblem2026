@@ -24,7 +24,7 @@ const FACTION_COLORS := {
 }
 ## Keys this class reads; anything else in the JSON is carried through untouched.
 const KNOWN_KEYS := ["character", "class", "name", "level", "items", "stats", "faction",
-	"sprite_sheet", "start_cell", "facing", "commander", "strategy", "team", "event"]
+	"sprite_sheet", "start_cell", "facing", "commander", "strategy", "team", "event", "quotes", "death_quote"]
 ## Enemy AI strategies, as written in level files (EnemyAI.Strategy in play).
 const STRATEGY_AGGRESSIVE := "aggressive"
 const STRATEGY_STATIONARY := "stationary"
@@ -59,6 +59,13 @@ var team := ""
 ## The id of the level event that brings this unit onto the map (a reinforcement),
 ## or "" when it's there from the start. Enemies only; written only when set.
 var event := ""
+## Battle quotes: dialogue played before this unit's first fight with someone.
+## Each is {"dialogue": id} for anyone, or {"dialogue": id, "with": character id}
+## for that character. Enemies only; written only when set. See Quotes.
+var quotes: Array[Dictionary] = []
+## A dialogue played when this unit falls, before it fades out. Player and enemy
+## units; written only when set.
+var death_quote := ""
 
 ## A named character's id (resources/characters/<id>.json), or "" for a generic unit.
 var character_id: String
@@ -201,6 +208,8 @@ static func fromJson(p_id: String, d: Dictionary) -> UnitReference:
 		ref.strategy = STRATEGY_AGGRESSIVE
 	ref.team = str(d.get("team", ""))
 	ref.event = str(d.get("event", ""))
+	ref.quotes = _quotes_from_json(p_id, d.get("quotes", []))
+	ref.death_quote = str(d.get("death_quote", ""))
 	for key in d:
 		if not key in KNOWN_KEYS:
 			ref._extra[key] = d[key]
@@ -232,5 +241,27 @@ func toJson() -> Dictionary:
 		d["team"] = team
 	if not event.is_empty():
 		d["event"] = event
+	if not quotes.is_empty():
+		d["quotes"] = quotes.duplicate(true)
+	if not death_quote.is_empty():
+		d["death_quote"] = death_quote
 	d.merge(_extra.duplicate(true))
 	return d
+
+
+## Reads "quotes": each needs a "dialogue" id; "with" is optional. Bad entries are
+## skipped with a warning.
+static func _quotes_from_json(p_id: String, raw: Variant) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if not raw is Array:
+		push_warning("Level: unit '%s': quotes must be a list; ignoring them." % p_id)
+		return out
+	for q: Variant in raw:
+		if not q is Dictionary or str((q as Dictionary).get("dialogue", "")).is_empty():
+			push_warning("Level: unit '%s': a quote needs a \"dialogue\"; skipping %s." % [p_id, q])
+			continue
+		var quote := {"dialogue": str(q["dialogue"])}
+		if not str((q as Dictionary).get("with", "")).is_empty():
+			quote["with"] = str(q["with"])
+		out.append(quote)
+	return out

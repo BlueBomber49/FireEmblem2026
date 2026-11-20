@@ -1331,3 +1331,381 @@ func test_the_popup_ends_on_the_units_real_exp_at_level_twenty() -> void:
 	await battle._fight(bandit)
 	assert_eq(lyn.unit.level, 20)
 	assert_eq(battle.exp_popup.get_node("%Bar").value, 0.0, "level 20: no leftover EXP")
+
+
+# --- Clicking an enemy to attack ------------------------------------------------
+# Lyn (move 5, sword) at (6, 5); the stationary bandit at (10, 5).
+
+
+func _click_bandit() -> void:
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.TARGETING, 3.0)
+
+
+func test_hovering_an_enemy_keeps_a_drawn_path_that_can_attack_it() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(7, 4), Vector2i(8, 4), Vector2i(9, 4), Vector2i(10, 4)])
+	var drawn := battle.arrow.path.duplicate()
+	battle.cursor.set_cell(bandit.cell)
+	assert_eq(battle.arrow.path, drawn, "it ends above the bandit, so it stays")
+
+
+func test_hovering_an_enemy_picks_the_attack_cell_closest_to_the_cursor() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(7, 6), Vector2i(8, 6)])  # (8, 6) can't hit the bandit
+	battle.cursor.set_cell(bandit.cell)
+	# (9, 5) and (10, 6) are both 2 from (8, 6); (9, 5) is the shorter walk.
+	assert_eq(battle.arrow.path[-1], Vector2i(9, 5))
+
+
+func test_an_arrow_ending_on_a_friend_is_never_kept() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	battle.level.place_unit(battle.level.unit_nodes["wil"], Vector2i(9, 5))
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(8, 5), Vector2i(9, 5)])  # walking through Wil is allowed
+	assert_eq(battle.arrow.path[-1], wil.cell, "the hand-drawn arrow can end on him")
+	await _click_bandit()
+	assert_ne(lyn.cell, wil.cell, "but Lyn never stops on his cell")
+	assert_eq(Combat.distance(lyn, bandit), 1)
+
+
+func test_clicking_an_enemy_walks_there_and_opens_the_forecast_on_it() -> void:
+	_select_lyn()
+	_trace([Vector2i(7, 5), Vector2i(8, 5)])
+	await _click_bandit()
+	assert_eq(lyn.cell, Vector2i(9, 5))
+	assert_eq(battle.targets[battle.target_index], bandit)
+	assert_true(battle.forecast.visible)
+
+
+func test_confirming_the_forecast_attacks() -> void:
+	battle.roll = func() -> int: return 0
+	_select_lyn()
+	await _click_bandit()
+	var hp := bandit.current_hp
+	battle._on_forecast_confirmed()
+	await wait_until(func() -> bool: return battle.state == Battle.State.FREE, 5.0)
+	assert_lt(bandit.current_hp, hp)
+	assert_true(lyn.has_acted)
+
+
+func test_cancelling_goes_back_to_the_start_still_selected() -> void:
+	_select_lyn()
+	await _click_bandit()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+	assert_false(lyn.has_moved)
+	assert_eq(battle.level.selected.state, lyn)
+	assert_false(battle.forecast.visible)
+
+
+func test_cancelling_drops_the_compared_weapon() -> void:
+	# Lyn as a Cavalier with a lance (equipped) and a sword, to compare weapons.
+	lyn.unit_ref.character_id = ""
+	lyn.unit_ref.class_id = "cavalier"
+	var cavalier := LevelUnitState.from_reference(lyn.unit_ref)
+	cavalier.unit.inventory = Inventory.new()
+	for id: StringName in [&"iron_lance", &"iron_sword"]:
+		cavalier.unit.inventory.add(GameData.get_item(id))
+	cavalier.cell = LYN_CELL
+	battle.level.level_state.level_units["lyn"] = cavalier
+	battle.level.unit_nodes["lyn"].state = cavalier
+	lyn = cavalier
+	_select_lyn()
+	await _click_bandit()
+	_press(&"ui_right")
+	assert_eq(lyn.unit.weapon_preview, 1, "comparing the sword")
+	battle.cancel()
+	assert_eq(lyn.unit.weapon_preview, -1)
+	assert_eq(lyn.unit.equipped_weapon().id, &"iron_lance", "the lance is still what counters")
+
+
+func test_a_normal_attack_after_a_cancelled_one_cancels_to_the_menu() -> void:
+	_select_lyn()
+	await _click_bandit()
+	battle.cancel()
+	battle.cursor.set_cell(Vector2i(9, 5))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	battle.unit_menu.option_selected.emit(&"attack")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_eq(lyn.cell, Vector2i(9, 5), "the move stays")
+
+
+func test_an_enemy_outside_the_red_range_does_nothing() -> void:
+	bandit.cell = Vector2i(14, 5)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	_select_lyn()
+	assert_null(battle.attackable_enemy_at(bandit.cell))
+	battle.cursor.set_cell(bandit.cell)
+	battle.confirm()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+
+
+func test_a_bow_picks_a_cell_two_away() -> void:
+	var wil: LevelUnitState = battle.level.level_state.level_units["wil"]
+	battle.cursor.set_cell(wil.cell)
+	battle.confirm()
+	battle.cursor.set_cell(bandit.cell)
+	var end: Vector2i = battle.arrow.path[-1] if not battle.arrow.path.is_empty() else wil.cell
+	assert_eq(absi(end.x - bandit.cell.x) + absi(end.y - bandit.cell.y), 2)
+
+# --- Trade -------------------------------------------------------------------------
+# Wil is a player unit at (6, 7) in this fixture; Lyn moves to (6, 6), next to him.
+
+
+func _lyn_next_to_wil() -> LevelUnitState:
+	_select_lyn()
+	battle.cursor.set_cell(Vector2i(6, 6))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	return battle.level.level_state.level_units["wil"]
+
+
+func _inventory_ids(u: LevelUnitState) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for i in u.unit.inventory.size():
+		ids.append(u.unit.inventory.get_item(i).data.id)
+	return ids
+
+
+func test_trade_is_offered_next_to_a_player_unit_after_item() -> void:
+	await _lyn_next_to_wil()
+	assert_eq(battle.unit_menu.options, [&"item", &"trade", &"status", &"wait"] as Array[StringName])
+
+
+func test_no_trade_next_to_an_ally_or_alone() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	assert_has(battle.unit_menu.options, &"trade")
+	battle.cancel()
+	wil.unit_ref.faction = UnitReference.Faction.ALLY
+	battle.cursor.set_cell(Vector2i(6, 6))
+	battle.confirm()
+	await wait_until(func() -> bool: return battle.state == Battle.State.UNIT_MENU, 3.0)
+	assert_does_not_have(battle.unit_menu.options, &"trade")
+
+
+func test_even_one_partner_is_chosen_first() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_eq(battle.state, Battle.State.TRADE_PICK, "chosen like a target, for consistency")
+	assert_eq(battle.cursor.cell, wil.cell)
+	assert_false(battle.trade_menu.visible)
+	_press(&"confirm")
+	assert_eq(battle.state, Battle.State.TRADING)
+	assert_true(battle.trade_menu.visible)
+	assert_false(battle.unit_menu.visible)
+	assert_eq((battle.trade_menu.get_node("%Right/Name") as Label).text, "Wil")
+
+
+func test_choosing_a_partner_shows_no_movement_range() -> void:
+	# Wil right below Lyn; her menu opened where she stands, so her range is still up.
+	battle.level.place_unit(battle.level.unit_nodes["wil"], LYN_CELL + Vector2i.DOWN)
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.range_overlay.move_cells.is_empty(), "the menu still shows where she could go")
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_true(battle.range_overlay.move_cells.is_empty(), "just the partners now")
+	assert_true(battle.range_overlay.attack_cells.is_empty())
+	_press(&"confirm")
+	assert_true(battle.range_overlay.move_cells.is_empty(), "nor behind the trade screen")
+
+
+func test_several_partners_are_chosen_like_targets() -> void:
+	bandit.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = Vector2i(7, 6)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	assert_eq(battle.state, Battle.State.TRADE_PICK)
+	assert_eq(battle.partners, [bandit, wil] as Array[LevelUnitState], "right, then down")
+	assert_eq(battle.cursor.cell, bandit.cell)
+	_press(&"ui_down")
+	assert_eq(battle.cursor.cell, wil.cell)
+	_press(&"confirm")
+	assert_eq(battle.state, Battle.State.TRADING)
+	assert_eq((battle.trade_menu.get_node("%Right/Name") as Label).text, "Wil")
+
+
+func test_cancel_while_choosing_a_partner_goes_back_to_the_menu() -> void:
+	bandit.unit_ref.faction = UnitReference.Faction.PLAYER
+	bandit.cell = Vector2i(7, 6)
+	battle.level.place_unit(battle.level.unit_nodes["bandit"], bandit.cell)
+	await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_true(battle.unit_menu.visible)
+
+
+func test_after_a_trade_the_move_stays_and_the_unit_can_still_act() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.choose(TradeMenu.LEFT, 1)  # Lyn's Vulnerary
+	battle.trade_menu.choose(TradeMenu.RIGHT, 4)  # to an empty slot
+	battle.trade_menu.back()
+	assert_eq(battle.state, Battle.State.UNIT_MENU)
+	assert_has(_inventory_ids(wil), &"vulnerary")
+	assert_false(lyn.has_acted, "trading doesn't use up the action")
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_MENU, "the move can't be undone after a trade")
+	assert_eq(lyn.cell, Vector2i(6, 6))
+	battle.unit_menu.option_selected.emit(&"wait")
+	assert_true(lyn.has_acted)
+
+
+func test_closing_without_trading_still_lets_the_move_be_undone() -> void:
+	await _lyn_next_to_wil()
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.back()
+	battle.cancel()
+	assert_eq(battle.state, Battle.State.UNIT_SELECTED)
+	assert_eq(lyn.cell, LYN_CELL)
+
+
+func test_giving_away_the_equipped_weapon_equips_the_next_one() -> void:
+	var wil: LevelUnitState = await _lyn_next_to_wil()
+	lyn.unit.inventory.add(GameData.get_item(&"slim_sword"))
+	battle.unit_menu.option_selected.emit(&"trade")
+	_press(&"confirm")
+	battle.trade_menu.choose(TradeMenu.LEFT, 0)  # the equipped Iron Sword
+	battle.trade_menu.choose(TradeMenu.RIGHT, 4)
+	assert_eq(lyn.unit.equipped_weapon().id, &"slim_sword")
+	assert_has(_inventory_ids(wil), &"iron_sword")
+
+# --- Event scenes: dialogue over the map ------------------------------------------------
+
+
+func _overlay_cutscene() -> Cutscene:
+	for child in battle.get_node("UI").get_children():
+		if child is Cutscene:
+			return child
+	return null
+
+
+func test_play_dialogue_shows_the_map_through_and_cleans_up() -> void:
+	battle.show_banners = true
+	var done := [false]
+	var play := func() -> void:
+		await battle.play_dialogue(&"level_1_intro")  # names a background image
+		done[0] = true
+	play.call()
+	var scene := _overlay_cutscene()
+	assert_not_null(scene, "added over the map")
+	assert_false(scene.get_node("Background").visible)
+	assert_false(scene.get_node("%Backdrop").visible, "the file's background stays hidden in battle")
+	scene.skip()
+	await wait_until(func() -> bool: return done[0], 1.0)
+	assert_true(done[0])
+	assert_null(_overlay_cutscene(), "removed once finished")
+
+
+func test_a_missing_dialogue_is_skipped_without_waiting() -> void:
+	battle.show_banners = true
+	await battle.play_dialogue(&"no_such_dialogue")
+	assert_push_warning("no_such_dialogue")
+	assert_null(_overlay_cutscene())
+
+
+func test_a_dialogue_whose_lines_all_fail_is_skipped_without_waiting() -> void:
+	battle.show_banners = true
+	battle.dialogue_dir = "res://tests/fixtures/dialogue"
+	await battle.play_dialogue(&"unknown_speaker")
+	assert_push_warning("unknown_speaker")
+	assert_null(_overlay_cutscene())
+
+
+func test_input_waits_while_an_event_scene_plays() -> void:
+	battle.show_banners = true
+	var done := [false]
+	var steps: Array[Dictionary] = [{"type": "dialogue", "dialogue": "prologue_intro"}]
+	var play := func() -> void:
+		await battle.present(steps)
+		done[0] = true
+	play.call()
+	assert_eq(battle.state, Battle.State.SCENE)
+	battle.move_cursor(Vector2i.RIGHT)
+	_press(&"ui_right")
+	assert_eq(battle.cursor.cell, LYN_CELL, "the cursor stays put")
+	_overlay_cutscene().skip()
+	await wait_until(func() -> bool: return done[0], 1.0)
+	assert_eq(battle.state, Battle.State.FREE, "back to play")
+
+# --- Quotes ---------------------------------------------------------------------------
+
+
+func _bandit_quotes(death := "") -> void:
+	bandit.unit_ref.quotes = [{"dialogue": "bandit_vs_lyn", "with": "lyn"}, {"dialogue": "bandit_any"}] \
+			as Array[Dictionary]
+	bandit.unit_ref.death_quote = death
+
+
+## Lyn attacks the bandit from (9, 5); returns once the fight is over.
+func _lyn_fights_bandit() -> void:
+	battle.roll = func() -> int: return 0
+	_select_lyn()
+	await _click_bandit()
+	battle._on_forecast_confirmed()
+	await wait_until(func() -> bool: return battle.state == Battle.State.FREE, 5.0)
+
+
+func test_a_battle_quote_comes_before_the_strikes() -> void:
+	_bandit_quotes()
+	var hp_at_quote := []
+	battle.quote_played.connect(func(_id: String) -> void: hp_at_quote.append(bandit.current_hp))
+	var full := bandit.current_hp
+	await _lyn_fights_bandit()
+	assert_eq(hp_at_quote, [full], "one quote, before any damage")
+	assert_eq(battle.level.level_state.played_quotes.keys(), ["bandit/bandit_vs_lyn"])
+
+
+func test_the_death_quote_comes_before_the_fade() -> void:
+	_bandit_quotes("bandit_falls")
+	bandit.current_hp = 1
+	var on_map_at_quote := []
+	battle.quote_played.connect(func(id: String) -> void:
+		if id == "bandit_falls":
+			on_map_at_quote.append(battle.level.unit_nodes.has("bandit")))
+	await _lyn_fights_bandit()
+	assert_eq(on_map_at_quote, [true], "still on the map when it speaks")
+	assert_false(battle.level.unit_nodes.has("bandit"), "then it fades out")
+
+
+func test_an_attacker_killed_by_the_counter_gets_its_death_quote() -> void:
+	lyn.unit_ref.death_quote = "lyn_falls"
+	lyn.current_hp = 1
+	bandit.current_hp = bandit.unit.max_hp()
+	var quotes := []
+	battle.quote_played.connect(func(id: String) -> void: quotes.append(id))
+	await _lyn_fights_bandit()
+	assert_false(lyn.is_alive(), "every strike hits: the bandit survives Lyn's and counters")
+	assert_eq(quotes, ["lyn_falls"])
+
+
+func test_a_retry_starts_with_no_quotes_played() -> void:
+	_bandit_quotes()
+	await _lyn_fights_bandit()
+	assert_false(battle.level.level_state.played_quotes.is_empty())
+	var retry: Battle = BattleScene.instantiate()
+	(retry.get_node("Level") as Level).level_path = LEVEL_PATH
+	retry.show_banners = false
+	add_child_autofree(retry)
+	assert_true(retry.level.level_state.played_quotes.is_empty())
+
+
+func test_a_quote_whose_file_is_missing_doesnt_stop_the_fight() -> void:
+	battle.show_banners = true
+	battle.exp_popup.fill_time = 0.01
+	battle.exp_popup.wait_for_player = false
+	battle.exp_popup.hold_time = 0.0
+	bandit.unit_ref.quotes = [{"dialogue": "no_such_quote"}] as Array[Dictionary]
+	var hp := bandit.current_hp
+	await _lyn_fights_bandit()
+	assert_push_warning("no_such_quote")
+	assert_lt(bandit.current_hp, hp, "the fight went on")

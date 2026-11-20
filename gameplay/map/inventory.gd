@@ -56,6 +56,32 @@ func move_to_front(index: int) -> void:
 	_items.insert(0, entry)
 
 
+## Trading: swaps this inventory's slot `index` with `other`'s slot `other_index`.
+## A slot past the end of its inventory is an empty one, so an item there moves
+## across (to the end of the other side, as in FE7). Returns false, changing
+## nothing, when both slots are empty or the receiving side is full.
+func swap_with(index: int, other: Inventory, other_index: int) -> bool:
+	var mine := get_item(index)
+	var theirs := other.get_item(other_index)
+	if mine != null and theirs != null:
+		_items[index] = theirs
+		other._items[other_index] = mine
+		return true
+	if mine != null:
+		if other.is_full():
+			return false
+		_items.remove_at(index)
+		other._items.append(mine)
+		return true
+	if theirs != null:
+		if is_full():
+			return false
+		other._items.remove_at(other_index)
+		_items.append(theirs)
+		return true
+	return false
+
+
 ## The inventory as save data: [{"item": "iron_sword"}, {"item": "vulnerary", "uses_left": 2}].
 ## Items are saved by id; only consumables save uses_left.
 func to_array() -> Array:

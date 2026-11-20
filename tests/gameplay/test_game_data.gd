@@ -148,10 +148,14 @@ func test_caps_are_fe7_unpromoted() -> void:
 	assert_eq(c.caps.movement, 15)
 
 
+## A sprite template with {color} must exist in every faction colour; a class
+## with one sprite for every side (the training dummy) must just exist.
 func test_every_class_sprite_exists_in_every_color() -> void:
 	for id in GameData.all_class_ids():
 		var c := GameData.get_class_data(id)
-		assert_true(c.sprite.contains("{color}"), "%s sprite has a {color} placeholder" % id)
+		if not c.sprite.contains("{color}"):
+			assert_true(ResourceLoader.exists(c.sprite), "%s: %s" % [id, c.sprite])
+			continue
 		for color in COLORS:
 			var path := c.sprite.replace("{color}", color)
 			assert_true(ResourceLoader.exists(path), "%s: %s" % [id, path])

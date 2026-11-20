@@ -103,3 +103,58 @@ func test_first_usable_weapon_index_is_minus_one_when_none() -> void:
 	var inv := Inventory.new()
 	inv.add(_vulnerary())
 	assert_eq(inv.first_usable_weapon_index(_swordfighter()), -1)
+
+
+# --- Trading ---------------------------------------------------------------------
+
+
+func _ids(inventory: Inventory) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for i in inventory.size():
+		ids.append(inventory.get_item(i).data.id)
+	return ids
+
+
+func _holding(ids: Array[StringName]) -> Inventory:
+	var inventory := Inventory.new()
+	for id in ids:
+		inventory.add(_weapon(id))
+	return inventory
+
+
+func test_swap_with_exchanges_two_items_in_place() -> void:
+	var a := _holding([&"sword", &"lance"])
+	var b := _holding([&"axe", &"bow"])
+	assert_true(a.swap_with(1, b, 0))
+	assert_eq(_ids(a), [&"sword", &"axe"] as Array[StringName])
+	assert_eq(_ids(b), [&"lance", &"bow"] as Array[StringName])
+
+
+func test_swap_with_an_empty_slot_moves_the_item_across() -> void:
+	var a := _holding([&"sword", &"lance"])
+	var b := _holding([&"axe"])
+	assert_true(a.swap_with(0, b, 3), "any slot past the end is empty")
+	assert_eq(_ids(a), [&"lance"] as Array[StringName])
+	assert_eq(_ids(b), [&"axe", &"sword"] as Array[StringName], "it goes to the end")
+	assert_true(a.swap_with(4, b, 0), "the other way round too")
+	assert_eq(_ids(a), [&"lance", &"axe"] as Array[StringName])
+	assert_eq(_ids(b), [&"sword"] as Array[StringName])
+
+
+func test_swap_with_keeps_the_entry_and_its_uses() -> void:
+	var a := Inventory.new()
+	a.add(_vulnerary())
+	a.get_item(0).uses_left = 1
+	var b := Inventory.new()
+	a.swap_with(0, b, 0)
+	assert_eq(b.get_item(0).uses_left, 1)
+
+
+func test_swap_with_onto_a_full_side_or_two_empty_slots_does_nothing() -> void:
+	var full := _holding([&"a", &"b", &"c", &"d", &"e"])
+	var a := _holding([&"sword"])
+	assert_false(a.swap_with(0, full, 5), "full: nowhere to put it")
+	assert_false(full.swap_with(5, a, 3), "both empty")
+	assert_eq(_ids(a), [&"sword"] as Array[StringName])
+	assert_eq(full.size(), 5)
+	assert_true(a.swap_with(0, full, 2), "a swap with a full side still works")

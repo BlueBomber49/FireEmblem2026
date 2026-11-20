@@ -47,6 +47,8 @@ const REINFORCEMENT_ALPHA := 0.45
 @onready var objective_box: VBoxContainer = %ObjectiveBox
 @onready var events_box: VBoxContainer = %EventsBox
 @onready var arrives_option: OptionButton = %ArrivesOption
+@onready var quotes_box: VBoxContainer = %QuotesBox
+@onready var death_quote_option: OptionButton = %DeathQuoteOption
 @onready var preselect_row: HBoxContainer = %PreselectRow
 @onready var preselect_label: Label = %PreselectLabel
 @onready var preselect_clear_button: Button = %PreselectClearButton
@@ -135,6 +137,9 @@ var _event_pick := ""
 var _event_pending: Array[String] = []
 ## The event last worked on: its units are outlined in Events mode.
 var _focused_event := ""
+## The selected unit's quote rows: {&"dialogue", &"with", &"remove"} controls each.
+var _quote_rows: Array[Dictionary] = []
+var add_quote_button: Button
 
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
@@ -185,6 +190,7 @@ func _ready() -> void:
 	team_edit.text_submitted.connect(func(_text: String) -> void: _on_team_edited())
 	team_edit.focus_exited.connect(_on_team_edited)
 	arrives_option.item_selected.connect(_on_arrives_picked)
+	death_quote_option.item_selected.connect(_on_death_quote_picked)
 	preselect_clear_button.pressed.connect(_preselect_event.bind(""))
 	%DeleteUnitButton.pressed.connect(_delete_selected_unit)
 	deselect_button.pressed.connect(_select_unit.bind(""))
@@ -694,6 +700,7 @@ func _fill_inspector() -> void:
 		arrives_option.add_item(event_title(event_id))
 	arrives_option.disabled = not enemy
 	arrives_option.selected = ids.find(ref.event) + 1 if enemy else 0
+	_fill_quotes(ref if editing else null)
 	deselect_button.disabled = not editing
 	if editing:
 		var data := ref.build_unit_data()
@@ -820,6 +827,9 @@ func _apply_inspector(respawn := false) -> void:
 		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
 		ref.team = ""
 		ref.event = ""  # or arrive later
+		ref.quotes = [] as Array[Dictionary]  # or have battle quotes
+	if new_faction == UnitReference.Faction.ALLY:
+		ref.death_quote = ""  # allies have no quotes at all
 
 	var picked := String(_picked_character())
 	if picked != ref.character_id and not picked.is_empty() and _refuse_if_placed(StringName(picked), ref.id):
@@ -986,6 +996,10 @@ func _save() -> void:
 	var event_issues := event_problems()
 	if not event_issues.is_empty():
 		status.text = "Can't save until the events are fixed: " + " ".join(event_issues)
+		return
+	var quote_issues := quote_problems()
+	if not quote_issues.is_empty():
+		status.text = "Can't save until the quotes are fixed: " + " ".join(quote_issues)
 		return
 	level_path = path_edit.text
 	if level.level_state.save_file(level_path, false) == OK:
@@ -1241,6 +1255,158 @@ func _on_commander_toggled(pressed: bool) -> void:
 	_commit(before)
 	_rebuild_units()  # the crown is drawn by the unit's node
 	_refresh_objective_panel()
+
+
+# --- Quotes --------------------------------------------------------------------------
+# Battle quotes (enemies: a dialogue, and who it's for: anyone or a character) and
+# a death quote (players and enemies). See Quotes for when they play.
+
+
+## Rebuilds the quote rows and the death quote dropdown for `ref` (null: none selected).
+func _fill_quotes(ref: UnitReference) -> void:
+	for child in quotes_box.get_children():
+		quotes_box.remove_child(child)
+		child.queue_free()
+	_quote_rows.clear()
+	var enemy := ref != null and ref.faction == UnitReference.Faction.ENEMY
+	var header := Label.new()
+	header.text = "Quotes: before its first fight with..." if enemy else "Quotes: enemies only"
+	quotes_box.add_child(header)
+	if enemy:
+		for i in ref.quotes.size():
+			_build_quote_row(ref, i)
+		add_quote_button = Button.new()
+		add_quote_button.text = "+ Add quote"
+		add_quote_button.pressed.connect(_add_quote)
+		quotes_box.add_child(add_quote_button)
+		var problems := _unit_quote_problems(ref)
+		if not problems.is_empty():
+			var problem := Label.new()
+			problem.text = "! " + " ".join(problems)
+			problem.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			problem.add_theme_color_override("font_color", PROBLEM_COLOR)
+			quotes_box.add_child(problem)
+	death_quote_option.clear()
+	death_quote_option.add_item("None")
+	var ids := dialogue_ids()
+	for id in ids:
+		death_quote_option.add_item(id)
+	var current := ref.death_quote if ref != null else ""
+	if not current.is_empty() and not ids.has(current):
+		death_quote_option.add_item("(missing) %s" % current)
+	death_quote_option.selected = 0 if current.is_empty() \
+			else (ids.find(current) + 1 if ids.has(current) else ids.size() + 1)
+	death_quote_option.disabled = ref == null or ref.faction == UnitReference.Faction.ALLY
+
+
+func _build_quote_row(ref: UnitReference, index: int) -> void:
+	var quote: Dictionary = ref.quotes[index]
+	var row := HBoxContainer.new()
+	var dialogue := _dialogue_option(str(quote["dialogue"]),
+			func(id: String) -> void: _edit_quote(index, "dialogue", id))
+	dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(dialogue)
+	var with_label := Label.new()
+	with_label.text = "with"
+	row.add_child(with_label)
+	var with := OptionButton.new()
+	with.add_item("Anyone")
+	for character_id in character_ids:
+		with.add_item(GameData.get_character(character_id).display_name)
+	with.selected = character_ids.find(StringName(str(quote.get("with", "")))) + 1
+	with.item_selected.connect(func(i: int) -> void:
+		_edit_quote(index, "with", "" if i == 0 else String(character_ids[i - 1])))
+	row.add_child(with)
+	var remove := Button.new()
+	remove.text = "X"
+	remove.tooltip_text = "Remove this quote"
+	remove.pressed.connect(_remove_quote.bind(index))
+	row.add_child(remove)
+	_quote_rows.append({&"dialogue": dialogue, &"with": with, &"remove": remove})
+	quotes_box.add_child(row)
+
+
+## A control in quote row `index` of the selected unit: &"dialogue", &"with" or &"remove".
+func quote_control(index: int, key: StringName) -> Control:
+	return _quote_rows[index][key] if index < _quote_rows.size() else null
+
+
+func _selected_ref() -> UnitReference:
+	return level.level_state.map_data.units.get(selected_unit_id)
+
+
+func _add_quote() -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	var ids := dialogue_ids()
+	ref.quotes.append({"dialogue": ids[0] if not ids.is_empty() else ""})
+	_commit(before)
+	_fill_inspector()
+
+
+## Sets `key` ("dialogue" or "with") of the selected enemy's quote `index`.
+func _edit_quote(index: int, key: String, value: String) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	if key == "with" and value.is_empty():
+		ref.quotes[index].erase("with")
+	else:
+		ref.quotes[index][key] = value
+	_commit(before)
+	_fill_inspector()
+
+
+func _remove_quote(index: int) -> void:
+	var ref := _selected_enemy()
+	if ref == null:
+		return
+	var before := _snapshot()
+	ref.quotes.remove_at(index)
+	_commit(before)
+	_fill_inspector()
+
+
+func _on_death_quote_picked(index: int) -> void:
+	var ref := _selected_ref()
+	if _syncing or ref == null:
+		return
+	var ids := dialogue_ids()
+	if index > ids.size():
+		return  # the "(missing)" entry: nothing to change
+	var before := _snapshot()
+	ref.death_quote = "" if index == 0 else ids[index - 1]
+	_commit(before)
+	_fill_inspector()
+
+
+## What's wrong with `ref`'s quotes: two for the same fighter, or a file that's gone.
+func _unit_quote_problems(ref: UnitReference) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var ids := dialogue_ids()
+	var seen := {}
+	for quote in ref.quotes:
+		var who := str(quote.get("with", ""))
+		if seen.has(who):
+			problems.append("two quotes for %s." % ("anyone" if who.is_empty() else who))
+		seen[who] = true
+		if not ids.has(str(quote["dialogue"])):
+			problems.append("quote dialogue '%s' doesn't exist." % quote["dialogue"])
+	if not ref.death_quote.is_empty() and not ids.has(ref.death_quote):
+		problems.append("death quote '%s' doesn't exist." % ref.death_quote)
+	return problems
+
+
+## What stops saving: every unit's quote problems, naming the unit.
+func quote_problems() -> PackedStringArray:
+	var problems := PackedStringArray()
+	for ref: UnitReference in level.level_state.map_data.units.values():
+		for problem in _unit_quote_problems(ref):
+			problems.append("%s: %s" % [ref.display_name(), problem])
+	return problems
 
 
 # --- Objective -----------------------------------------------------------------
@@ -1795,10 +1961,12 @@ func _update_problems() -> void:
 	problems_label.visible = not lines.is_empty()
 
 
-# --- Events: reinforcements ----------------------------------------------------------
-# Each event is a row: WHEN turn N's enemy or player phase starts, THEN these
-# enemies arrive. Units join an event here (Choose -> click -> Confirm, or Place
-# new units) or from the Units inspector's Arrives dropdown: the same data.
+# --- Events ------------------------------------------------------------------------
+# Each event is a row: WHEN turn N's enemy or player phase starts, THEN its steps
+# run in order: its enemies arrive (one step, always there) and any number of
+# dialogues play over the map. Units join an event here (Choose -> click ->
+# Confirm, or Place new units) or from the Units inspector's Arrives dropdown:
+# the same data.
 
 
 const EVENT_PHASE_TEXT := ["enemy phase", "player phase"]
@@ -1809,11 +1977,11 @@ func _build_events_panel() -> void:
 	events_problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	events_problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
 	events_box.add_child(events_problems_label)
-	events_box.add_child(_section_header("REINFORCEMENTS: enemies that arrive later", WIN_COLOR))
+	events_box.add_child(_section_header("EVENTS: enemies arriving and dialogue, by turn", WIN_COLOR))
 	event_rows = VBoxContainer.new()
 	events_box.add_child(event_rows)
 	add_event_button = Button.new()
-	add_event_button.text = "+ Add reinforcement event"
+	add_event_button.text = "+ Add event"
 	add_event_button.pressed.connect(_add_event)
 	events_box.add_child(add_event_button)
 
@@ -1829,7 +1997,7 @@ func arrival_turn(ref: UnitReference) -> int:
 	return int(event["trigger"]["turn"])
 
 
-## An event's name, or "Turn N reinforcements".
+## An event's name, or "Turn N reinforcements" (with units), or "Turn N event".
 func event_title(event_id: String) -> String:
 	var event: Variant = level.level_state.events.get(event_id)
 	if not event is Dictionary:
@@ -1837,8 +2005,54 @@ func event_title(event_id: String) -> String:
 	var name := str((event as Dictionary).get("name", ""))
 	if not name.is_empty():
 		return name
-	var trigger: Variant = (event as Dictionary).get("trigger")
-	return "Turn %d reinforcements" % int(trigger.get("turn", 0)) if trigger is Dictionary else event_id
+	return _default_event_title(event_id)
+
+
+func _default_event_title(event_id: String) -> String:
+	var trigger: Variant = (level.level_state.events[event_id] as Dictionary).get("trigger")
+	if not trigger is Dictionary:
+		return event_id
+	var kind := "reinforcements" if not event_units(event_id).is_empty() else "event"
+	return "Turn %d %s" % [int(trigger.get("turn", 0)), kind]
+
+
+## The dialogue ids in resources/dialogue, sorted: what a dialogue step can play.
+func dialogue_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for file in DirAccess.get_files_at(DialogueData.DEFAULT_DIR):
+		if file.ends_with(".json"):
+			ids.append(file.get_basename())
+	ids.sort()
+	return ids
+
+
+## `event_id`'s actions, in order, always with its one spawn step (an event
+## written by hand without one brings its units in last, so that's where it shows).
+func event_steps(event_id: String) -> Array:
+	var event: Dictionary = level.level_state.events[event_id]
+	var actions: Array = (event.get("actions", []) as Array).duplicate(true)
+	if not actions.any(func(a: Variant) -> bool: return a is Dictionary and a.get("type") == "spawn"):
+		actions.append({"type": "spawn"})
+	return actions
+
+
+## Why the event can't be saved as it is, or "": a broken trigger or action, a
+## dialogue step whose file is gone, or nothing happening at all.
+func event_issue(event_id: String) -> String:
+	var event: Variant = level.level_state.events[event_id]
+	var problem := LevelState.event_problem(event)
+	if not problem.is_empty():
+		return problem
+	var has_dialogue := false
+	var known := dialogue_ids()
+	for step: Dictionary in event_steps(event_id):
+		if step["type"] == "dialogue":
+			has_dialogue = true
+			if not known.has(str(step["dialogue"])):
+				return "dialogue '%s' doesn't exist" % step["dialogue"]
+	if not has_dialogue and event_units(event_id).is_empty():
+		return "nothing happens: add enemies or a dialogue"
+	return ""
 
 
 ## The ids of the units tied to `event_id`, in map order.
@@ -1852,16 +2066,65 @@ func event_units(event_id: String) -> Array[String]:
 	return ids
 
 
-## What stops saving: events that can't run, and events with no units.
+## What stops saving: events that can't run, dialogue steps whose file is gone,
+## and events where nothing happens.
 func event_problems() -> PackedStringArray:
 	var problems := PackedStringArray()
 	for event_id: String in level.level_state.events:
-		var problem := LevelState.event_problem(level.level_state.events[event_id])
-		if not problem.is_empty():
-			problems.append("Event '%s': %s." % [event_id, problem])
-		elif event_units(event_id).is_empty():
-			problems.append("%s: no units arrive." % event_title(event_id))
+		var issue := event_issue(event_id)
+		if issue.is_empty():
+			continue
+		if LevelState.event_problem(level.level_state.events[event_id]).is_empty():
+			problems.append("%s: %s." % [event_title(event_id), issue])
+		else:
+			problems.append("Event '%s': %s." % [event_id, issue])
 	return problems
+
+
+# Steps.
+
+
+## Sets `event_id`'s actions to `steps` (one undo step).
+func _set_steps(event_id: String, steps: Array) -> void:
+	var before := _snapshot()
+	level.level_state.events[event_id]["actions"] = steps
+	_commit(before)
+	_focused_event = event_id
+	_refresh_events_panel()
+
+
+func _add_dialogue_step(event_id: String) -> void:
+	var ids := dialogue_ids()
+	var steps := event_steps(event_id)
+	steps.append({"type": "dialogue", "dialogue": ids[0] if not ids.is_empty() else ""})
+	_set_steps(event_id, steps)
+
+
+## Moves step `index` one place up (-1) or down (1).
+func _move_step(event_id: String, index: int, delta: int) -> void:
+	var steps := event_steps(event_id)
+	var other := index + delta
+	if other < 0 or other >= steps.size():
+		return
+	var step: Variant = steps[index]
+	steps[index] = steps[other]
+	steps[other] = step
+	_set_steps(event_id, steps)
+
+
+## Removes a dialogue step (the units step always stays).
+func _remove_step(event_id: String, index: int) -> void:
+	var steps := event_steps(event_id)
+	if steps[index]["type"] != "dialogue":
+		return
+	steps.remove_at(index)
+	_set_steps(event_id, steps)
+
+
+func _set_step_dialogue(event_id: String, index: int, dialogue_id: String) -> void:
+	var steps := event_steps(event_id)
+	steps[index]["dialogue"] = dialogue_id
+	_set_steps(event_id, steps)
 
 
 func _add_event() -> void:
@@ -2094,7 +2357,7 @@ func _build_event_row(event_id: String) -> void:
 		name_label.text = "Name"
 		name_line.add_child(name_label)
 		var name_edit := LineEdit.new()
-		name_edit.placeholder_text = "Turn %d reinforcements" % int(event["trigger"]["turn"])
+		name_edit.placeholder_text = _default_event_title(event_id)
 		name_edit.text = str((event as Dictionary).get("name", ""))
 		name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_edit.text_changed.connect(func(t: String) -> void: _on_event_name(event_id, t))
@@ -2103,64 +2366,55 @@ func _build_event_row(event_id: String) -> void:
 		row.add_child(name_line)
 
 		var then := Label.new()
-		then.text = "THEN these enemies arrive:"
+		then.text = "THEN, in order:"
 		row.add_child(then)
-		var chips_line := HFlowContainer.new()
-		var chips := {}
-		var units := event_units(event_id)
-		if units.is_empty():
-			var none := Label.new()
-			none.text = "none yet"
-			chips_line.add_child(none)
-		for id in units:
-			# The name selects the unit on the map; the x takes it out of the event.
-			var chip := HBoxContainer.new()
-			chip.add_theme_constant_override("separation", 0)
-			var select := Button.new()
-			select.text = level.level_state.map_data.units[id].display_name()
-			select.tooltip_text = "Select it on the map"
-			select.pressed.connect(_select_unit.bind(id))
-			chip.add_child(select)
-			var remove_unit := Button.new()
-			remove_unit.text = "x"
-			remove_unit.tooltip_text = "Take it out of this event: it starts on the map"
-			remove_unit.pressed.connect(_remove_from_event.bind(id))
-			chips[id] = remove_unit
-			chip.add_child(remove_unit)
-			chips_line.add_child(chip)
-		controls[&"chips"] = chips
-		row.add_child(chips_line)
-
-		var actions := HFlowContainer.new()
-		if _event_pick == event_id:
-			var prompt := Label.new()
-			prompt.text = "Click enemies... (%d chosen)" % _event_pending.size()
-			actions.add_child(prompt)
-			var confirm := Button.new()
-			confirm.text = "Confirm"
-			confirm.disabled = _event_pending.is_empty()
-			confirm.pressed.connect(_confirm_event_pick)
-			controls[&"confirm"] = confirm
-			actions.add_child(confirm)
-			var cancel := Button.new()
-			cancel.text = "Cancel"
-			cancel.pressed.connect(_cancel_event_pick)
-			controls[&"cancel"] = cancel
-			actions.add_child(cancel)
-		else:
-			var choose := Button.new()
-			choose.text = "+ Add units"
-			choose.tooltip_text = "Click enemies already on the map, then Confirm"
-			choose.pressed.connect(_start_event_pick.bind(event_id))
-			controls[&"choose"] = choose
-			actions.add_child(choose)
-			var place := Button.new()
-			place.text = "Place new units"
-			place.tooltip_text = "Go to Units mode: enemies you place join this event"
-			place.pressed.connect(_preselect_event.bind(event_id))
-			controls[&"place"] = place
-			actions.add_child(place)
-		row.add_child(actions)
+		var steps := event_steps(event_id)
+		var step_controls: Array[Dictionary] = []
+		for i in steps.size():
+			var step_box := VBoxContainer.new()
+			var head := HBoxContainer.new()
+			step_box.add_child(head)
+			var number := Label.new()
+			number.text = "%d." % (i + 1)
+			head.add_child(number)
+			var step_ctrl := {}
+			if steps[i]["type"] == "dialogue":
+				var dialogue_label := Label.new()
+				dialogue_label.text = "Dialogue:"
+				head.add_child(dialogue_label)
+				step_ctrl[&"option"] = _dialogue_option(str(steps[i]["dialogue"]),
+						func(id: String) -> void: _set_step_dialogue(event_id, i, id))
+				head.add_child(step_ctrl[&"option"])
+			else:
+				var arrive_label := Label.new()
+				arrive_label.text = "Enemies arrive"
+				arrive_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				head.add_child(arrive_label)
+				_add_units_step(event_id, step_box, controls)
+			for move: Array in [[&"up", "^", -1], [&"down", "v", 1]]:
+				var button := Button.new()
+				button.text = move[1]
+				button.tooltip_text = "Move this step %s" % ("up" if move[2] < 0 else "down")
+				button.disabled = i + move[2] < 0 or i + move[2] >= steps.size()
+				button.pressed.connect(_move_step.bind(event_id, i, move[2]))
+				step_ctrl[move[0]] = button
+				head.add_child(button)
+			if steps[i]["type"] == "dialogue":
+				var remove_step := Button.new()
+				remove_step.text = "X"
+				remove_step.tooltip_text = "Remove this dialogue"
+				remove_step.pressed.connect(_remove_step.bind(event_id, i))
+				step_ctrl[&"remove"] = remove_step
+				head.add_child(remove_step)
+			step_controls.append(step_ctrl)
+			row.add_child(step_box)
+		controls[&"steps"] = step_controls
+		var add_dialogue := Button.new()
+		add_dialogue.text = "+ Add dialogue"
+		add_dialogue.tooltip_text = "A dialogue file (resources/dialogue) played over the map"
+		add_dialogue.pressed.connect(_add_dialogue_step.bind(event_id))
+		controls[&"add_dialogue"] = add_dialogue
+		row.add_child(add_dialogue)
 
 	var problem := Label.new()
 	problem.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2173,20 +2427,93 @@ func _build_event_row(event_id: String) -> void:
 	_update_event_row(event_id)
 
 
+## A dropdown of every dialogue file, on `current` (shown as missing when it's
+## gone); `on_pick` gets the chosen id.
+func _dialogue_option(current: String, on_pick: Callable) -> OptionButton:
+	var option := OptionButton.new()
+	var ids := dialogue_ids()
+	for id in ids:
+		option.add_item(id)
+	if not ids.has(current):
+		option.add_item("(missing) %s" % current if not current.is_empty() else "(none)")
+	option.selected = ids.find(current) if ids.has(current) else ids.size()
+	option.item_selected.connect(func(index: int) -> void:
+		if index < ids.size():
+			on_pick.call(ids[index]))
+	return option
+
+
+## The units step's body: the event's enemies as chips, and the ways to add some.
+func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictionary) -> void:
+	var chips_line := HFlowContainer.new()
+	var chips := {}
+	var units := event_units(event_id)
+	if units.is_empty():
+		var none := Label.new()
+		none.text = "none yet"
+		chips_line.add_child(none)
+	for id in units:
+		# The name selects the unit on the map; the x takes it out of the event.
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 0)
+		var select := Button.new()
+		select.text = level.level_state.map_data.units[id].display_name()
+		select.tooltip_text = "Select it on the map"
+		select.pressed.connect(_select_unit.bind(id))
+		chip.add_child(select)
+		var remove_unit := Button.new()
+		remove_unit.text = "x"
+		remove_unit.tooltip_text = "Take it out of this event: it starts on the map"
+		remove_unit.pressed.connect(_remove_from_event.bind(id))
+		chips[id] = remove_unit
+		chip.add_child(remove_unit)
+		chips_line.add_child(chip)
+	controls[&"chips"] = chips
+	step_box.add_child(chips_line)
+
+	var actions := HFlowContainer.new()
+	if _event_pick == event_id:
+		var prompt := Label.new()
+		prompt.text = "Click enemies... (%d chosen)" % _event_pending.size()
+		actions.add_child(prompt)
+		var confirm := Button.new()
+		confirm.text = "Confirm"
+		confirm.disabled = _event_pending.is_empty()
+		confirm.pressed.connect(_confirm_event_pick)
+		controls[&"confirm"] = confirm
+		actions.add_child(confirm)
+		var cancel := Button.new()
+		cancel.text = "Cancel"
+		cancel.pressed.connect(_cancel_event_pick)
+		controls[&"cancel"] = cancel
+		actions.add_child(cancel)
+	else:
+		var choose := Button.new()
+		choose.text = "+ Add units"
+		choose.tooltip_text = "Click enemies already on the map, then Confirm"
+		choose.pressed.connect(_start_event_pick.bind(event_id))
+		controls[&"choose"] = choose
+		actions.add_child(choose)
+		var place := Button.new()
+		place.text = "Place new units"
+		place.tooltip_text = "Go to Units mode: enemies you place join this event"
+		place.pressed.connect(_preselect_event.bind(event_id))
+		controls[&"place"] = place
+		actions.add_child(place)
+	step_box.add_child(actions)
+
+
 ## The row's warning, without rebuilding it (a spin being typed in keeps focus).
 func _update_event_row(event_id: String) -> void:
 	var controls: Dictionary = _event_rows.get(event_id, {})
 	if controls.is_empty():
 		return
-	var problem := LevelState.event_problem(level.level_state.events[event_id])
-	if problem.is_empty() and event_units(event_id).is_empty():
-		problem = "add the enemies that arrive"
+	var problem := event_issue(event_id)
 	var label := controls[&"problem"] as Label
 	label.text = "! " + problem if not problem.is_empty() else ""
 	label.visible = not problem.is_empty()
 	if controls.has(&"name"):
-		(controls[&"name"] as LineEdit).placeholder_text = "Turn %d reinforcements" \
-				% int(level.level_state.events[event_id]["trigger"]["turn"])
+		(controls[&"name"] as LineEdit).placeholder_text = _default_event_title(event_id)
 
 
 func _update_events_problems() -> void:
@@ -2199,6 +2526,13 @@ func _update_events_problems() -> void:
 
 func event_control(event_id: String, key: StringName) -> Control:
 	return _event_rows.get(event_id, {}).get(key)
+
+
+## A step's control in `event_id`'s row: &"up", &"down", &"remove" (dialogue
+## steps) or &"option" (the dialogue dropdown). Null when the step has none.
+func event_step_control(event_id: String, index: int, key: StringName) -> Control:
+	var steps: Array = _event_rows.get(event_id, {}).get(&"steps", [])
+	return steps[index].get(key) if index < steps.size() else null
 
 
 func event_chip(event_id: String, unit_id: String) -> Button:

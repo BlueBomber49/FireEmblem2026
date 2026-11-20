@@ -102,6 +102,8 @@ or a **generic unit** defined right there:
 - `"commander": true` (optional) marks the enemy commander that `defeat_commander` targets. One per level, enemies only. It's drawn with a crown in play and in the editor.
 - `"strategy"` (optional, enemies only) is how the enemy AI moves it: `aggressive` (the default, not written), `stationary` (never moves; attacks what it can reach from its cell, and its danger zone shows only that) or `defensive` (waits until a player unit is within its reach, then turns aggressive for good). `"team"` (optional) groups defensive enemies: when one of a team could reach a player unit, the whole team wakes. A defensive enemy with no team wakes on its own. An unknown strategy is warned about and read as aggressive.
 - `"event"` (optional, enemies only) is the id of the event that brings it onto the map (a reinforcement; see **Events**). Without it, the unit is there from the start.
+- `"quotes"` (optional, enemies only) are battle quotes: `[{ "dialogue": "boss_vs_adelard", "with": "adelard" }, { "dialogue": "boss_taunt" }]`. Before this enemy's first fight with a player unit (whoever attacks), its quote `"with"` that character plays, else its quote with no `"with"` (anyone). Each unit plays a given dialogue at most once per attempt (a retry resets them), and if the quote that fits has already played, nothing plays: it doesn't fall back to the anyone quote. The dialogue file can have both sides speaking. Allies never trigger quotes.
+- `"death_quote"` (optional, player and enemy units) is a dialogue id played when the unit falls, whoever the killer, before it fades out.
 - A generic unit's `stats` are optional **overrides**: any stat left out uses the class's base stat.
 - `sprite_sheet` (optional) is a full sprite path. Without it the unit uses its character's or class's sprite in its faction's colour. The map editor fills it in.
 - A unit whose character or class id doesn't exist is kept in the file but skipped in play; the map editor lists it in its status line.
@@ -155,25 +157,32 @@ The map editor edits all of it in **Objective** mode: add or remove conditions i
 
 ### Events
 
-Optional `events` at the top level of the level file, by id. Today's one kind brings in reinforcements at the start of a turn:
+Optional `events` at the top level of the level file, by id: things that happen at the start of a turn. Each brings in its reinforcements and/or plays dialogue over the map:
 
 ```json
 "events": {
 	"wave_1": {
 		"name": "Bandit wave",
 		"trigger": { "type": "turn_start", "turn": 3, "phase": "enemy" },
-		"actions": [{ "type": "spawn" }]
+		"actions": [
+			{ "type": "dialogue", "dialogue": "bandits_spotted" },
+			{ "type": "spawn" },
+			{ "type": "dialogue", "dialogue": "hurry_up" }
+		]
 	}
 }
 ```
 
-- `trigger`: `turn_start` with `turn` (1+) and `phase` (`enemy` or `player`). `name` is optional; the editor shows "Turn 3 reinforcements" without it.
-- `spawn` brings in every enemy placed with `"event": "wave_1"`, at its `start_cell`, or the nearest free cell it can stand on when that one's taken. It fires once.
+- `trigger`: `turn_start` with `turn` (1+) and `phase` (`enemy` or `player`). `name` is optional; the editor shows "Turn 3 reinforcements" (or "Turn 3 event" with no units) without it. An event fires once.
+- `actions` run **in order**, after that phase's banner:
+  - `spawn` brings in every enemy placed with `"event": "wave_1"`, at its `start_cell`, or the nearest free cell it can stand on when that one's taken. They run in together from the next cell toward the map's nearest edge (or fade in where there's no room). An event with units but no `spawn` brings them in after its other actions.
+  - `dialogue` plays `resources/dialogue/<dialogue>.json` over the map: portraits and the text box, with the map showing through (a `background` in the file is ignored in battle). A file that's missing or has no lines that load is skipped with a warning.
+- The board changes as the event fires: arrivals count for the objective and act in that enemy phase straight away; the dialogue and run-in only show it.
 - An enemy-phase arrival acts that same phase; a player-phase one waits for the enemy phase. Arrivals on turn 1's player phase are there from the start.
 - Until they arrive, reinforcements don't count for the objective: **Rout is won when every enemy on the map is defeated**, even with a wave still to come.
-- An event with an unknown or broken trigger, or a unit pointing at a missing event, or a non-enemy with an event, is warned about and its units start on the map. The editor won't save an event that's broken or has no units, or a Rout level whose every enemy arrives later.
+- An event with an unknown or broken trigger, an unknown action type or a dialogue action with no file, or a unit pointing at a missing event, or a non-enemy with an event, is warned about and its units start on the map. The editor won't save an event that's broken, names a dialogue file that doesn't exist, or has neither units nor dialogue, or a Rout level whose every enemy arrives later.
 
-The map editor's **Events** mode lists the events ("WHEN turn N's enemy/player phase starts, THEN these enemies arrive"): add units by choosing them on the map, or **Place new units** to place enemies straight into an event. Units mode's **Arrives** dropdown sets the same thing for the selected enemy. Reinforcements are drawn faded with their turn ("T3") in the editor.
+The map editor's **Events** mode lists the events: "WHEN turn N's enemy/player phase starts, THEN, in order:" its steps. The **Enemies arrive** step (always there) lists its units: add them by choosing them on the map, or **Place new units** to place enemies straight into the event. **+ Add dialogue** adds a dialogue step (a dropdown of every file in `resources/dialogue`); ^ and v reorder the steps. Units mode's **Arrives** dropdown sets an enemy's event too, and its **Quotes** rows and **Death quote** dropdown set quotes. Reinforcements are drawn faded with their turn ("T3") in the editor.
 
 ## Campaign: `resources/campaign.json`
 
@@ -191,7 +200,7 @@ The order the game plays in. `GameFlow` (an autoload) plays each chapter's intro
 | `intro`, `outro` | Optional. Dialogue ids (`resources/dialogue/<id>.json`); empty or left out means no cutscene |
 | `level` | A level id (`resources/levels/<id>.json`) |
 
-A chapter naming a missing dialogue or level file is reported and skipped; `test_campaign.gd` fails on it.
+A chapter naming a missing dialogue or level file is reported and skipped; `test_campaign.gd` fails on it. `test_campaign_levels.gd` also fails when a chapter's level has a unit that can't be built (say, its class file is missing), a broken event, or a dialogue (cutscene, event step or quote) that doesn't load.
 
 ## Dialogue: `resources/dialogue/<id>.json`
 
@@ -208,11 +217,24 @@ Each line:
 | Field | Meaning |
 |---|---|
 | `speaker` | A character id, or empty for narration (no name, both portraits dimmed). The portrait is `assets/portraits/<speaker>.png`; without one, the speaker just has no portrait |
+| `portrait`, `name` | Optional. For a speaker without a character file (a generic bandit): `"portrait": "bandit", "name": "Bandit"` shows `assets/portraits/bandit.png` and that name. Either one alone also makes a speaker. With a `speaker`, they replace that character's portrait or name |
 | `side` | Optional. `left` (default) or `right`. A portrait stays on its side until another speaker takes it |
 | `text` | What they say |
 | `background` | Optional. An image id to switch to from this line on, or `none` to clear it to the plain dark background. Without it, the background stays as it was. (So no image can be called `none.png`) |
 
-A line with an unknown key, unknown speaker or bad side is reported and dropped; the rest still play.
+A line with an unknown key, unknown speaker, missing portrait image or bad side is reported and dropped; the rest still play.
+
+The same files play over the map during a battle (event dialogue and quotes); there, backgrounds are ignored so the map stays visible.
+
+## Credits: `resources/credits.json`
+
+What the credits show, after the last chapter and from the title screen's **Credits**: the title, each person with their role, then a closing line, rolling up over the title music.
+
+```json
+{ "title": "Flame Insignia",
+  "people": [{ "name": "Ethan Cox", "role": "Mechanics Engineer" }],
+  "closing": "Thanks for playing!" }
+```
 
 ## Saves
 

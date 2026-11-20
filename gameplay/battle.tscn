@@ -18,6 +18,7 @@
 [ext_resource type="PackedScene" path="res://gameplay/ui/phase_banner.tscn" id="16_phase_banner"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/end_screen.tscn" id="17_end_screen"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/exp_popup.tscn" id="18_exp_popup"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/trade_menu.tscn" id="19_trade_menu"]
 
 [node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
@@ -91,6 +92,9 @@ visible = false
 unique_name_in_owner = true
 
 [node name="PhaseBanner" parent="UI" unique_id=363991679 instance=ExtResource("16_phase_banner")]
+unique_name_in_owner = true
+
+[node name="TradeMenu" parent="UI" instance=ExtResource("19_trade_menu")]
 unique_name_in_owner = true
 
 [node name="ExpPopup" parent="UI" unique_id=256821876 instance=ExtResource("18_exp_popup")]

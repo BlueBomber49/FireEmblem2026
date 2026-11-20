@@ -23,8 +23,13 @@ signal ended(won: bool)
 ## A player unit gained EXP after a fight: [param level_ups] holds one entry per
 ## level gained (stat -> amount), from Experience.gain. A hook for UI.
 signal experience_gained(unit_id: String, amount: int, level_ups: Array[Dictionary])
+## A dialogue (an event step or a quote) went up over the map.
+signal dialogue_shown(dialogue_id: StringName)
+## A battle or death quote's turn came (emitted even with banners off, for tests).
+signal quote_played(dialogue_id: String)
 
-enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS }
+enum State { FREE, UNIT_SELECTED, MOVING, UNIT_MENU, ITEM_MENU, TARGETING, COMBAT, MAP_MENU, STATUS,
+		TRADE_PICK, TRADING, SCENE }
 
 const CURSOR_DIRECTIONS := {
 	&"ui_left": Vector2i.LEFT,
@@ -53,6 +58,7 @@ const MELEE_SFX_4: AudioStream = preload("res://assets/audio/SFX/Sword Attack/Sw
 const RANGED_SFX: AudioStream = preload("res://assets/audio/SFX/shoot-arrow.mp3")
 const MISS_SFX: AudioStream = preload("res://assets/audio/SFX/whoosh-miss.mp3")
 const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.wav")
+const CutsceneScene: PackedScene = preload("res://gameplay/cutscene/cutscene.tscn")
 
 @onready var level: Level = $Level
 @onready var range_overlay: RangeOverlay = $Range
@@ -61,6 +67,7 @@ const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.w
 @onready var map_menu: ActionMenu = %MapMenu
 @onready var unit_menu: ActionMenu = %UnitMenu
 @onready var item_menu: ItemMenu = %ItemMenu
+@onready var trade_menu: TradeMenu = %TradeMenu
 @onready var forecast: CombatForecast = %Forecast
 @onready var terrain_panel: TerrainPanel = %TerrainPanel
 @onready var unit_panel: UnitPanel = %UnitPanel
@@ -75,6 +82,8 @@ const BUTTON_PRESS: AudioStream = preload("res://assets/audio/SFX/button-press.w
 ## Play the "Player Phase" / "Enemy Phase" banners. Tests turn this off before
 ## adding the scene, so phases change instantly.
 @export var show_banners := true
+## Where event and quote dialogue files are read from (tests point it at fixtures).
+var dialogue_dir := DialogueData.DEFAULT_DIR
 
 var state := State.FREE
 ## cell -> true; where the selected unit may move. Empty when nothing is selected.
@@ -89,6 +98,18 @@ var danger_zone := DangerZone.new()
 ## Where the selected unit stood before moving, so cancel can put it back.
 var move_origin := Vector2i.ZERO
 var origin_has_moved := false
+## The forecast was opened by clicking an enemy while choosing a destination, so
+## cancelling it goes back to choosing one, with the unit on its start cell.
+var direct_attack := false
+## Player units next to the selected one while choosing whom to trade with.
+var partners: Array[LevelUnitState] = []
+var partner_index := 0
+## The selected unit has traded: its move can no longer be undone (FE7).
+var has_traded := false
+## The cell the cursor was on before its latest move: hovering an enemy points
+## the arrow at the attack cell closest to it.
+var previous_cursor_cell := Vector2i(-1, -1)
+var _cursor_cell := Vector2i(-1, -1)
 ## Hostile units next to the selected unit while picking an attack target.
 var targets: Array[LevelUnitState] = []
 var target_index := 0
@@ -110,6 +131,7 @@ func _ready() -> void:
 	unit_menu.cancelled.connect(_on_unit_menu_cancelled)
 	item_menu.action_chosen.connect(_on_item_action)
 	item_menu.cancelled.connect(_on_item_menu_cancelled)
+	trade_menu.closed.connect(_on_trade_closed)
 	forecast.confirmed.connect(_on_forecast_confirmed)
 	forecast.cancelled.connect(_on_forecast_cancelled)
 	forecast.weapon_step.connect(cycle_weapon)
@@ -122,6 +144,8 @@ func _ready() -> void:
 	end_screen.continue_requested.connect(_on_end_screen_continue)
 	turn_loop.objective_changed.connect(func(_o: Objective) -> void: _refresh_seize_cells(turn_loop.phase))
 	turn_loop.units_arrived.connect(_on_units_arrived)
+	# Arrivals stay hidden until present() runs them in.
+	level.arrivals_hidden = true
 	if level.level_state != null:
 		start()
 		turn_loop.setup(self, level, level.level_state.objective)
@@ -156,7 +180,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if turn_loop != null and not turn_loop.is_player_turn():
 		return
-	if state == State.MOVING or state == State.COMBAT or state == State.STATUS:
+	if state == State.MOVING or state == State.COMBAT or state == State.STATUS or state == State.SCENE:
 		return
 
 	if event is InputEventMouseMotion:
@@ -164,6 +188,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			cursor.set_cell(level.cell_at(get_global_mouse_position()))
 		elif state == State.TARGETING:
 			point_at_target(level.cell_at(get_global_mouse_position()))
+		elif state == State.TRADE_PICK:
+			_point_at_partner(level.cell_at(get_global_mouse_position()))
 		return
 
 	var click := event as InputEventMouseButton
@@ -179,9 +205,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			forecast.close()
 			_on_forecast_confirmed()
+		elif click.button_index == MOUSE_BUTTON_LEFT and state == State.TRADE_PICK:
+			get_viewport().set_input_as_handled()
+			_point_at_partner(level.cell_at(get_global_mouse_position()))
+			if partners[partner_index].cell == level.cell_at(get_global_mouse_position()):
+				open_trade(partners[partner_index])
 		elif click.button_index == MOUSE_BUTTON_RIGHT:
 			get_viewport().set_input_as_handled()
 			right_click(level.cell_at(get_global_mouse_position()))
+		return
+
+	if state == State.TRADE_PICK:
+		for action: StringName in TARGET_STEPS:
+			if event.is_action_pressed(action):
+				get_viewport().set_input_as_handled()
+				_cycle_partner(TARGET_STEPS[action])
+				return
+		if event.is_action_pressed(&"confirm"):
+			get_viewport().set_input_as_handled()
+			open_trade(partners[partner_index])
+		elif event.is_action_pressed(&"cancel"):
+			get_viewport().set_input_as_handled()
+			cancel()
 		return
 
 	if state == State.TARGETING:
@@ -253,6 +298,10 @@ func confirm() -> void:
 			else:
 				_open_map_menu()
 		State.UNIT_SELECTED:
+			var enemy := attackable_enemy_at(cursor.cell)
+			if enemy != null:
+				_attack_directly(enemy)
+				return
 			if not reachable.has(cursor.cell):
 				return
 			if cursor.cell == level.selected.state.cell:
@@ -281,6 +330,10 @@ func cancel() -> void:
 		State.TARGETING:
 			forecast.close()
 			_on_forecast_cancelled()
+		State.TRADE_PICK:
+			_open_unit_menu()
+		State.TRADING:
+			trade_menu.back()
 		State.MAP_MENU:
 			map_menu.close()
 			_on_map_menu_cancelled()
@@ -322,6 +375,8 @@ func _select(unit: LevelUnit) -> void:
 	sound_effects.stream = BUTTON_PRESS
 	sound_effects.play()
 	level.select(unit)
+	direct_attack = false
+	has_traded = false
 	move_origin = unit.state.cell
 	origin_has_moved = unit.state.has_moved
 	var ranges := _ranges_for(unit.state)
@@ -371,6 +426,8 @@ func _open_unit_menu() -> void:
 	state = State.UNIT_MENU
 	targets = Combat.hostiles_in_range(level.selected.state, level.level_state)
 	var options: Array[StringName] = [&"status", &"wait"]
+	if not trade_partners().is_empty():
+		options.push_front(&"trade")
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
 	if not targets.is_empty():
@@ -400,6 +457,13 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			state = State.ITEM_MENU
 			item_menu.open(selected_unit_items())
 			_update_panels()
+		&"trade":
+			# Always choose the partner, even when there's only one, like a target.
+			partners = trade_partners()
+			partner_index = 0
+			state = State.TRADE_PICK
+			_redraw_selection()
+			cursor.set_cell(partners[0].cell)
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
@@ -414,8 +478,12 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			_finish_action()
 
 
-## Cancel in the unit menu undoes the move and goes back to choosing a destination.
+## Cancel in the unit menu undoes the move and goes back to choosing a destination;
+## after a trade the move stands, as in FE7, so the menu stays.
 func _on_unit_menu_cancelled() -> void:
+	if has_traded:
+		_open_unit_menu()
+		return
 	var unit := level.selected
 	if unit.state.cell != move_origin:
 		level.place_unit(unit, move_origin)
@@ -498,6 +566,55 @@ func equip_item(index: int) -> bool:
 	return true
 
 
+# --- Trade -------------------------------------------------------------------------
+# FE7's Trade: with a player unit next to the selected one. It doesn't use up the
+# action (the unit can still attack or wait), but the move can't be undone after.
+
+
+## Player units next to the selected unit (acted or not; not allies), in the
+## order up, right, down, left.
+func trade_partners() -> Array[LevelUnitState]:
+	var found: Array[LevelUnitState] = []
+	var me := level.selected.state
+	for step: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		var other := level.unit_at(me.cell + step)
+		if other != null and other.reference.faction == UnitReference.Faction.PLAYER:
+			found.append(other.state)
+	return found
+
+
+## Opens the trade screen between the selected unit and `partner`.
+func open_trade(partner: LevelUnitState) -> void:
+	state = State.TRADING
+	_redraw_selection()
+	unit_menu.close()
+	var me := level.selected.state
+	trade_menu.open(me.unit, me.unit_ref.display_name(), UnitInfo.portrait_for(me.unit_ref.character_id),
+			partner.unit, partner.unit_ref.display_name(), UnitInfo.portrait_for(partner.unit_ref.character_id))
+	_update_panels()
+
+
+func _cycle_partner(step: int) -> void:
+	partner_index = wrapi(partner_index + step, 0, partners.size())
+	cursor.set_cell(partners[partner_index].cell)
+
+
+## Mouse hover while choosing whom to trade with: point at the partner on `cell`.
+func _point_at_partner(cell: Vector2i) -> void:
+	for i in partners.size():
+		if partners[i].cell == cell:
+			partner_index = i
+			cursor.set_cell(cell)
+			return
+
+
+func _on_trade_closed(traded: bool) -> void:
+	if traded:
+		has_traded = true
+		level.selected.state.has_moved = true
+	_open_unit_menu()
+
+
 # --- Attack forecast ---------------------------------------------------------
 
 
@@ -560,6 +677,7 @@ func point_at_target(cell: Vector2i) -> void:
 
 ## Attacking with the compared weapon equips it (FE moves it to the top).
 func _on_forecast_confirmed() -> void:
+	direct_attack = false
 	var unit := level.selected.state.unit
 	var chosen := unit.weapon_preview
 	unit.weapon_preview = -1
@@ -577,6 +695,7 @@ func _fight(target: LevelUnitState) -> void:
 	_update_panels()
 	# Keep the state, not the node: a fallen attacker's node is gone by the end.
 	var attacker := level.selected.state
+	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
@@ -595,6 +714,7 @@ func _fight(target: LevelUnitState) -> void:
 func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> void:
 	state = State.COMBAT
 	_update_panels()
+	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
@@ -614,6 +734,8 @@ func _play_strike(strike: Combat.Strike) -> void:
 	strike.defender.current_hp = strike.hp_after
 	
 	if not strike.defender.is_alive():
+		# Last words come before the fade, while the unit is still on the map.
+		await play_quote(Quotes.death_quote(strike.defender.unit_ref, level.level_state.played_quotes))
 		await level.fade_out_unit(target)
 		
 func play_strike_sound_effect(strike: Combat.Strike) -> void:
@@ -667,9 +789,95 @@ func _random_roll() -> int:
 	return rng.randi_range(0, 99)
 
 
+## Back to the unit menu; or, for a forecast opened by clicking an enemy, back to
+## choosing a destination with the unit on its start cell. The compared weapon is
+## dropped first either way, so the equipped one is what counters next phase.
 func _on_forecast_cancelled() -> void:
 	level.selected.state.unit.weapon_preview = -1
+	if direct_attack:
+		direct_attack = false
+		_on_unit_menu_cancelled()
+		return
 	_open_unit_menu()
+
+
+# --- Clicking an enemy to attack -------------------------------------------------
+# While choosing a destination, an enemy in the red range can be attacked straight
+# away: hovering it points the arrow at a cell the unit can hit it from, and
+# clicking (or confirming) walks there and opens the forecast on it.
+
+
+## The enemy on `cell` the selected unit could attack after moving, or null.
+func attackable_enemy_at(cell: Vector2i) -> LevelUnitState:
+	if state != State.UNIT_SELECTED or level.selected == null:
+		return null
+	var unit := level.unit_at(cell)
+	if unit == null or not UnitReference.are_hostile(level.selected.reference, unit.reference):
+		return null
+	return unit.state if not attack_cells_for(unit.state).is_empty() else null
+
+
+## Cells the selected unit can stop on and hit `enemy` from with any weapon it
+## can use. Built from `reachable`, so cells other units stand on are never in it.
+func attack_cells_for(enemy: LevelUnitState) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var me := level.selected.state
+	for cell: Vector2i in reachable:
+		if not Combat.weapons_reaching(me.unit, _gap(cell, enemy.cell)).is_empty():
+			cells.append(cell)
+	return cells
+
+
+## Hovering an enemy: the arrow stays if it ends where the unit can hit it from.
+## Otherwise it goes to the attack cell closest to where the cursor just was;
+## ties go to the shorter walk, then to the first cell in map order.
+func _arrow_for_enemy(enemy: LevelUnitState) -> void:
+	var me := level.selected.state
+	var end: Vector2i = arrow.path[-1] if not arrow.path.is_empty() else me.cell
+	var cells := attack_cells_for(enemy)
+	if cells.has(end):
+		return
+	var best := cells[0]
+	var best_key := _attack_cell_key(best)
+	for cell in cells:
+		var key := _attack_cell_key(cell)
+		if key < best_key:
+			best = cell
+			best_key = key
+	arrow.set_path([] as Array[Vector2i] if best == me.cell else level.pathfinding.find_path(me, best))
+
+
+## How good `cell` is to attack from: closer to the previous cursor cell first,
+## then a cheaper walk, then map order (row, then column).
+func _attack_cell_key(cell: Vector2i) -> Array:
+	var me := level.selected.state
+	var walk := 0
+	if cell != me.cell:
+		walk = level.pathfinding.path_cost(me, level.pathfinding.find_path(me, cell))
+	return [_gap(cell, previous_cursor_cell), walk, cell.y, cell.x]
+
+
+static func _gap(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+## Walks along the arrow (if it goes anywhere), then opens the forecast on `enemy`.
+func _attack_directly(enemy: LevelUnitState) -> void:
+	var me := level.selected
+	var path := arrow.path
+	if not path.is_empty() and path[-1] != me.state.cell:
+		state = State.MOVING
+		reachable = {}
+		selected_fringe = {}
+		_redraw_selection()
+		arrow.set_path([])
+		_update_panels()
+		await level.walk(me, path)
+	direct_attack = true
+	targets = Combat.hostiles_in_range(me.state, level.level_state)
+	target_index = maxi(targets.find(enemy), 0)
+	state = State.TARGETING
+	_show_forecast()
 
 
 # --- Status screen -------------------------------------------------------------
@@ -763,8 +971,14 @@ func terrain_info_at(cell: Vector2i) -> TerrainInfo:
 	return info
 
 
-func _on_cursor_moved(_cell: Vector2i) -> void:
-	_update_arrow()
+func _on_cursor_moved(cell: Vector2i) -> void:
+	previous_cursor_cell = _cursor_cell
+	_cursor_cell = cell
+	var enemy := attackable_enemy_at(cell)
+	if enemy != null:
+		_arrow_for_enemy(enemy)
+	else:
+		_update_arrow()
 	_update_panels()
 	_update_hover()
 
@@ -895,9 +1109,9 @@ func _enemy_stays_put(unit_id: String) -> bool:
 
 
 ## The selected unit's ranges, drawn by state: its blue and red fringe while
-## choosing a destination, the targeting cells while picking a target, and just
-## the blue otherwise. In State.FREE the layer belongs to the hover, so this
-## leaves it alone.
+## choosing a destination, the targeting cells while picking a target, nothing
+## while trading (only the cursor on the partner), and just the blue otherwise.
+## In State.FREE the layer belongs to the hover, so this leaves it alone.
 func _redraw_selection() -> void:
 	match state:
 		State.FREE:
@@ -906,6 +1120,8 @@ func _redraw_selection() -> void:
 			range_overlay.set_cells(reachable, selected_fringe)
 		State.TARGETING:
 			range_overlay.set_cells(reachable, attack_cells)
+		State.TRADE_PICK, State.TRADING:
+			range_overlay.set_cells({}, {})
 		_:
 			range_overlay.set_cells(reachable, {})
 
@@ -960,6 +1176,77 @@ func _on_units_arrived(_ids: Array[String]) -> void:
 	level.update_tints()
 	_refresh_danger_zone_for(turn_loop.phase)
 	_update_hover_for(turn_loop.phase)
+
+
+# --- Event scenes ------------------------------------------------------------
+# What an event shows once its phase's banner is gone: dialogue over the map and
+# arrivals running in, in the event's order. TurnLoop awaits present().
+
+
+## Plays `steps` (TurnLoop.pending_steps) in order; input waits until they're
+## done. With `instant` (the level just ended), or with banners off (tests), the
+## dialogue is skipped and arrivals simply appear.
+func present(steps: Array[Dictionary], instant := false) -> void:
+	if instant or not show_banners:
+		for step in steps:
+			if step["type"] == "spawn":
+				for id: String in step["ids"]:
+					if level.unit_nodes.has(id):
+						level.unit_nodes[id].visible = true
+		return
+	var before := state
+	state = State.SCENE
+	range_overlay.set_cells({}, {})
+	terrain_panel.hide()
+	unit_panel.hide()
+	for step in steps:
+		match step["type"]:
+			"dialogue":
+				await play_dialogue(StringName(step["dialogue"]))
+			"spawn":
+				await level.run_in(step["ids"])
+	state = before
+	_refresh_danger_zone()
+	_update_panels()
+	_update_hover()
+
+
+## A battle or death quote (from Quotes): plays it over the map, or does nothing
+## for "". With banners off (tests) it's only reported through quote_played.
+func play_quote(dialogue_id: String) -> void:
+	if dialogue_id.is_empty():
+		return
+	quote_played.emit(dialogue_id)
+	if show_banners:
+		await play_dialogue(StringName(dialogue_id))
+
+
+## Plays a dialogue file over the map, returning when it's done. The map always
+## shows through: the cutscene's dark background and any background image the
+## file names are hidden in battle. A file that's missing, or whose every line
+## failed to load, is skipped with a warning, since an empty cutscene would end
+## before anything could wait for it.
+func play_dialogue(dialogue_id: StringName) -> void:
+	var path := dialogue_dir.path_join("%s.json" % dialogue_id)
+	if not FileAccess.file_exists(path):
+		push_warning("Battle: no dialogue '%s' at %s; skipped." % [dialogue_id, path])
+		return
+	var data := DialogueData.read(path)
+	if data.lines.is_empty():
+		push_warning("Battle: dialogue '%s' has no lines that load; skipped." % dialogue_id)
+		return
+	var scene: Cutscene = CutsceneScene.instantiate()
+	scene.get_node("Background").visible = false
+	scene.get_node("%Backdrop").visible = false
+	var done := [false]
+	scene.finished.connect(func() -> void: done[0] = true)
+	scene.play(data)
+	$UI.add_child(scene)
+	dialogue_shown.emit(dialogue_id)
+	while not done[0]:
+		await scene.finished
+	$UI.remove_child(scene)
+	scene.queue_free()
 
 
 # --- Music -----------------------------------------------------------------
