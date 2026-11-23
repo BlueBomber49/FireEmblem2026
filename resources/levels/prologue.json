@@ -4,16 +4,21 @@
 			"actions": [
 				{
 					"type": "spawn"
+				},
+				{
+					"dialogue": "prologue_dialogue",
+					"type": "dialogue"
 				}
 			],
 			"trigger": {
-				"phase": "player",
-				"turn": 2.0,
+				"phase": "enemy",
+				"turn": 1,
 				"type": "turn_start"
 			}
 		}
 	},
 	"map_data": {
+		"doors": [],
 		"layers": {
 			"dirt": {
 				"terrain": "dirt",
@@ -4185,7 +4190,8 @@
 				],
 				"strategy": "stationary"
 			}
-		}
+		},
+		"walls": []
 	},
 	"objective": {
 		"lose": [],

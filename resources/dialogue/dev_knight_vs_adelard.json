@@ -1,7 +1,0 @@
-{
-	"id": "dev_knight_vs_adelard",
-	"lines": [
-		{ "portrait": "gerrard", "name": "Knight", "side": "right", "text": "You again, boy? This time you won't walk away." },
-		{ "speaker": "adelard", "side": "left", "text": "Big words from someone hiding in all that armor!" }
-	]
-}

@@ -1,6 +1,0 @@
-{
-	"id": "dev_knight_taunt",
-	"lines": [
-		{ "portrait": "gerrard", "name": "Knight", "side": "right", "text": "Another one? Step forward, then." }
-	]
-}

@@ -339,13 +339,18 @@ func _pick_level(label: String) -> void:
 	editor.level_option.item_selected.emit(index)
 
 
-func test_the_picker_lists_levels_and_subfolders_and_selects_the_loaded_one() -> void:
+func test_the_picker_lists_levels_but_not_dev_ones_and_selects_the_loaded_one() -> void:
 	var labels: Array[String] = []
 	for i in editor.level_option.item_count:
 		labels.append(editor.level_option.get_item_text(i))
 	assert_has(labels, "level_1")
-	assert_has(labels, "dev/seize")
+	assert_does_not_have(labels, "dev/seize")
 	assert_eq(editor.level_option.get_item_text(editor.level_option.selected), "simple_level")
+
+
+func test_dev_dialogue_isnt_offered() -> void:
+	assert_has(editor.dialogue_ids(), "level_1_intro")
+	assert_false(editor.dialogue_ids().any(func(id: String) -> bool: return id.begins_with("dev")))
 
 
 func test_picking_a_level_loads_it() -> void:

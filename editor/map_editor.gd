@@ -9,7 +9,7 @@ extends Node2D
 ## the commander are set with Choose, a map click, then Confirm. Problems block
 ## saving.
 ## Walls mode: left mouse paints the picked piece (wall or door), right mouse erases.
-## All: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
+## All: middle-drag / arrows / two-finger drag pan, wheel / pinch zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS, WALLS }
 ## Enemy AI strategies, in the AI dropdown's order.
@@ -19,6 +19,8 @@ enum Brush { PAINT, ERASE }
 enum WallPiece { WALL, DOOR }
 
 const PAN_SPEED := 400.0
+## Screen pixels a two-finger drag pans per unit of PanGesture.delta.
+const TRACKPAD_PAN_SPEED := 10.0
 const MAX_UNDO := 200
 const ZOOM_STEP := 1.25
 const GRID_COLOR := Color(1, 1, 1, 0.12)
@@ -33,6 +35,10 @@ const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
 const REINFORCEMENT_ALPHA := 0.45
 ## Where the level picker looks (subfolders included) and New creates levels.
 const LEVELS_DIR := "res://resources/levels"
+## The dev levels' test content, kept out of the level picker so it can't be
+## edited by accident. (Their dialogue is in resources/dialogue/dev, which
+## dialogue_ids doesn't look in.)
+const DEV_LEVELS_DIR := LEVELS_DIR + "/dev"
 
 
 ## The file Save writes to. It changes only when a load succeeds or New names a level.
@@ -256,6 +262,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_preselect_event("")
 		else:
 			_select_unit("")
+		return
+
+	# Trackpads: a pinch is a MagnifyGesture and a two-finger drag is a
+	# PanGesture, not wheel clicks, so the wheel zoom below never sees them.
+	var pinch := event as InputEventMagnifyGesture
+	if pinch != null:
+		_zoom(pinch.factor)
+		return
+	var swipe := event as InputEventPanGesture
+	if swipe != null:
+		camera.position += swipe.delta * TRACKPAD_PAN_SPEED / camera.zoom.x
+		_update_hover()
+		overlay.queue_redraw()
 		return
 
 	var click := event as InputEventMouseButton
@@ -1002,14 +1021,15 @@ func _build_file_dialogs() -> void:
 	$UI.add_child(new_level_dialog)
 
 
-## Every .json under `dir` and its subfolders, sorted.
+## Every .json under `dir` and its subfolders, except the dev levels, sorted.
 static func find_levels(dir: String) -> Array[String]:
 	var found: Array[String] = []
 	for file in DirAccess.get_files_at(dir):
 		if file.ends_with(".json"):
 			found.append(dir.path_join(file))
 	for sub in DirAccess.get_directories_at(dir):
-		found.append_array(find_levels(dir.path_join(sub)))
+		if dir.path_join(sub) != DEV_LEVELS_DIR:
+			found.append_array(find_levels(dir.path_join(sub)))
 	found.sort()
 	return found
 
@@ -2136,6 +2156,7 @@ func _default_event_title(event_id: String) -> String:
 
 
 ## The dialogue ids in resources/dialogue, sorted: what a dialogue step can play.
+## Subfolders (dev/) aren't listed.
 func dialogue_ids() -> Array[String]:
 	var ids: Array[String] = []
 	for file in DirAccess.get_files_at(DialogueData.DEFAULT_DIR):

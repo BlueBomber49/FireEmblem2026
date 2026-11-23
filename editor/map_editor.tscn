@@ -431,7 +431,8 @@ layout_mode = 2
 
 [node name="Help" type="Label" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1000185835]
 layout_mode = 2
-text = "Middle-drag / arrows: pan   Wheel: zoom
+text = "Middle-drag / arrows / two-finger drag: pan
+Wheel / pinch: zoom
 Ctrl+Z: undo   Ctrl+Shift+Z: redo"
 autowrap_mode = 3
 

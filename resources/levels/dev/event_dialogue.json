@@ -3,7 +3,7 @@
 		"talk": {
 			"actions": [
 				{
-					"dialogue": "dev_turn_two",
+					"dialogue": "dev/dev_turn_two",
 					"type": "dialogue"
 				}
 			],
@@ -17,14 +17,14 @@
 		"wave_1": {
 			"actions": [
 				{
-					"dialogue": "dev_bandits_spotted",
+					"dialogue": "dev/dev_bandits_spotted",
 					"type": "dialogue"
 				},
 				{
 					"type": "spawn"
 				},
 				{
-					"dialogue": "dev_hurry",
+					"dialogue": "dev/dev_hurry",
 					"type": "dialogue"
 				}
 			],

@@ -2325,7 +2325,7 @@
 		"units": {
 			"Knight_1": {
 				"class": "knight",
-				"death_quote": "dev_knight_falls",
+				"death_quote": "dev/dev_knight_falls",
 				"facing": [
 					0,
 					1
@@ -2338,11 +2338,11 @@
 				"name": "Knight",
 				"quotes": [
 					{
-						"dialogue": "dev_knight_vs_adelard",
+						"dialogue": "dev/dev_knight_vs_adelard",
 						"with": "adelard"
 					},
 					{
-						"dialogue": "dev_knight_taunt"
+						"dialogue": "dev/dev_knight_taunt"
 					}
 				],
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/LanceKnight/LanceKnight_Red.png",
@@ -2353,7 +2353,7 @@
 			},
 			"adelard": {
 				"character": "adelard",
-				"death_quote": "dev_adelard_falls",
+				"death_quote": "dev/dev_adelard_falls",
 				"facing": [
 					0,
 					1
@@ -2379,7 +2379,7 @@
 				"name": "Fighter",
 				"quotes": [
 					{
-						"dialogue": "dev_bandit_taunt"
+						"dialogue": "dev/dev_bandit_taunt"
 					}
 				],
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/AxeFighter/AxeFighter_ShortHair_Red1.png",
@@ -2414,7 +2414,7 @@
 				"name": "Mage",
 				"quotes": [
 					{
-						"dialogue": "dev_bandit_taunt"
+						"dialogue": "dev/dev_bandit_taunt"
 					}
 				],
 				"start_cell": [
