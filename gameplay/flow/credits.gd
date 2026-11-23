@@ -23,9 +23,6 @@ const ROLE_COLOR := Color(0.75, 0.75, 0.8)
 @export var speed := 50.0
 ## How much faster while confirm is held.
 @export var fast_multiplier := 6.0
-## Play the title music here. GameFlow turns this off and plays it itself, so
-## the song carries on between the title and the credits.
-@export var play_music := true
 ## Room between the credits and the closing line, past half the screen, so the
 ## last credit is gone off the top when the closing line stops in the middle.
 const CLOSING_GAP_MARGIN := 48.0
@@ -44,8 +41,6 @@ var _closing: Label
 func _ready() -> void:
 	_build(read(DATA_PATH))
 	_column.position.y = _screen_size().y
-	if play_music:
-		_music.play()
 
 
 ## The credits' text: {"title", "people": [{"name", "role"}], "closing"}. A missing

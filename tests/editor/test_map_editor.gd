@@ -321,12 +321,78 @@ func test_saved_level_reloads() -> void:
 	_select_class(&"mage")
 	editor._place_unit(FREE_CELL)
 	var path := "user://test_map_editor_level.json"
-	editor.path_edit.text = path
+	editor.level_path = path
 	editor._save()
 	var reloaded := LevelState.load_file(path)
 	assert_not_null(reloaded)
 	assert_eq(reloaded.level_units.size(), _map_units().size())
 	DirAccess.remove_absolute(path)
+
+
+# --- Level picker ----------------------------------------------------------------
+
+
+func _pick_level(label: String) -> void:
+	var index := editor.level_paths.find(MapEditor.LEVELS_DIR.path_join(label + ".json"))
+	assert_gt(index, -1, label + " is listed")
+	editor.level_option.select(index)
+	editor.level_option.item_selected.emit(index)
+
+
+func test_the_picker_lists_levels_and_subfolders_and_selects_the_loaded_one() -> void:
+	var labels: Array[String] = []
+	for i in editor.level_option.item_count:
+		labels.append(editor.level_option.get_item_text(i))
+	assert_has(labels, "level_1")
+	assert_has(labels, "dev/seize")
+	assert_eq(editor.level_option.get_item_text(editor.level_option.selected), "simple_level")
+
+
+func test_picking_a_level_loads_it() -> void:
+	_pick_level("level_1")
+	assert_eq(editor.level_path, "res://resources/levels/level_1.json")
+	assert_eq(editor.level.level_state.toJson(false), LevelState.load_file(editor.level_path).toJson(false))
+
+
+func test_picking_a_level_with_unsaved_changes_asks_first() -> void:
+	_select_class(&"mage")
+	editor._place_unit(FREE_CELL)
+	_pick_level("level_1")
+	assert_true(editor.discard_dialog.visible, "asks")
+	assert_eq(editor.level_path, "res://resources/levels/simple_level.json", "not yet")
+	editor.discard_dialog.canceled.emit()
+	assert_eq(editor.level_option.get_item_text(editor.level_option.selected), "simple_level", "the picker goes back")
+	_pick_level("level_1")
+	editor.discard_dialog.confirmed.emit()
+	assert_eq(editor.level_path, "res://resources/levels/level_1.json")
+
+
+func test_a_new_level_is_listed_as_unsaved_until_saved() -> void:
+	editor.new_level("dev/test_editor_new")
+	assert_eq(editor.level_path, "res://resources/levels/dev/test_editor_new.json")
+	assert_eq(editor.level_option.get_item_text(editor.level_option.selected), "dev/test_editor_new (unsaved)")
+	assert_false(editor.has_unsaved_changes(), "an untouched new level has nothing to lose")
+	assert_false(FileAccess.file_exists(editor.level_path), "written on Save, not before")
+
+
+func test_a_new_level_cant_take_an_existing_or_bad_name() -> void:
+	editor.new_level("level_1")
+	assert_eq(editor.level_path, "res://resources/levels/simple_level.json")
+	assert_string_contains(editor.status.text, "already exists")
+	for bad in ["", "  ", "../escape", "a:b"]:
+		editor.new_level(bad)
+		assert_eq(editor.level_path, "res://resources/levels/simple_level.json", "'%s' refused" % bad)
+
+
+func test_saving_clears_unsaved_changes() -> void:
+	const PATH := "user://test_map_editor_dirty.json"
+	_select_class(&"mage")
+	editor._place_unit(FREE_CELL)
+	assert_true(editor.has_unsaved_changes())
+	editor.level_path = PATH
+	editor._save()
+	assert_false(editor.has_unsaved_changes())
+	DirAccess.remove_absolute(PATH)
 
 
 # --- Objective mode ---------------------------------------------------------------
@@ -599,7 +665,7 @@ func test_a_row_with_a_problem_says_so_and_saving_is_refused() -> void:
 	assert_true(problem.visible)
 	assert_false(problem.text.is_empty())
 	assert_false(editor.problems_label.text.is_empty(), "summary at the top")
-	editor.path_edit.text = SAVE_PATH
+	editor.level_path = SAVE_PATH
 	editor._save()
 	assert_false(FileAccess.file_exists(SAVE_PATH), "refused")
 	assert_string_contains(editor.status.text, "commander")
@@ -608,7 +674,7 @@ func test_a_row_with_a_problem_says_so_and_saving_is_refused() -> void:
 func test_a_seize_with_no_cells_cant_be_saved() -> void:
 	_objective_mode()
 	_add(Objective.WIN, "seize")
-	editor.path_edit.text = SAVE_PATH
+	editor.level_path = SAVE_PATH
 	editor._save()
 	assert_false(FileAccess.file_exists(SAVE_PATH))
 
@@ -620,7 +686,7 @@ func test_fixing_the_problem_lets_it_save() -> void:
 	editor.commander_check.button_pressed = true
 	assert_true(editor.objective_problems().is_empty())
 	assert_false((editor.row_control(Objective.WIN, i, &"problem") as Label).visible, "the row's warning clears")
-	editor.path_edit.text = SAVE_PATH
+	editor.level_path = SAVE_PATH
 	editor._save()
 	assert_true(FileAccess.file_exists(SAVE_PATH))
 	var reloaded := LevelState.load_file(SAVE_PATH)
@@ -634,7 +700,7 @@ func test_a_level_with_no_win_condition_gets_a_note_but_still_saves() -> void:
 	assert_eq(_objective().win.size(), 0)
 	assert_string_contains(editor.problems_label.text, "No win condition")
 	assert_true(editor.objective_problems().is_empty(), "a note, not a problem")
-	editor.path_edit.text = SAVE_PATH
+	editor.level_path = SAVE_PATH
 	editor._save()
 	assert_true(FileAccess.file_exists(SAVE_PATH))
 
@@ -952,7 +1018,7 @@ func test_event_problems_block_saving() -> void:
 	_events_mode()
 	var id := _add_event()
 	assert_false(editor.event_problems().is_empty(), "an event with no units")
-	editor.path_edit.text = EVENTS_SAVE
+	editor.level_path = EVENTS_SAVE
 	editor._save()
 	assert_false(FileAccess.file_exists(EVENTS_SAVE))
 	_events()["broken"] = {"trigger": {"type": "full_moon"}, "actions": []}
@@ -989,8 +1055,8 @@ func test_rout_with_only_reinforcement_enemies_blocks_saving() -> void:
 
 
 func test_an_empty_new_level_still_saves() -> void:
-	editor._new()
-	editor.path_edit.text = EVENTS_SAVE
+	editor.new_level("test_editor_empty")
+	editor.level_path = EVENTS_SAVE  # not into res://
 	editor._save()
 	assert_true(FileAccess.file_exists(EVENTS_SAVE))
 	DirAccess.remove_absolute(EVENTS_SAVE)
@@ -1000,7 +1066,7 @@ func test_a_saved_reinforcement_waits_then_arrives_in_play() -> void:
 	_events_mode()
 	var id := _add_event()
 	_pick_into(id, ["brigand"])
-	editor.path_edit.text = EVENTS_SAVE
+	editor.level_path = EVENTS_SAVE
 	editor._save()
 	assert_true(FileAccess.file_exists(EVENTS_SAVE))
 	var battle: Battle = (load("res://gameplay/battle.tscn") as PackedScene).instantiate()
@@ -1019,8 +1085,7 @@ func test_a_unit_pointing_at_a_missing_event_is_cleared_on_load() -> void:
 	var state := LevelState.load_file("res://resources/levels/simple_level.json")
 	state.map_data.units["bandit"].event = "nowhere"
 	state.save_file(EVENTS_SAVE, false)
-	editor.path_edit.text = EVENTS_SAVE
-	editor._load()
+	editor._open(EVENTS_SAVE)
 	DirAccess.remove_absolute(EVENTS_SAVE)
 	assert_eq(_map_units()["bandit"].event, "")
 	assert_push_warning("nowhere")
@@ -1183,11 +1248,11 @@ func test_walls_and_doors_survive_save_and_load() -> void:
 	editor.wall_piece_option.selected = MapEditor.WallPiece.DOOR
 	_press_wall(FREE_CELL + Vector2i.RIGHT)
 	_release_wall()
-	editor.path_edit.text = PATH
+	editor.level_path = PATH
 	editor._save()
-	editor._new()
+	editor.new_level("test_editor_walls")
 	assert_true(_map_data().walls.is_empty())
-	editor._load()
+	editor._open(PATH)
 	assert_eq(_map_data().walls, [FREE_CELL] as Array[Vector2i])
 	assert_eq(_map_data().doors, [FREE_CELL + Vector2i.RIGHT] as Array[Vector2i])
 	assert_eq(editor.level.walls_layer.get_used_cells().size(), 2)
@@ -1241,7 +1306,7 @@ func test_a_dialogue_only_event_saves_but_an_empty_one_doesnt() -> void:
 	assert_string_contains(editor.event_problems()[0], "nothing happens")
 	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
 	assert_eq(editor.event_problems(), PackedStringArray())
-	editor.path_edit.text = EVENTS_SAVE
+	editor.level_path = EVENTS_SAVE
 	editor._save()
 	assert_true(FileAccess.file_exists(EVENTS_SAVE))
 	DirAccess.remove_absolute(EVENTS_SAVE)
@@ -1280,7 +1345,7 @@ func test_saved_steps_run_in_play() -> void:
 	var id := _add_event()
 	_pick_into(id, ["brigand"])
 	(editor.event_control(id, &"add_dialogue") as Button).pressed.emit()
-	editor.path_edit.text = EVENTS_SAVE
+	editor.level_path = EVENTS_SAVE
 	editor._save()
 	var battle: Battle = (load("res://gameplay/battle.tscn") as PackedScene).instantiate()
 	(battle.get_node("Level") as Level).level_path = EVENTS_SAVE
@@ -1365,7 +1430,7 @@ func test_two_quotes_for_the_same_fighter_or_a_missing_file_block_saving() -> vo
 	assert_string_contains(" ".join(editor.quote_problems()), "two quotes for anyone")
 	ref.quotes = [{"dialogue": "gone_file", "with": "lyn"}] as Array[Dictionary]
 	assert_string_contains(" ".join(editor.quote_problems()), "gone_file")
-	editor.path_edit.text = SAVE_PATH
+	editor.level_path = SAVE_PATH
 	editor._save()
 	assert_false(FileAccess.file_exists(SAVE_PATH))
 	assert_string_contains(editor.status.text, "quotes")

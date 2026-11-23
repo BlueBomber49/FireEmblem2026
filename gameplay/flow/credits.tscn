@@ -1,10 +1,10 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://d0nnvemfg6yge"]
 
-[ext_resource type="Script" path="res://gameplay/flow/credits.gd" id="1_credits"]
+[ext_resource type="Script" uid="uid://tb7tg3nsg2b" path="res://gameplay/flow/credits.gd" id="1_credits"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
-[ext_resource type="AudioStream" uid="uid://x7orxxb0811q" path="res://assets/audio/Music/main_menu.ogg" id="3_music"]
+[ext_resource type="AudioStream" uid="uid://giopxihgo4er" path="res://assets/audio/Music/credits.ogg" id="3_2w6r1"]
 
-[node name="Credits" type="Control"]
+[node name="Credits" type="Control" unique_id=799265418]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -14,7 +14,7 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_credits")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1358978592]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -24,11 +24,12 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.05, 0.05, 0.08, 1)
 
-[node name="Column" type="VBoxContainer" parent="."]
+[node name="Column" type="VBoxContainer" parent="." unique_id=1275335886]
 unique_name_in_owner = true
 layout_mode = 0
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="Music" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("3_music")
+[node name="Music" type="AudioStreamPlayer" parent="." unique_id=1607719169]
+stream = ExtResource("3_2w6r1")
+autoplay = true

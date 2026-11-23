@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://sdt02xqjr56r" path="res://editor/map_editor.gd" id="1_editor"]
 [ext_resource type="Script" uid="uid://cdumojnhx6c0j" path="res://gameplay/map/level.gd" id="2_level"]
+[ext_resource type="AudioStream" uid="uid://giopxihgo4er" path="res://assets/audio/Music/credits.ogg" id="3_k3x6q"]
 
 [node name="MapEditor" type="Node2D" unique_id=1892263183]
 script = ExtResource("1_editor")
@@ -45,19 +46,12 @@ theme_override_constants/separation = 6
 layout_mode = 2
 text = "File"
 
-[node name="PathEdit" type="LineEdit" parent="UI/Panel/Margin/Scroll/VBox" unique_id=2034817022]
+[node name="LevelOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox" unique_id=1050546413]
 unique_name_in_owner = true
 layout_mode = 2
-placeholder_text = "res://resources/levels/level.json"
 
 [node name="FileButtons" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=2014103520]
 layout_mode = 2
-
-[node name="LoadButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons" unique_id=1526835438]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Load"
 
 [node name="SaveButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/FileButtons" unique_id=1814868425]
 unique_name_in_owner = true
@@ -329,19 +323,19 @@ size_flags_horizontal = 3
 tooltip_text = "At the start, or with a reinforcement event (set up in Events mode). Enemies only."
 disabled = true
 
-[node name="QuotesBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="QuotesBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=129338283]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Dialogue played before this enemy's first fight with someone (resources/dialogue). Enemies only."
 
-[node name="DeathQuoteRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox"]
+[node name="DeathQuoteRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=1678078207]
 layout_mode = 2
 
-[node name="DeathQuoteLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow"]
+[node name="DeathQuoteLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow" unique_id=945208263]
 layout_mode = 2
 text = "Death quote"
 
-[node name="DeathQuoteOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow"]
+[node name="DeathQuoteOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/DeathQuoteRow" unique_id=1030369573]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -403,20 +397,20 @@ visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="WallsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox"]
+[node name="WallsBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox" unique_id=269414673]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="WallPieceRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/WallsBox"]
+[node name="WallPieceRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/WallsBox" unique_id=2025701848]
 layout_mode = 2
 
-[node name="WallPieceLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow"]
+[node name="WallPieceLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow" unique_id=1498111468]
 layout_mode = 2
 text = "Piece"
 
-[node name="WallPieceOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow"]
+[node name="WallPieceOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/WallPieceRow" unique_id=371633946]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -427,7 +421,7 @@ popup/item_0/id = 0
 popup/item_1/text = "Door"
 popup/item_1/id = 1
 
-[node name="WallsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox"]
+[node name="WallsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox" unique_id=1063666478]
 layout_mode = 2
 text = "Left: paint   Right: erase"
 autowrap_mode = 3
@@ -445,3 +439,7 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
+
+[node name="Music" type="AudioStreamPlayer" parent="." unique_id=1239573911]
+stream = ExtResource("3_k3x6q")
+autoplay = true

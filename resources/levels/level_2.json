@@ -3,6 +3,7 @@
 
 	},
 	"map_data": {
+		"doors": [],
 		"layers": {
 			"dirt": {
 				"terrain": "dirt",
@@ -4001,7 +4002,8 @@
 				"strategy": "defensive",
 				"team": "team1"
 			}
-		}
+		},
+		"walls": []
 	},
 	"objective": {
 		"lose": [],
