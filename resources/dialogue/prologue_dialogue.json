@@ -1,0 +1,8 @@
+{
+	"id": "prologue_dialogue",
+	"lines": [
+		{ "portrait": "bandit", "name": "Bandit", "side": "right", "text": "There they are! The boy with the red hair, he's the one we're looking for!" },
+		{ "speaker": "rowland", "side": "left", "text": "Bandits?  Guess this training session just got a bit more interesting!" },
+		{ "speaker": "adelard", "side": "left", "text": "Let's take them down!" },
+	]
+}

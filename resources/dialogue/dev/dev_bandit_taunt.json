@@ -1,0 +1,6 @@
+{
+	"id": "dev_bandit_taunt",
+	"lines": [
+		{ "portrait": "bandit", "name": "Bandit", "side": "right", "text": "Hand over your coin!" }
+	]
+}

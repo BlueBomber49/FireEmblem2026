@@ -1,0 +1,12 @@
+{
+	"id": "holy_lance",
+	"name": "Holy Lance",
+	"type": "lance",
+	"might": 6,
+	"hit": 90,
+	"crit": 0,
+	"weight": 8,
+	"min_range": 1,
+	"max_range": 1,
+	"heal_amount": 3, "heal_radius": 3
+}

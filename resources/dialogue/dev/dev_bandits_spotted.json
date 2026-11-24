@@ -1,0 +1,7 @@
+{
+	"id": "dev_bandits_spotted",
+	"lines": [
+		{ "portrait": "bandit", "name": "Bandit", "side": "right", "text": "There they are! Don't let them get away!" },
+		{ "speaker": "adelard", "side": "left", "text": "More of them? We need to hurry!" }
+	]
+}

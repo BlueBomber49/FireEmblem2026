@@ -1,6 +1,7 @@
 {
 	"id": "level_2_intro",
 	"background": "cutscene_background_1",
+	"music": "determined_cutscene",
 	"lines": [
 		{ "speaker": "adelard", "side": "back_right", "face_outside": true, "text":"There it is!" },
 		{ "speaker": "leora", "side": "right", "face_outside": true, "text":"The bandit's camp." },

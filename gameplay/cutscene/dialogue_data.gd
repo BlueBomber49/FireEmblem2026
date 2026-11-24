@@ -10,6 +10,7 @@ extends RefCounted
 const DEFAULT_DIR := "res://resources/dialogue"
 const BACKGROUND_DIR := "res://assets/cutscenes"
 const PORTRAIT_DIR := "res://assets/portraits"
+const MUSIC_DIR := "res://assets/audio/music"
 const SIDES: Array[StringName] = [&"left", &"back_left", &"right", &"back_right"]
 ## A line's background value that clears the background instead of naming an image.
 const NO_BACKGROUND := "none"
@@ -60,6 +61,7 @@ class Line:
 var id: StringName
 ## An image id (assets/cutscenes/<id>.png), or empty for a plain background.
 var background := ""
+var music := ""
 var lines: Array[Line] = []
 ## Problems found while reading, one line each, naming the file.
 var errors := PackedStringArray()
@@ -79,6 +81,11 @@ static func background_path(id: String) -> String:
 	if id.is_empty():
 		return ""
 	return BACKGROUND_DIR.path_join("%s.png" % id)
+	
+static func music_path(id: String) -> String:
+	if id.is_empty():
+		return ""
+	return MUSIC_DIR.path_join("%s.ogg" % id)
 
 
 ## Reads a dialogue file. Always returns a DialogueData; check `errors`.
@@ -86,13 +93,16 @@ static func read(path: String) -> DialogueData:
 	var d := DialogueData.new()
 	var r := GameData._Reader.new(path)
 	if r.parse():
-		r.allow_keys(["id", "background", "lines"])
+		r.allow_keys(["id", "background", "lines", "music"])
 		d.id = StringName(r.string("id"))
 		if String(d.id) != path.get_file().get_basename():
 			r.error("id '%s' doesn't match the file name." % d.id)
 		d.background = r.string("background", false)
 		if not d.background.is_empty() and not ResourceLoader.exists(background_path(d.background)):
 			r.error("background '%s' has no image at %s." % [d.background, background_path(d.background)])
+		d.music = r.string("music", false)
+		if not d.music.is_empty() and not ResourceLoader.exists(music_path(d.music)):
+			r.error("music not found at '%s'" %[d.music])
 		d._read_lines(r)
 	d.errors = r.errors
 	if not d.errors.is_empty():
