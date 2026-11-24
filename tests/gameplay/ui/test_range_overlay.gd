@@ -14,6 +14,13 @@ func test_set_cells_stores_both_sets() -> void:
 	assert_eq(overlay.attack_cells.size(), 1)
 
 
+func test_set_cells_without_heal_clears_it() -> void:
+	overlay.set_cells({}, {}, {Vector2i(1, 1): true})
+	assert_eq(overlay.heal_cells.size(), 1)
+	overlay.set_cells({}, {})
+	assert_true(overlay.heal_cells.is_empty())
+
+
 func test_frames_advance_and_wrap() -> void:
 	overlay.set_cells({Vector2i(1, 1): true}, {})
 	assert_eq(overlay.frame, 0)

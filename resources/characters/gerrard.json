@@ -2,20 +2,20 @@
 	"id": "gerrard",
 	"name": "Gerrard",
 	"class": "knight",
-	"level": 1,
+	"level": 2,
 	"stats": {
-		"hp": 17,
-		"strength": 5,
+		"hp": 21,
+		"strength": 6,
 		"magic": 0,
-		"skill": 2,
-		"speed": 0,
+		"skill": 3,
+		"speed": 1,
 		"luck": 0,
-		"defense": 9,
+		"defense": 10,
 		"resistance": 0,
 		"constitution": 13,
 		"movement": 4
 	},
 	"items": [
-		"iron_lance", "vulnerary"
+		"holy_lance","vulnerary"
 	]
 }

@@ -13,6 +13,8 @@ extends ItemData
 @export var max_range := 1
 ## Class tags this weapon deals effective damage against, such as &"flier".
 @export var effective_against: Array[StringName] = []
+@export var heal_amount := 0
+@export var heal_radius := 0
 
 
 func is_magic() -> bool:

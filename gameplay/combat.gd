@@ -53,6 +53,18 @@ static func forecast(attacker: LevelUnitState, defender: LevelUnitState,
 	var defender_side := _side(defender, attacker, level_state)
 	defender_side.can_counter = can_strike(defender.unit, gap)
 	return [attacker_side, defender_side]
+	
+static func area_heal(attacker: LevelUnitState, level_state: LevelState) -> Array[LevelUnitState]:
+	var units_to_heal: Array[LevelUnitState] = []
+	var weapon = attacker.unit.equipped_weapon()
+	if weapon == null or weapon.heal_amount <= 0 or not attacker.is_alive():
+		return units_to_heal
+	for unit: LevelUnitState in level_state.level_units.values():
+		if Combat.distance(attacker, unit) <= weapon.heal_radius and unit.unit.is_alive() and not UnitReference.are_hostile(unit.unit_ref, attacker.unit_ref):
+			units_to_heal.append(unit)
+	return units_to_heal
+	
+	
 
 
 ## The strikes of a fight in FE order: attacker, then the defender's counter if
