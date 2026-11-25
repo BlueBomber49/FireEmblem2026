@@ -9,7 +9,7 @@
 		{ "speaker": "adelard", "side": "right", "face_outside": false, "text":"Ah!" },
 		{ "speaker": "gerrard", "side": "left", "text":"Shh!  Don't worry, I'm no friend of the bandits." },
 		{ "speaker": "leora", "side": "back_right", "face_outside": false, "text":"Neither are we.  We're planning a rescue." },
-		{ "speaker": "gerrard", "side": "left", "text":"As am I.  My [relation] was kidnapped by them just recently." },
+		{ "speaker": "gerrard", "side": "left", "text":"As am I.  My daughter was kidnapped by them just recently." },
 		{ "speaker": "adelard", "side": "right", "face_outside": false, "text":"My friend was kidnapped, too!" },
 		{ "speaker": "gerrard", "side": "left", "text":"I see.  Perhaps we should join forces?" },
 		{ "speaker": "adelard", "side": "right", "face_outside": false, "text":"Sounds good to me!" },

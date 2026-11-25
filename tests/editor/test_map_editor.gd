@@ -906,11 +906,11 @@ func test_units_are_added_by_choose_click_confirm_and_removed_by_chip() -> void:
 	editor._events_click(_map_units()["bandit"].start_cell)
 	assert_eq(_map_units()["bandit"].event, "", "nothing changes until Confirm")
 	editor._events_click(_map_units()["lyn"].start_cell)
-	assert_string_contains(editor.status.text, "enem", "only enemies arrive later")
+	assert_string_contains(editor.status.text, "2 chosen", "player units can arrive later too")
 	(editor.event_control(id, &"confirm") as Button).pressed.emit()
 	assert_eq(_map_units()["bandit"].event, id)
-	assert_eq(_map_units()["lyn"].event, "")
-	assert_eq(editor.event_units(id), ["bandit"])
+	assert_eq(_map_units()["lyn"].event, id)
+	assert_eq(editor.event_units(id), ["lyn", "bandit"])
 	var select := editor.event_chip(id, "bandit").get_parent().get_child(0) as Button
 	select.pressed.emit()
 	assert_eq(editor.selected_unit_id, "bandit", "the name selects it on the map")
@@ -956,17 +956,19 @@ func test_the_arrives_dropdown_edits_the_same_data() -> void:
 	assert_eq(_map_units()["brigand"].event, "", "At the start")
 
 
-func test_only_enemies_can_arrive_later() -> void:
+func test_any_faction_can_arrive_later() -> void:
 	_events_mode()
 	var id := _add_event()
 	editor._set_mode(MapEditor.Mode.UNITS)
 	editor._select_unit("lyn")
-	assert_true(editor.arrives_option.disabled)
+	assert_false(editor.arrives_option.disabled)
+	editor.arrives_option.item_selected.emit(1)
+	assert_eq(_map_units()["lyn"].event, id)
 	_pick_into(id, ["bandit"])
 	editor._select_unit("bandit")
 	editor.faction_option.selected = UnitReference.Faction.PLAYER
 	editor._apply_inspector(true)
-	assert_eq(_map_units()["bandit"].event, "", "no longer an enemy: it starts on the map")
+	assert_eq(_map_units()["bandit"].event, id, "changing faction keeps its arrival")
 
 
 func test_place_new_units_preselects_the_event() -> void:

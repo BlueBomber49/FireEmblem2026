@@ -320,7 +320,7 @@ text = "Arrives"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "At the start, or with a reinforcement event (set up in Events mode). Enemies only."
+tooltip_text = "At the start, or with a reinforcement event (set up in Events mode)."
 disabled = true
 
 [node name="QuotesBox" type="VBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox" unique_id=129338283]
@@ -352,7 +352,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
-text = "New enemies arrive with: Turn 2 reinforcements"
+text = "New units arrive with: Turn 2 reinforcements"
 autowrap_mode = 3
 
 [node name="PreselectClearButton" type="Button" parent="UI/Panel/Margin/Scroll/VBox/UnitsBox/PreselectRow" unique_id=274186342]

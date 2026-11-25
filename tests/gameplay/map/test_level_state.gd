@@ -193,11 +193,11 @@ func test_a_missing_event_places_the_unit_at_the_start() -> void:
 	assert_push_warning("wave_1")
 
 
-func test_only_enemies_are_held_back() -> void:
+func test_player_units_are_held_back_too() -> void:
 	var state := _wave_level(_turn_event(2), "player")
 	state.hold_back_reinforcements()
-	assert_true(state.level_units.has("wave"), "reinforcements are enemies only")
-	assert_push_warning("enemies")
+	assert_false(state.level_units.has("wave"))
+	assert_true(state.pending_units.has("wave"))
 
 
 func test_event_problems() -> void:

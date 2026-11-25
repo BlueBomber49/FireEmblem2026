@@ -1,6 +1,21 @@
 {
 	"events": {
-
+		"wave_1": {
+			"actions": [
+				{
+					"type": "spawn"
+				},
+				{
+					"dialogue": "level_2_dialogue_1",
+					"type": "dialogue"
+				}
+			],
+			"trigger": {
+				"phase": "player",
+				"turn": 1.0,
+				"type": "turn_start"
+			}
+		}
 	},
 	"map_data": {
 		"doors": [
@@ -5414,6 +5429,9 @@
 					23,
 					4
 				],
+				"stats": {
+					"defense": 8
+				},
 				"strategy": "defensive"
 			},
 			"leora": {

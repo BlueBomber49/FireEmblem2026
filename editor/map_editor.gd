@@ -564,7 +564,7 @@ func _place_unit(cell: Vector2i) -> void:
 			ref.items.append(String(weapon.id))
 	ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
 	ref.start_cell = cell
-	if not preselected_event.is_empty() and ref.faction == UnitReference.Faction.ENEMY:
+	if not preselected_event.is_empty():
 		ref.event = preselected_event
 	var before := _snapshot()
 	level.level_state.map_data.units[ref.id] = ref
@@ -726,14 +726,14 @@ func _fill_inspector() -> void:
 	strategy_option.selected = maxi(STRATEGIES.find(ref.strategy), 0) if enemy else 0
 	team_edit.editable = enemy and ref.strategy == UnitReference.STRATEGY_DEFENSIVE
 	team_edit.text = ref.team if enemy else ""
-	# Arrives: at the start, or with an event. Enemies only.
+	# Arrives: at the start, or with an event.
 	arrives_option.clear()
 	arrives_option.add_item("At the start")
 	var ids := level.level_state.events.keys()
 	for event_id: String in ids:
 		arrives_option.add_item(event_title(event_id))
-	arrives_option.disabled = not enemy
-	arrives_option.selected = ids.find(ref.event) + 1 if enemy else 0
+	arrives_option.disabled = not editing
+	arrives_option.selected = ids.find(ref.event) + 1 if editing else 0
 	_fill_quotes(ref if editing else null)
 	deselect_button.disabled = not editing
 	if editing:
@@ -860,7 +860,6 @@ func _apply_inspector(respawn := false) -> void:
 		ref.commander = false  # only an enemy can command
 		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
 		ref.team = ""
-		ref.event = ""  # or arrive later
 		ref.quotes = [] as Array[Dictionary]  # or have battle quotes
 	if new_faction == UnitReference.Faction.ALLY:
 		ref.death_quote = ""  # allies have no quotes at all
@@ -2102,7 +2101,7 @@ func _update_problems() -> void:
 
 # --- Events ------------------------------------------------------------------------
 # Each event is a row: WHEN turn N's enemy or player phase starts, THEN its steps
-# run in order: its enemies arrive (one step, always there) and any number of
+# run in order: its units arrive (one step, always there) and any number of
 # dialogues play over the map. Units join an event here (Choose -> click ->
 # Confirm, or Place new units) or from the Units inspector's Arrives dropdown:
 # the same data.
@@ -2116,7 +2115,7 @@ func _build_events_panel() -> void:
 	events_problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	events_problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
 	events_box.add_child(events_problems_label)
-	events_box.add_child(_section_header("EVENTS: enemies arriving and dialogue, by turn", WIN_COLOR))
+	events_box.add_child(_section_header("EVENTS: units arriving and dialogue, by turn", WIN_COLOR))
 	event_rows = VBoxContainer.new()
 	events_box.add_child(event_rows)
 	add_event_button = Button.new()
@@ -2128,7 +2127,7 @@ func _build_events_panel() -> void:
 ## The turn `ref` arrives on, or 0 when it starts on the map (or its event is
 ## missing or broken, so it would start there in play too).
 func arrival_turn(ref: UnitReference) -> int:
-	if ref == null or ref.event.is_empty() or ref.faction != UnitReference.Faction.ENEMY:
+	if ref == null or ref.event.is_empty():
 		return 0
 	var event: Variant = level.level_state.events.get(ref.event)
 	if event == null or not LevelState.event_problem(event).is_empty():
@@ -2191,7 +2190,7 @@ func event_issue(event_id: String) -> String:
 			if not known.has(str(step["dialogue"])):
 				return "dialogue '%s' doesn't exist" % step["dialogue"]
 	if not has_dialogue and event_units(event_id).is_empty():
-		return "nothing happens: add enemies or a dialogue"
+		return "nothing happens: add units or a dialogue"
 	return ""
 
 
@@ -2345,7 +2344,7 @@ func _remove_from_event(unit_id: String) -> void:
 	_after_event_change()
 
 
-# Choose -> click enemies -> Confirm.
+# Choose -> click units -> Confirm.
 
 
 ## The event whose units are outlined in Events mode: the one being chosen for,
@@ -2362,20 +2361,20 @@ func _start_event_pick(event_id: String) -> void:
 	_event_pick = event_id
 	_focused_event = event_id
 	_event_pending.clear()
-	status.text = "Click enemies on the map to add them, then Confirm."
+	status.text = "Click units on the map to add them, then Confirm."
 	_refresh_events_panel()
 	overlay.queue_redraw()
 
 
-## A map click in Events mode: while choosing, toggles the enemy there.
+## A map click in Events mode: while choosing, toggles the unit there.
 func _events_click(cell: Vector2i) -> void:
 	if not is_picking_event():
-		status.text = "To add units, press Choose units on an event, then click enemies."
+		status.text = "To add units, press Choose units on an event, then click them."
 		return
 	var id := _unit_id_at(cell)
 	var ref: UnitReference = level.level_state.map_data.units.get(id)
-	if ref == null or ref.faction != UnitReference.Faction.ENEMY:
-		status.text = "Only enemies arrive later: click an enemy."
+	if ref == null:
+		status.text = "No unit there: click a unit."
 		return
 	if _event_pending.has(id):
 		_event_pending.erase(id)
@@ -2396,7 +2395,7 @@ func _confirm_event_pick() -> void:
 			level.level_state.map_data.units[id].event = event_id
 		_commit(before)
 	_after_event_change()
-	status.text = "%d enemy(s) added to %s." % [chosen.size(), event_title(event_id)]
+	status.text = "%d unit(s) added to %s." % [chosen.size(), event_title(event_id)]
 
 
 func _cancel_event_pick() -> void:
@@ -2413,8 +2412,8 @@ func _stop_event_pick() -> void:
 # Placing new units into an event.
 
 
-## New enemy placements join `event_id` until it's cleared ("" clears). Switches
-## to Units mode with Enemy picked.
+## New placements join `event_id` until it's cleared ("" clears). Switches to
+## Units mode with Enemy picked, the usual case; any faction can be placed.
 func _preselect_event(event_id: String) -> void:
 	preselected_event = event_id
 	if not event_id.is_empty():
@@ -2425,12 +2424,12 @@ func _preselect_event(event_id: String) -> void:
 		faction_option.selected = UnitReference.Faction.ENEMY
 		_select_unit("")
 	preselect_row.visible = not preselected_event.is_empty()
-	preselect_label.text = "New enemies arrive with: %s" % event_title(preselected_event)
+	preselect_label.text = "New units arrive with: %s" % event_title(preselected_event)
 
 
 func _on_arrives_picked(index: int) -> void:
-	var ref := _selected_enemy()
-	if ref == null:
+	var ref := _selected_ref()
+	if _syncing or ref == null:
 		return
 	var before := _snapshot()
 	ref.event = "" if index == 0 else String(level.level_state.events.keys()[index - 1])
@@ -2527,7 +2526,7 @@ func _build_event_row(event_id: String) -> void:
 				head.add_child(step_ctrl[&"option"])
 			else:
 				var arrive_label := Label.new()
-				arrive_label.text = "Enemies arrive"
+				arrive_label.text = "Units arrive"
 				arrive_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				head.add_child(arrive_label)
 				_add_units_step(event_id, step_box, controls)
@@ -2583,7 +2582,7 @@ func _dialogue_option(current: String, on_pick: Callable) -> OptionButton:
 	return option
 
 
-## The units step's body: the event's enemies as chips, and the ways to add some.
+## The units step's body: the event's units as chips, and the ways to add some.
 func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictionary) -> void:
 	var chips_line := HFlowContainer.new()
 	var chips := {}
@@ -2614,7 +2613,7 @@ func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictio
 	var actions := HFlowContainer.new()
 	if _event_pick == event_id:
 		var prompt := Label.new()
-		prompt.text = "Click enemies... (%d chosen)" % _event_pending.size()
+		prompt.text = "Click units... (%d chosen)" % _event_pending.size()
 		actions.add_child(prompt)
 		var confirm := Button.new()
 		confirm.text = "Confirm"
@@ -2630,13 +2629,13 @@ func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictio
 	else:
 		var choose := Button.new()
 		choose.text = "+ Add units"
-		choose.tooltip_text = "Click enemies already on the map, then Confirm"
+		choose.tooltip_text = "Click units already on the map, then Confirm"
 		choose.pressed.connect(_start_event_pick.bind(event_id))
 		controls[&"choose"] = choose
 		actions.add_child(choose)
 		var place := Button.new()
 		place.text = "Place new units"
-		place.tooltip_text = "Go to Units mode: enemies you place join this event"
+		place.tooltip_text = "Go to Units mode: units you place join this event"
 		place.pressed.connect(_preselect_event.bind(event_id))
 		controls[&"place"] = place
 		actions.add_child(place)
