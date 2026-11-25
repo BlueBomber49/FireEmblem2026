@@ -1,17 +1,23 @@
 class_name MapData
 extends RefCounted
-## Everything authored for a map: its terrain layers, walls and doors, structures, and the units placed on it.
+## Everything authored for a map: its terrain layers, walls, doors and forts, structures, and the units placed on it.
 
-## Tile ids walls and doors go by in the terrain rules (TerrainData.tiles).
+## Tile ids walls, closed doors and forts go by in the terrain rules (TerrainData.tiles).
 const WALL_TILE := "wall"
 const DOOR_TILE := "door"
+const FORT_TILE := "fort"
 
 ## name -> MapLayer
 var layers: Dictionary = {}
 ## Cells with a wall; WallTiles picks how each one draws.
 var walls: Array[Vector2i] = []
-## Cells with a door. A cell holds a wall or a door, not both.
+## Cells with a door. A cell holds one of a wall, a door or a fort.
 var doors: Array[Vector2i] = []
+## Doors opened in play. Play state, not authored: LevelState saves it only with
+## unit state. An open door no longer overrules the terrain under it.
+var opened_doors: Array[Vector2i] = []
+## Cells with a fort -> which fort art it draws (WallTiles.FORT_VARIANTS).
+var forts: Dictionary = {}
 ## Unimplemented for now; carried through JSON untouched.
 var structures: Dictionary = {}
 ## id -> UnitReference
@@ -32,7 +38,7 @@ func sorted_layers() -> Array[MapLayer]:
 	return out
 
 
-## Set (Dictionary cell -> true) of every cell any layer, wall or door draws a tile on.
+## Set (Dictionary cell -> true) of every cell any layer, wall, door or fort draws a tile on.
 func drawn_cells() -> Dictionary:
 	var cells := {}
 	for layer in layers.values():
@@ -42,12 +48,14 @@ func drawn_cells() -> Dictionary:
 		cells[cell] = true
 	for cell in doors:
 		cells[cell] = true
+	for cell in forts:
+		cells[cell] = true
 	return cells
 
 
 ## Until per-tile terrain data exists, "something is drawn here" is walkability.
 func is_drawn(cell: Vector2i) -> bool:
-	if cell in walls or cell in doors:
+	if cell in walls or cell in doors or forts.has(cell):
 		return true
 	for layer in layers.values():
 		if CornerMask.mask_at(cell, _vert_set(layer)) != 0:
@@ -73,7 +81,8 @@ func top_terrain_at(cell: Vector2i) -> String:
 ##   half-edges (TerrainData.half_edge_counts; forest does, sea doesn't);
 ## - otherwise the layer covering the most corners, ties to the higher layer;
 ## - but a cell with fewer than 3 corners painted at all is empty.
-## Walls and doors overrule all of that, whatever terrain is under them.
+## Walls, closed doors and forts overrule all of that, whatever terrain is under
+## them. An opened door is just the terrain under it (so with none, it's empty).
 ## top_terrain_at is for drawing; this is for rules. Cached: call
 ## invalidate_terrain_cache() after changing layers.
 func rules_terrain_at(cell: Vector2i) -> String:
@@ -116,8 +125,16 @@ func _build_rules_terrain() -> void:
 	for cell in walls:
 		_rules_terrain[cell] = WALL_TILE
 	for cell in doors:
-		_rules_terrain[cell] = DOOR_TILE
+		if not cell in opened_doors:
+			_rules_terrain[cell] = DOOR_TILE
+	for cell in forts:
+		_rules_terrain[cell] = FORT_TILE
 	_rules_terrain_ready = true
+
+
+## Whether `cell` has a door that hasn't been opened.
+func is_closed_door(cell: Vector2i) -> bool:
+	return cell in doors and not cell in opened_doors
 
 
 ## Corner masks for one straight side of a cell (top, bottom, left, right half).
@@ -159,6 +176,11 @@ static func fromJson(d: Dictionary) -> MapData:
 		data.layers[layer_name] = MapLayer.fromJson(layer_name, raw_layers[layer_name])
 	data.walls = JsonUtil.vec2i_array_from_json(d.get("walls", []))
 	data.doors = JsonUtil.vec2i_array_from_json(d.get("doors", []))
+	var raw_forts: Variant = d.get("forts", [])
+	if raw_forts is Array:
+		for raw: Variant in raw_forts:
+			if raw is Dictionary:
+				data.forts[JsonUtil.vec2i_from_json(raw.get("cell"))] = JsonUtil.to_int(raw.get("variant"))
 	data.structures = d.get("structures", {}).duplicate(true)
 	var raw_units: Dictionary = d.get("units", {})
 	for id in raw_units:
@@ -173,10 +195,14 @@ func toJson() -> Dictionary:
 	var raw_units := {}
 	for id in units:
 		raw_units[id] = units[id].toJson()
+	var raw_forts := []
+	for cell: Vector2i in forts:
+		raw_forts.append({"cell": JsonUtil.vec2i_to_json(cell), "variant": forts[cell]})
 	return {
 		"layers": raw_layers,
 		"walls": JsonUtil.vec2i_array_to_json(walls),
 		"doors": JsonUtil.vec2i_array_to_json(doors),
+		"forts": raw_forts,
 		"structures": structures.duplicate(true),
 		"units": raw_units,
 	}

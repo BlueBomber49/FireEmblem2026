@@ -1,6 +1,6 @@
 class_name MapEditor
 extends Node2D
-## Paints terrain vertices onto a Level's layers, paints walls and doors, places
+## Paints terrain vertices onto a Level's layers, paints walls, doors and forts, places
 ## units, and saves the result as a level JSON. Run this scene directly (not the main scene).
 ##
 ## Terrain mode: left mouse paints, right mouse erases.
@@ -8,15 +8,16 @@ extends Node2D
 ## Objective mode: edit the win and loss conditions row by row; seize cells and
 ## the commander are set with Choose, a map click, then Confirm. Problems block
 ## saving.
-## Walls mode: left mouse paints the picked piece (wall or door), right mouse erases.
+## Walls mode: left mouse paints the picked piece (wall, door or a fort look), right mouse erases.
 ## All: middle-drag / arrows / two-finger drag pan, wheel / pinch zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS, WALLS }
 ## Enemy AI strategies, in the AI dropdown's order.
 const STRATEGIES := UnitReference.STRATEGIES
 enum Brush { PAINT, ERASE }
-## What Walls mode paints, in the order WallPieceOption lists them.
-enum WallPiece { WALL, DOOR }
+## What Walls mode paints, in the order WallPieceOption lists them. FORT is the
+## first fort look; WallPieceOption lists one entry per look from there on.
+enum WallPiece { WALL, DOOR, FORT }
 
 const PAN_SPEED := 400.0
 ## Screen pixels a two-finger drag pans per unit of PanGesture.delta.
@@ -178,6 +179,8 @@ func _ready() -> void:
 	level.create_camera = false
 	_build_file_dialogs()
 	_fill_terrain_options()
+	for variant in WallTiles.FORT_VARIANTS:
+		wall_piece_option.add_item("Fort %d" % (variant + 1))
 	_fill_unit_options()
 	_build_stats_grid()
 	_build_objective_panel()
@@ -488,23 +491,36 @@ func _wall_click(click: InputEventMouseButton) -> void:
 		_end_stroke()
 
 
-## A cell holds one piece: painting a wall replaces a door and vice versa.
+## A cell holds one piece: painting a wall, door or fort replaces whatever was there.
 func _apply_wall_brush(brush_mode: int) -> void:
 	var map_data := level.level_state.map_data
-	var had_wall := map_data.walls.has(hover_cell)
-	var had_door := map_data.doors.has(hover_cell)
-	var want_wall := brush_mode == Brush.PAINT and wall_piece_option.selected == WallPiece.WALL
-	var want_door := brush_mode == Brush.PAINT and wall_piece_option.selected == WallPiece.DOOR
-	if want_wall == had_wall and want_door == had_door:
+	var want := wall_piece_option.selected if brush_mode == Brush.PAINT else -1
+	if want == _wall_piece_at(hover_cell):
 		return
 	map_data.walls.erase(hover_cell)
 	map_data.doors.erase(hover_cell)
-	if want_wall:
+	map_data.forts.erase(hover_cell)
+	if want == WallPiece.WALL:
 		map_data.walls.append(hover_cell)
-	elif want_door:
+	elif want == WallPiece.DOOR:
 		map_data.doors.append(hover_cell)
+	elif want >= WallPiece.FORT:
+		map_data.forts[hover_cell] = want - WallPiece.FORT
 	level.repaint_walls()
 	overlay.queue_redraw()
+
+
+## The WallPieceOption index of the piece on `cell` (a fort's is FORT plus its
+## look), or -1 when it has none.
+func _wall_piece_at(cell: Vector2i) -> int:
+	var map_data := level.level_state.map_data
+	if map_data.walls.has(cell):
+		return WallPiece.WALL
+	if map_data.doors.has(cell):
+		return WallPiece.DOOR
+	if map_data.forts.has(cell):
+		return WallPiece.FORT + map_data.forts[cell]
+	return -1
 
 
 # --- Units ------------------------------------------------------------------
@@ -1253,7 +1269,7 @@ func _update_status() -> void:
 		return
 	if mode == Mode.WALLS:
 		var map_data := level.level_state.map_data
-		status.text = "cell %s   |   %d walls, %d doors" % [hover_cell, map_data.walls.size(), map_data.doors.size()]
+		status.text = "cell %s   |   %d walls, %d doors, %d forts" % [hover_cell, map_data.walls.size(), map_data.doors.size(), map_data.forts.size()]
 		return
 	var layer := selected_layer()
 	var layer_text := "no layer selected" if layer == null else "%s: %d verts" % [layer.name, layer.verts.size()]

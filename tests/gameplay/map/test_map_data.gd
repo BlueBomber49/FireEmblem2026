@@ -255,3 +255,42 @@ func test_walls_count_on_cells_with_no_terrain() -> void:
 	assert_true(data.is_drawn(Vector2i(7, 7)))
 	assert_true(data.is_drawn(Vector2i(8, 7)))
 	assert_eq(data.bounds(), Rect2i(7, 7, 2, 1), "bounds cover walls and doors")
+
+
+func test_an_opened_door_is_the_terrain_under_it() -> void:
+	var data := _walled_map()
+	data.opened_doors = [Vector2i(2, 1)] as Array[Vector2i]
+	data.invalidate_terrain_cache()
+	assert_eq(data.rules_terrain_at(Vector2i(2, 1)), "grass")
+	assert_false(data.is_closed_door(Vector2i(2, 1)))
+
+
+func test_an_opened_door_with_nothing_under_it_is_empty() -> void:
+	var data := MapData.new()
+	data.doors = [Vector2i(8, 7)] as Array[Vector2i]
+	assert_true(data.is_closed_door(Vector2i(8, 7)))
+	data.opened_doors = [Vector2i(8, 7)] as Array[Vector2i]
+	data.invalidate_terrain_cache()
+	assert_eq(data.rules_terrain_at(Vector2i(8, 7)), "")
+
+
+func test_opened_doors_are_not_authored() -> void:
+	var data := _walled_map()
+	data.opened_doors = [Vector2i(2, 1)] as Array[Vector2i]
+	assert_false(data.toJson().has("opened_doors"), "LevelState saves them, with play state")
+
+
+func test_forts_round_trip_with_their_look() -> void:
+	var data := _walled_map()
+	data.forts = {Vector2i(3, 1): 1, Vector2i(4, 1): 0}
+	var again := MapData.fromJson(data.toJson())
+	assert_eq(again.forts, {Vector2i(3, 1): 1, Vector2i(4, 1): 0})
+	assert_true(MapData.fromJson(SAMPLE).forts.is_empty(), "optional")
+
+
+func test_forts_overrule_the_terrain_under_them() -> void:
+	var data := _walled_map()
+	data.forts = {Vector2i(0, 0): 0, Vector2i(9, 9): 0}
+	assert_eq(data.rules_terrain_at(Vector2i(0, 0)), MapData.FORT_TILE)
+	assert_eq(data.rules_terrain_at(Vector2i(9, 9)), MapData.FORT_TILE, "even with no terrain")
+	assert_true(data.is_drawn(Vector2i(9, 9)))

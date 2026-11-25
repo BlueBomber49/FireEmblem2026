@@ -222,8 +222,33 @@ func test_a_level_holds_reinforcements_back_only_when_set() -> void:
 	play_level.level_state = LevelState.fromJson(state.toJson(false))
 	add_child_autofree(play_level)
 	assert_false(play_level.unit_nodes.has("bandit"), "in play it waits")
-	assert_eq(play_level.arrive("bandit"), Vector2i(10, 5))
+	assert_true(play_level.arrive("bandit"))
+	assert_eq(play_level.level_state.level_units["bandit"].cell, Vector2i(10, 5))
 	assert_true(play_level.unit_nodes.has("bandit"))
+
+
+func test_arrive_works_on_a_negative_cell() -> void:
+	# Grass corners all around (-3, -2), so that cell is fully drawn.
+	var verts := []
+	for x in range(-4, -1):
+		for y in range(-3, 0):
+			verts.append([x, y])
+	var level := Level.new()
+	level.holds_reinforcements = true
+	level.level_state = LevelState.fromJson({
+		"map_data": {
+			"layers": {"grass": {"z": 0, "terrain": "grass", "verts": verts}},
+			"units": {
+				"wave": {"class": "fighter", "items": ["iron_axe"], "faction": "enemy",
+						"start_cell": [-3, -2], "event": "wave_1"},
+			},
+		},
+		"events": {"wave_1": {"trigger": {"type": "turn_start", "turn": 2, "phase": "enemy"},
+				"actions": [{"type": "spawn"}]}},
+	})
+	add_child_autofree(level)
+	assert_true(level.arrive("wave"))
+	assert_eq(level.level_state.level_units["wave"].cell, Vector2i(-3, -2))
 
 
 func test_arrive_finds_no_cell_on_a_full_map() -> void:
@@ -244,7 +269,7 @@ func test_arrive_finds_no_cell_on_a_full_map() -> void:
 	})
 	add_child_autofree(level)
 	assert_true(level.level_state.pending_units.has("wave"))
-	assert_eq(level.arrive("wave"), Vector2i(-1, -1))
+	assert_false(level.arrive("wave"))
 	assert_true(level.level_state.pending_units.has("wave"), "it keeps waiting")
 	assert_push_warning("wave")
 
@@ -259,12 +284,34 @@ func test_walls_and_doors_draw_between_terrain_and_units() -> void:
 	map_data.doors = [Vector2i(6, 4)] as Array[Vector2i]
 	level.rebuild()
 	assert_eq(level.walls_layer.get_used_cells().size(), 3)
-	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(6, 4)), WallTiles.DOOR_COORDS)
+	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(6, 4)), WallTiles.DOOR_CLOSED_HORIZONTAL)
+	assert_ne(level.walls_layer.get_cell_source_id(Vector2i(6, 4)), level.walls_layer.get_cell_source_id(Vector2i(5, 4)), "doors have their own sheet")
 	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(5, 4)), Vector2i(0, 2), "left end of the run")
 	for tile_layer: TileMapLayer in level.layers_root.get_children():
 		assert_gt(level.walls_layer.z_index, tile_layer.z_index)
 	assert_gt(level.units_root.z_index, level.walls_layer.z_index)
 	assert_eq(level.layers_root.get_child_count(), map_data.layers.size(), "walls aren't a terrain layer")
+
+
+func test_opening_a_door_redraws_it_and_changes_its_rules() -> void:
+	var level := _loaded_level()
+	var map_data := level.level_state.map_data
+	map_data.walls = [Vector2i(5, 4), Vector2i(7, 4)] as Array[Vector2i]
+	map_data.doors = [Vector2i(6, 4)] as Array[Vector2i]
+	level.rebuild()
+	assert_eq(map_data.rules_terrain_at(Vector2i(6, 4)), MapData.DOOR_TILE)
+	assert_true(level.open_door(Vector2i(6, 4)))
+	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(6, 4)), WallTiles.DOOR_OPEN_HORIZONTAL)
+	assert_ne(map_data.rules_terrain_at(Vector2i(6, 4)), MapData.DOOR_TILE)
+	assert_false(level.open_door(Vector2i(6, 4)), "already open")
+	assert_false(level.open_door(Vector2i(5, 4)), "a wall isn't a door")
+
+
+func test_forts_draw_their_look() -> void:
+	var level := _loaded_level()
+	level.level_state.map_data.forts = {Vector2i(6, 4): 1}
+	level.rebuild()
+	assert_eq(level.walls_layer.get_cell_atlas_coords(Vector2i(6, 4)), Vector2i(1, 0))
 
 
 func test_repainting_walls_refreshes_tiles_and_rules_terrain() -> void:

@@ -10,7 +10,7 @@ extends RefCounted
 const DEFAULT_DIR := "res://resources/dialogue"
 const BACKGROUND_DIR := "res://assets/cutscenes"
 const PORTRAIT_DIR := "res://assets/portraits"
-const MUSIC_DIR := "res://assets/audio/music"
+const MUSIC_DIR := "res://assets/audio/Music"
 const SIDES: Array[StringName] = [&"left", &"back_left", &"right", &"back_right"]
 ## A line's background value that clears the background instead of naming an image.
 const NO_BACKGROUND := "none"

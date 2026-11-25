@@ -111,6 +111,17 @@ func test_an_authored_level_starts_on_turn_one_unseized() -> void:
 	assert_false(state.seized)
 
 
+func test_opened_doors_are_saved_only_with_state() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	state.map_data.doors = [Vector2i(1, 1), Vector2i(2, 1)] as Array[Vector2i]
+	state.map_data.opened_doors = [Vector2i(2, 1)] as Array[Vector2i]
+	var authored := LevelState.fromJson(state.toJson(false))
+	assert_true(authored.map_data.opened_doors.is_empty(), "an authored level starts with every door shut")
+	assert_eq(authored.map_data.doors.size(), 2)
+	var again := LevelState.fromJson(state.toJson())
+	assert_eq(again.map_data.opened_doors, [Vector2i(2, 1)] as Array[Vector2i])
+
+
 func test_turn_and_seize_are_saved_only_with_state() -> void:
 	var state := LevelState.fromJson(SAMPLE)
 	state.turn = 4

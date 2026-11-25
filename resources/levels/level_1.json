@@ -12,7 +12,7 @@
 			],
 			"trigger": {
 				"phase": "enemy",
-				"turn": 3,
+				"turn": 3.0,
 				"type": "turn_start"
 			}
 		},
@@ -61,6 +61,7 @@
 	},
 	"map_data": {
 		"doors": [],
+		"forts": [],
 		"layers": {
 			"dirt": {
 				"terrain": "dirt",
@@ -500,6 +501,14 @@
 					[
 						-9,
 						3
+					],
+					[
+						-10,
+						13
+					],
+					[
+						-10,
+						12
 					]
 				],
 				"z": 2
@@ -5192,8 +5201,8 @@
 				"level": 1,
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/Archer/Archer_Red1.png",
 				"start_cell": [
-					-8,
-					1
+					-10,
+					12
 				]
 			},
 			"archer_2": {
@@ -5387,27 +5396,8 @@
 				"level": 1,
 				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/Thief/Thief_Red1.png",
 				"start_cell": [
-					-8,
-					2
-				]
-			},
-			"thief_2": {
-				"class": "thief",
-				"event": "wave_1",
-				"facing": [
-					0,
-					1
-				],
-				"faction": "enemy",
-				"items": [
-					"iron_sword"
-				],
-				"level": 1,
-				"name": "Thief",
-				"sprite_sheet": "res://assets/battle_pack/Sprite Sheets/Thief/Thief_Red1.png",
-				"start_cell": [
-					-7,
-					1
+					-9,
+					13
 				]
 			}
 		},
