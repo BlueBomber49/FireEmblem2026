@@ -35,10 +35,7 @@ var menu_music: AudioStreamPlayer
 
 
 func _ready() -> void:
-	menu_music = AudioStreamPlayer.new()
-	menu_music.name = "MenuMusic"
-	menu_music.stream = TitleScreen.MENU_MUSIC
-	add_child(menu_music)
+	pass
 
 
 ## Shows the title. It isn't a Step: it sits outside the chapter order, so
@@ -227,7 +224,6 @@ func _show_save_menu() -> void:
 ## Takes the old scene out of the tree before the new one enters it, so the two
 ## never run side by side (the new one's _ready can't see the old one).
 func _swap_to(scene: Node) -> void:
-	update_menu_music(scene)
 	var tree := get_tree()
 	var old := tree.current_scene
 	if old != null:
@@ -235,17 +231,3 @@ func _swap_to(scene: Node) -> void:
 		old.queue_free()
 	tree.root.add_child(scene)
 	tree.current_scene = scene
-
-## The title and the credits share menu_music: it keeps playing from one to the
-## other, and starts over only once it has stopped (say, the song ended). Any
-## other scene stops it. Returns true when it (re)started the song.
-func update_menu_music(scene: Node) -> bool:
-	var is_menu := scene is TitleScreen or scene is Credits
-	if not is_menu:
-		menu_music.stop()
-		return false
-	scene.set("play_music", false)
-	if menu_music.playing:
-		return false
-	menu_music.play()
-	return true

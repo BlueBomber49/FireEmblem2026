@@ -1,0 +1,9 @@
+{
+	"id": "level_4_outro",
+	"background": "cutscene_background_1",
+	"music": "peaceful_cutscene",
+	"lines": [
+		{ "speaker": "adelard", "side": "right", "text":"Placeholder text" },
+		
+	]
+}

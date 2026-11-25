@@ -1,8 +1,8 @@
 class_name RangeOverlay
 extends Node2D
 ## Draws the cells a selected or hovered unit can move to (blue) and attack
-## (red), cycling through the battle pack's shimmer strips, and under them the
-## enemy danger zone: a flat red fill with an outline, deeper red for marked
+## (red), cycling through the battle pack's shimmer strips, a weapon's heal area
+## (flat green) between the two, and under them the enemy danger zone: a flat red fill with an outline, deeper red for marked
 ## enemies. It only draws; Battle decides which cells.
 
 ## 224x16 strips: 14 frames of 16 px, drawn in order as a loop.
@@ -31,10 +31,17 @@ const SEIZE_OUTLINE_ON_TOP := true
 const ESCAPE_FILL := Color(1.0, 0.8, 0.15, 0.55)
 const ESCAPE_OUTLINE := Color(1.0, 0.85, 0.2, 1.0)
 const DRAW_OUTLINES := true
+## Heal area: a flat green fill and outline like the danger zone's, so it reads
+## apart from seize's green shimmer.
+const HEAL_FILL := Color(0.2, 0.85, 0.3, 0.3)
+const HEAL_OUTLINE := Color(0.3, 1.0, 0.4, 0.7)
 
 ## cell -> true for each set. Both may be shown at once.
 var move_cells: Dictionary = {}
 var attack_cells: Dictionary = {}
+## cell -> true: who a healing weapon would reach. Cleared by any set_cells call
+## that doesn't pass it, so it can't outlive the targeting that drew it.
+var heal_cells: Dictionary = {}
 ## cell -> true: enemy threat, and the part of it from marked enemies.
 var threat_cells: Dictionary = {}
 var marked_threat_cells: Dictionary = {}
@@ -48,9 +55,11 @@ var frame := 0
 var _time := 0.0
 
 
-func set_cells(new_move_cells: Dictionary, new_attack_cells: Dictionary) -> void:
+func set_cells(new_move_cells: Dictionary, new_attack_cells: Dictionary,
+		new_heal_cells: Dictionary = {}) -> void:
 	move_cells = new_move_cells
 	attack_cells = new_attack_cells
+	heal_cells = new_heal_cells
 	queue_redraw()
 
 
@@ -101,6 +110,7 @@ func _draw() -> void:
 	var region := Rect2(Vector2(frame * FRAME_SIZE.x, 0), FRAME_SIZE)
 	for cell in move_cells:
 		draw_texture_rect_region(MOVE_SHEET, _cell_rect(cell), region)
+	_draw_threat(heal_cells, HEAL_FILL, HEAL_OUTLINE)
 	for cell in attack_cells:
 		draw_texture_rect_region(ATTACK_SHEET, _cell_rect(cell), region)
 	if SEIZE_OUTLINE_ON_TOP:

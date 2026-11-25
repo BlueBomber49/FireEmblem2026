@@ -1,0 +1,21 @@
+{
+	"id": "fortuna",
+	"name": "Fortuna",
+	"class": "mage",
+	"level": 4,
+	"stats": {
+		"hp": 20,
+		"strength": 0,
+		"magic": 3,
+		"skill": 4,
+		"speed": 6,
+		"luck": 0,
+		"defense": 4,
+		"resistance": 4,
+		"constitution": 7,
+		"movement": 5
+	},
+	"items": [
+		"fire"
+	]
+}

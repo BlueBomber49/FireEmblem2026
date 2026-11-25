@@ -1,7 +1,13 @@
 {
 	"id": "level_2_outro",
 	"background": "cutscene_background_1",
+	"music": "peaceful_cutscene",
 	"lines": [
-		{ "speaker": "adelard", "side": "right", "text":"blah blah blah" },
+		{ "speaker": "adelard", "side": "right", "text":"We made it!" },
+		{ "speaker": "leora", "side": "back_right", "text":"We're glad you're safe, Rowland.  We were worried." },
+		{ "speaker": "rowland", "side": "left", "text":"You know, I was on the verge of breaking out, but I appreciate the help anyway." },
+		{ "speaker": "gerrard", "side": "right", "text":"But where is Fortuna?" },
+		{ "speaker": "adelard", "side": "left", "text":"I heard their leader talk about some bandits who escaped out the back." },
+		
 	]
 }

@@ -1,0 +1,6 @@
+{
+	"id": "level_1_dialogue_2",
+	"lines": [
+		{ "portrait": "bandit", "name": "Greb", "side": "right", "text": "There they are!  Thought they might try following." },
+	]
+}

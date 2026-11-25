@@ -2,10 +2,11 @@
 	"title": "Flame Insignia",
 	"people": [
 		{ "name": "Ethan Cox", "role": "Mechanics Engineer" },
-		{ "name": "Aidan Stay", "role": "Architect" },
+		{ "name": "Aidan Stay", "role": "Chief Architect" },
 		{ "name": "Spencer Young", "role": "UI" },
-		{ "name": "Tony Johnson", "role": "QA / Levels" },
-		{ "name": "Tristan Weech", "role": "Art" }
+		{ "name": "Tony Johnson", "role": "Music, Story, and Level Design" },
+		{ "name": "Tristan Weech", "role": "Lead Pixel Artist" },
+		{ "name": "Kayla Johnson", "role": "Pixel Artist" }
 	],
 	"closing": "Thanks for playing!"
 }

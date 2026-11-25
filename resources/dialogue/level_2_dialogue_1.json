@@ -1,0 +1,7 @@
+{
+	"id": "level_2_dialogue_1",
+	"lines": [
+		{ "speaker": "gerrard", "side": "left", "text":"The maiden mentioned wanting help keeping people alive, did she?  Well, I have some particular talents in that regard." },
+		{ "speaker": "gerrard", "side": "left", "text":"My holy lance heals those around me when I strike!  I'll be a great asset to your team." },
+	]
+}

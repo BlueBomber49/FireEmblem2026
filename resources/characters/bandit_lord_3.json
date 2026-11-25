@@ -1,0 +1,21 @@
+{
+	"id": "bandit_lord_3",
+	"name": "Bandit Lord 3",
+	"class": "mage",
+	"level": 3,
+	"stats": {
+		"hp": 24,
+		"strength": 8,
+		"magic": 0,
+		"skill": 2,
+		"speed": 5,
+		"luck": 1,
+		"defense": 3,
+		"resistance": 0,
+		"constitution": 11,
+		"movement": 5
+	},
+	"items": [
+		"iron_axe"
+	]
+}

@@ -90,6 +90,8 @@ var state := State.FREE
 var reachable: Dictionary = {}
 ## cell -> true; the selected unit's attack range while picking a target.
 var attack_cells: Dictionary = {}
+## cell -> true; the compared weapon's heal area while picking a target.
+var heal_cells: Dictionary = {}
 ## cell -> true; what the selected unit could attack after moving (its red fringe
 ## while choosing a destination). Separate from attack_cells, the targeting cells.
 var selected_fringe: Dictionary = {}
@@ -649,6 +651,7 @@ func _show_forecast() -> void:
 		unit.weapon_preview = choices[0]
 	# The red cells show the compared weapon's reach.
 	attack_cells = _cells_in_attack_range(level.selected.state)
+	heal_cells = _cells_in_heal_range(level.selected.state)
 	_redraw_selection()
 	forecast.weapon_arrows = choices.size() > 1
 	var sides := Combat.forecast(level.selected.state, target, level.level_state)
@@ -690,19 +693,13 @@ func _on_forecast_confirmed() -> void:
 func _fight(target: LevelUnitState) -> void:
 	state = State.COMBAT
 	attack_cells = {}
+	heal_cells = {}
 	selected_fringe = {}
 	_redraw_selection()
 	_update_panels()
 	# Keep the state, not the node: a fallen attacker's node is gone by the end.
 	var attacker := level.selected.state
-	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
-	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
-	for strike in strikes:
-		await _play_strike(strike)
-	await award_experience(attacker, target, strikes)
-	if attacker.is_alive():
-		attacker.has_moved = true
-		attacker.has_acted = true
+	await _play_fight(attacker, target)
 	_deselect()
 	_refresh_danger_zone()
 	_enter_free_state()
@@ -714,15 +711,36 @@ func _fight(target: LevelUnitState) -> void:
 func execute_enemy_attack(attacker: LevelUnitState, target: LevelUnitState) -> void:
 	state = State.COMBAT
 	_update_panels()
+	await _play_fight(attacker, target)
+	_enter_free_state()
+
+
+## The part of a fight both phases share: quote, strikes, EXP, the area heals
+## from the hits, then the attacker's action is spent.
+func _play_fight(attacker: LevelUnitState, target: LevelUnitState) -> void:
 	await play_quote(Quotes.battle_quote(attacker.unit_ref, target.unit_ref, level.level_state.played_quotes))
 	var strikes := Combat.resolve(attacker, target, level.level_state, roll)
 	for strike in strikes:
 		await _play_strike(strike)
 	await award_experience(attacker, target, strikes)
+	_apply_area_heals(strikes)
 	if attacker.is_alive():
 		attacker.has_moved = true
 		attacker.has_acted = true
-	_enter_free_state()
+
+
+## After a fight, every strike that hit heals around its striker when the
+## striker's weapon heals, so a double that lands twice heals twice. Applied after
+## the strikes, not between them: Combat.resolve has already fixed each strike's
+## hp_after, and a mid-fight self-heal would be overwritten. A fallen striker
+## heals no one.
+func _apply_area_heals(strikes: Array[Combat.Strike]) -> void:
+	for strike in strikes:
+		if not strike.hit:
+			continue
+		var weapon := strike.attacker.unit.equipped_weapon()
+		for unit: LevelUnitState in Combat.area_heal(strike.attacker, level.level_state):
+			unit.unit.heal(weapon.heal_amount)
 
 
 func _play_strike(strike: Combat.Strike) -> void:
@@ -1052,6 +1070,24 @@ func _is_left_half(cell: Vector2i) -> bool:
 	return cell.x < bounds.position.x + bounds.size.x / 2.0
 
 
+## Cells on the map that `unit`'s equipped weapon heals when it attacks from
+## where it stands. Empty for a weapon that doesn't heal, or without a weapon.
+func _cells_in_heal_range(unit: LevelUnitState) -> Dictionary:
+	var cells := {}
+	var weapon := unit.unit.equipped_weapon()
+	if weapon == null or weapon.heal_amount <= 0:
+		return cells
+	var bounds := level.level_state.map_data.bounds()
+	var reach := weapon.heal_radius
+	for dx in range(-reach, reach + 1):
+		for dy in range(-reach, reach + 1):
+			var cell := unit.cell + Vector2i(dx, dy)
+			# Same rule as Combat.area_heal: grid distance, the wielder's own cell included.
+			if absi(dx) + absi(dy) <= reach and bounds.has_point(cell):
+				cells[cell] = true
+	return cells
+
+
 ## Cells on the map that `unit`'s equipped weapon reaches from where it stands
 ## (its min-max range, so a bow skips the cells next to it). Empty without a weapon.
 func _cells_in_attack_range(unit: LevelUnitState) -> Dictionary:
@@ -1119,7 +1155,7 @@ func _redraw_selection() -> void:
 		State.UNIT_SELECTED:
 			range_overlay.set_cells(reachable, selected_fringe)
 		State.TARGETING:
-			range_overlay.set_cells(reachable, attack_cells)
+			range_overlay.set_cells(reachable, attack_cells, heal_cells)
 		State.TRADE_PICK, State.TRADING:
 			range_overlay.set_cells({}, {})
 		_:

@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://b4xxm06egdn2y" path="res://gameplay/flow/title_screen.gd" id="1_title"]
 [ext_resource type="Theme" uid="uid://cpbjyilm7puv7" path="res://resources/ui_theme.tres" id="2_theme"]
 [ext_resource type="PackedScene" uid="uid://db6r7lledy23i" path="res://gameplay/ui/action_menu.tscn" id="3_menu"]
+[ext_resource type="AudioStream" uid="uid://x7orxxb0811q" path="res://assets/audio/Music/main_menu.ogg" id="4_841yk"]
 [ext_resource type="AudioStream" uid="uid://bi5locmf4rry1" path="res://assets/audio/SFX/button-press.wav" id="4_eoxm1"]
 
 [node name="TitleScreen" type="Control" unique_id=2128637055]
@@ -60,6 +61,9 @@ layout_mode = 2
 size_flags_horizontal = 4
 
 [node name="Music" type="AudioStreamPlayer" parent="." unique_id=2417775]
+unique_name_in_owner = true
+stream = ExtResource("4_841yk")
+autoplay = true
 
 [node name="SFX" type="AudioStreamPlayer" parent="." unique_id=1926121196]
 stream = ExtResource("4_eoxm1")

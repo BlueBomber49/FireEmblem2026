@@ -2,6 +2,8 @@
 	"chapters": [
 		{ "id": "prologue", "intro": "prologue_intro", "level": "prologue", "outro": "prologue_outro" },
 		{ "id": "level_1", "intro": "level_1_intro", "level": "level_1", "outro": "level_1_outro" },
-		{ "id": "level_2", "intro": "level_2_intro", "level": "level_2", "outro": "level_2_outro" }
+		{ "id": "level_2", "intro": "level_2_intro", "level": "level_2", "outro": "level_2_outro" },
+		{ "id": "level_3", "intro": "level_3_intro", "level": "level_3", "outro": "level_3_outro" },
+		{ "id": "level_4", "intro": "level_4_intro", "level": "level_4", "outro": "level_4_outro" },
 	]
 }

@@ -6,14 +6,20 @@ const FIXTURES := "res://tests/fixtures/dialogue"
 
 
 func test_every_real_dialogue_file_loads_without_errors() -> void:
-	var files := DirAccess.get_files_at(DialogueData.DEFAULT_DIR)
-	assert_gt(files.size(), 0)
-	for file in files:
-		if not file.ends_with(".json"):
-			continue
-		var d := DialogueData.read(DialogueData.DEFAULT_DIR.path_join(file))
-		assert_eq(d.errors, PackedStringArray(), file)
-		assert_gt(d.lines.size(), 0, file)
+	# The dev levels' dialogue is in a subfolder (dev/); check it too.
+	var dirs := [DialogueData.DEFAULT_DIR]
+	for sub in DirAccess.get_directories_at(DialogueData.DEFAULT_DIR):
+		dirs.append(DialogueData.DEFAULT_DIR.path_join(sub))
+	var checked := 0
+	for dir: String in dirs:
+		for file in DirAccess.get_files_at(dir):
+			if not file.ends_with(".json"):
+				continue
+			var d := DialogueData.read(dir.path_join(file))
+			assert_eq(d.errors, PackedStringArray(), dir.path_join(file))
+			assert_gt(d.lines.size(), 0, dir.path_join(file))
+			checked += 1
+	assert_gt(checked, 0)
 
 
 func test_empty_speaker_is_narration() -> void:

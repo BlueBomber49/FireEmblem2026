@@ -98,9 +98,6 @@ func hold_back_reinforcements() -> void:
 		var ref: UnitReference = map_data.units.get(id)
 		if ref == null or ref.event.is_empty():
 			continue
-		if ref.faction != UnitReference.Faction.ENEMY:
-			push_warning("Level: unit '%s' has event '%s', but only enemies arrive later; it starts on the map." % [id, ref.event])
-			continue
 		if not events.has(ref.event):
 			push_warning("Level: unit '%s' arrives with event '%s', which doesn't exist; it starts on the map." % [id, ref.event])
 			continue

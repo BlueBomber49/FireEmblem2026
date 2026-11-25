@@ -9,7 +9,7 @@ extends Node2D
 ## the commander are set with Choose, a map click, then Confirm. Problems block
 ## saving.
 ## Walls mode: left mouse paints the picked piece (wall or door), right mouse erases.
-## All: middle-drag / arrows pan, wheel zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
+## All: middle-drag / arrows / two-finger drag pan, wheel / pinch zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS, WALLS }
 ## Enemy AI strategies, in the AI dropdown's order.
@@ -19,6 +19,8 @@ enum Brush { PAINT, ERASE }
 enum WallPiece { WALL, DOOR }
 
 const PAN_SPEED := 400.0
+## Screen pixels a two-finger drag pans per unit of PanGesture.delta.
+const TRACKPAD_PAN_SPEED := 10.0
 const MAX_UNDO := 200
 const ZOOM_STEP := 1.25
 const GRID_COLOR := Color(1, 1, 1, 0.12)
@@ -31,14 +33,21 @@ const SEIZE_FILL := Color(0.2, 0.9, 0.3, 0.35)
 const PROBLEM_COLOR := Color(1.0, 0.4, 0.35)
 ## Reinforcements are drawn this faded, so they read as "not here at the start".
 const REINFORCEMENT_ALPHA := 0.45
+## Where the level picker looks (subfolders included) and New creates levels.
+const LEVELS_DIR := "res://resources/levels"
+## The dev levels' test content, kept out of the level picker so it can't be
+## edited by accident. (Their dialogue is in resources/dialogue/dev, which
+## dialogue_ids doesn't look in.)
+const DEV_LEVELS_DIR := LEVELS_DIR + "/dev"
 
 
+## The file Save writes to. It changes only when a load succeeds or New names a level.
 @export_file("*.json") var level_path := "res://resources/levels/simple_level.json"
 
 @onready var level: Level = $Level
 @onready var camera: Camera2D = $Camera
 @onready var overlay: Node2D = $Overlay
-@onready var path_edit: LineEdit = %PathEdit
+@onready var level_option: OptionButton = %LevelOption
 @onready var mode_option: OptionButton = %ModeOption
 @onready var terrain_box: VBoxContainer = %TerrainBox
 @onready var units_box: VBoxContainer = %UnitsBox
@@ -73,6 +82,7 @@ const REINFORCEMENT_ALPHA := 0.45
 @onready var override_check: CheckBox = %OverrideCheck
 @onready var stats_grid: GridContainer = %StatsGrid
 @onready var status: Label = %Status
+@onready var music: AudioStreamPlayer = $Music
 
 var mode: int = Mode.TERRAIN
 var brush: int = Brush.PAINT
@@ -148,6 +158,17 @@ var _last_change_tag := ""
 ## Snapshot taken when a brush stroke started, committed when it ends.
 var _stroke_before: Dictionary = {}
 
+## Level files, in the order the level picker lists them.
+var level_paths: Array[String] = []
+## The level as last loaded or saved: anything else is unsaved work.
+var _saved_snapshot: Dictionary = {}
+## Asks before unsaved work is thrown away; runs _discard_action on OK.
+var discard_dialog: ConfirmationDialog
+var _discard_action := Callable()
+## Asks New for the level's name.
+var new_level_dialog: ConfirmationDialog
+var new_level_edit: LineEdit
+
 
 func _ready() -> void:
 	# The game stretches its 640x360 view (project.godot); the editor is a tool
@@ -155,7 +176,7 @@ func _ready() -> void:
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	level.create_camera = false
-	path_edit.text = level_path
+	_build_file_dialogs()
 	_fill_terrain_options()
 	_fill_unit_options()
 	_build_stats_grid()
@@ -163,9 +184,9 @@ func _ready() -> void:
 	_build_events_panel()
 	overlay.draw.connect(_draw_overlay)
 
-	%LoadButton.pressed.connect(_load)
+	level_option.item_selected.connect(_on_level_picked)
 	%SaveButton.pressed.connect(_save)
-	%NewButton.pressed.connect(_new)
+	%NewButton.pressed.connect(_confirm_discard.bind(_ask_new_level_name))
 	mode_option.item_selected.connect(_set_mode)
 	%AddLayerButton.pressed.connect(_add_layer)
 	%RemoveLayerButton.pressed.connect(_remove_layer)
@@ -198,7 +219,7 @@ func _ready() -> void:
 	%RedoButton.pressed.connect(redo)
 
 	_set_mode(Mode.TERRAIN)
-	_load()
+	_open(level_path)
 
 
 func _process(delta: float) -> void:
@@ -241,6 +262,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_preselect_event("")
 		else:
 			_select_unit("")
+		return
+
+	# Trackpads: a pinch is a MagnifyGesture and a two-finger drag is a
+	# PanGesture, not wheel clicks, so the wheel zoom below never sees them.
+	var pinch := event as InputEventMagnifyGesture
+	if pinch != null:
+		_zoom(pinch.factor)
+		return
+	var swipe := event as InputEventPanGesture
+	if swipe != null:
+		camera.position += swipe.delta * TRACKPAD_PAN_SPEED / camera.zoom.x
+		_update_hover()
+		overlay.queue_redraw()
 		return
 
 	var click := event as InputEventMouseButton
@@ -530,7 +564,7 @@ func _place_unit(cell: Vector2i) -> void:
 			ref.items.append(String(weapon.id))
 	ref.sprite_sheet = UnitReference.sprite_for(ref.default_sprite_template(), ref.faction)
 	ref.start_cell = cell
-	if not preselected_event.is_empty() and ref.faction == UnitReference.Faction.ENEMY:
+	if not preselected_event.is_empty():
 		ref.event = preselected_event
 	var before := _snapshot()
 	level.level_state.map_data.units[ref.id] = ref
@@ -692,14 +726,14 @@ func _fill_inspector() -> void:
 	strategy_option.selected = maxi(STRATEGIES.find(ref.strategy), 0) if enemy else 0
 	team_edit.editable = enemy and ref.strategy == UnitReference.STRATEGY_DEFENSIVE
 	team_edit.text = ref.team if enemy else ""
-	# Arrives: at the start, or with an event. Enemies only.
+	# Arrives: at the start, or with an event.
 	arrives_option.clear()
 	arrives_option.add_item("At the start")
 	var ids := level.level_state.events.keys()
 	for event_id: String in ids:
 		arrives_option.add_item(event_title(event_id))
-	arrives_option.disabled = not enemy
-	arrives_option.selected = ids.find(ref.event) + 1 if enemy else 0
+	arrives_option.disabled = not editing
+	arrives_option.selected = ids.find(ref.event) + 1 if editing else 0
 	_fill_quotes(ref if editing else null)
 	deselect_button.disabled = not editing
 	if editing:
@@ -826,7 +860,6 @@ func _apply_inspector(respawn := false) -> void:
 		ref.commander = false  # only an enemy can command
 		ref.strategy = UnitReference.STRATEGY_AGGRESSIVE  # or have an AI
 		ref.team = ""
-		ref.event = ""  # or arrive later
 		ref.quotes = [] as Array[Dictionary]  # or have battle quotes
 	if new_faction == UnitReference.Faction.ALLY:
 		ref.death_quote = ""  # allies have no quotes at all
@@ -964,12 +997,96 @@ func _build_stats_grid() -> void:
 # --- Files ------------------------------------------------------------------
 
 
-func _load() -> void:
-	level_path = path_edit.text
-	var loaded := LevelState.load_file(level_path)
-	if loaded == null:
-		status.text = "Could not load %s" % level_path
+# --- Files ------------------------------------------------------------------
+
+
+func _build_file_dialogs() -> void:
+	discard_dialog = ConfirmationDialog.new()
+	discard_dialog.title = "Unsaved changes"
+	discard_dialog.dialog_text = "This level has unsaved changes. Discard them?"
+	discard_dialog.ok_button_text = "Discard"
+	discard_dialog.confirmed.connect(func() -> void: _discard_action.call())
+	# Picking a level moved the picker before asking; put it back.
+	discard_dialog.canceled.connect(_refresh_level_list)
+	$UI.add_child(discard_dialog)
+
+	new_level_dialog = ConfirmationDialog.new()
+	new_level_dialog.title = "New level"
+	new_level_edit = LineEdit.new()
+	new_level_edit.placeholder_text = "level_3 or dev/my_test"
+	new_level_dialog.add_child(new_level_edit)
+	new_level_dialog.register_text_enter(new_level_edit)
+	new_level_dialog.confirmed.connect(func() -> void: new_level(new_level_edit.text))
+	$UI.add_child(new_level_dialog)
+
+
+## Every .json under `dir` and its subfolders, except the dev levels, sorted.
+static func find_levels(dir: String) -> Array[String]:
+	var found: Array[String] = []
+	for file in DirAccess.get_files_at(dir):
+		if file.ends_with(".json"):
+			found.append(dir.path_join(file))
+	for sub in DirAccess.get_directories_at(dir):
+		if dir.path_join(sub) != DEV_LEVELS_DIR:
+			found.append_array(find_levels(dir.path_join(sub)))
+	found.sort()
+	return found
+
+
+## How the level picker names `path`: relative to LEVELS_DIR, without ".json".
+static func level_label(path: String) -> String:
+	return path.trim_prefix(LEVELS_DIR + "/").trim_suffix(".json")
+
+
+## Refills the level picker and selects level_path, listed as unsaved if it
+## isn't on disk yet (a New level, or a level path set from outside LEVELS_DIR).
+func _refresh_level_list() -> void:
+	level_paths = find_levels(LEVELS_DIR)
+	level_option.clear()
+	for path in level_paths:
+		level_option.add_item(level_label(path))
+	if not level_paths.has(level_path):
+		level_paths.append(level_path)
+		var suffix := "" if FileAccess.file_exists(level_path) else " (unsaved)"
+		level_option.add_item(level_label(level_path) + suffix)
+	level_option.select(level_paths.find(level_path))
+
+
+func _on_level_picked(index: int) -> void:
+	var path := level_paths[index]
+	if path != level_path:
+		_confirm_discard(_open.bind(path))
+
+
+func has_unsaved_changes() -> bool:
+	# No level at all: the first load at startup failed, so there's nothing to lose.
+	return level.level_state != null and _snapshot() != _saved_snapshot
+
+
+## Runs `action` now, or after the user agrees to discard unsaved changes.
+func _confirm_discard(action: Callable) -> void:
+	if not has_unsaved_changes():
+		action.call()
 		return
+	_discard_action = action
+	discard_dialog.popup_centered()
+
+
+func _ask_new_level_name() -> void:
+	new_level_edit.clear()
+	new_level_dialog.popup_centered(Vector2i(320, 0))
+	new_level_edit.grab_focus()
+
+
+## Loads `path` and makes it the file Save writes to. On failure nothing
+## changes: the old level stays, and so does its path.
+func _open(path: String) -> bool:
+	var loaded := LevelState.load_file(path)
+	if loaded == null:
+		status.text = "Could not load %s" % path
+		_refresh_level_list()
+		return false
+	level_path = path
 	# A unit pointing at an event that isn't there starts on the map.
 	for ref: UnitReference in loaded.map_data.units.values():
 		if not ref.event.is_empty() and not loaded.events.has(ref.event):
@@ -985,7 +1102,10 @@ func _load() -> void:
 	_refresh_objective_panel()
 	_refresh_events_panel()
 	_clear_history()
+	_saved_snapshot = _snapshot()
+	_refresh_level_list()
 	status.text = "Loaded %s" % level_path
+	return true
 
 
 func _save() -> void:
@@ -1001,14 +1121,29 @@ func _save() -> void:
 	if not quote_issues.is_empty():
 		status.text = "Can't save until the quotes are fixed: " + " ".join(quote_issues)
 		return
-	level_path = path_edit.text
+	# A New level in a new subfolder (dev/foo) needs the folder first.
+	DirAccess.make_dir_recursive_absolute(level_path.get_base_dir())
 	if level.level_state.save_file(level_path, false) == OK:
+		_saved_snapshot = _snapshot()
+		_refresh_level_list()  # a New level now exists on disk
 		status.text = "Saved %s" % level_path
 	else:
 		status.text = "Could not save %s" % level_path
 
 
-func _new() -> void:
+## Starts an empty level that Save will write to LEVELS_DIR/`level_name`.json.
+## Refuses a bad name or one that's taken; the file is written on the first Save.
+func new_level(level_name: String) -> void:
+	level_name = level_name.strip_edges().trim_suffix(".json")
+	var parts := level_name.split("/")
+	if level_name.is_empty() or Array(parts).any(func(p: String) -> bool: return not p.is_valid_filename() or p == ".."):
+		status.text = "'%s' isn't a usable level name." % level_name
+		return
+	var path := LEVELS_DIR.path_join(level_name + ".json")
+	if FileAccess.file_exists(path):
+		status.text = "%s already exists. Pick it from the level list to edit it." % level_label(path)
+		return
+	level_path = path
 	level.level_state = LevelState.fromJson({})
 	level.rebuild()
 	_refresh_layer_list()
@@ -1018,7 +1153,10 @@ func _new() -> void:
 	_refresh_objective_panel()
 	_refresh_events_panel()
 	_clear_history()
-	status.text = "New empty map. Add a layer to start painting."
+	# Nothing to lose yet: switching away from an untouched New level doesn't ask.
+	_saved_snapshot = _snapshot()
+	_refresh_level_list()
+	status.text = "New level %s. Add a layer to start painting; Save creates the file." % level_label(path)
 
 
 # --- Undo / redo ------------------------------------------------------------
@@ -1963,7 +2101,7 @@ func _update_problems() -> void:
 
 # --- Events ------------------------------------------------------------------------
 # Each event is a row: WHEN turn N's enemy or player phase starts, THEN its steps
-# run in order: its enemies arrive (one step, always there) and any number of
+# run in order: its units arrive (one step, always there) and any number of
 # dialogues play over the map. Units join an event here (Choose -> click ->
 # Confirm, or Place new units) or from the Units inspector's Arrives dropdown:
 # the same data.
@@ -1977,7 +2115,7 @@ func _build_events_panel() -> void:
 	events_problems_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	events_problems_label.add_theme_color_override("font_color", PROBLEM_COLOR)
 	events_box.add_child(events_problems_label)
-	events_box.add_child(_section_header("EVENTS: enemies arriving and dialogue, by turn", WIN_COLOR))
+	events_box.add_child(_section_header("EVENTS: units arriving and dialogue, by turn", WIN_COLOR))
 	event_rows = VBoxContainer.new()
 	events_box.add_child(event_rows)
 	add_event_button = Button.new()
@@ -1989,7 +2127,7 @@ func _build_events_panel() -> void:
 ## The turn `ref` arrives on, or 0 when it starts on the map (or its event is
 ## missing or broken, so it would start there in play too).
 func arrival_turn(ref: UnitReference) -> int:
-	if ref == null or ref.event.is_empty() or ref.faction != UnitReference.Faction.ENEMY:
+	if ref == null or ref.event.is_empty():
 		return 0
 	var event: Variant = level.level_state.events.get(ref.event)
 	if event == null or not LevelState.event_problem(event).is_empty():
@@ -2017,6 +2155,7 @@ func _default_event_title(event_id: String) -> String:
 
 
 ## The dialogue ids in resources/dialogue, sorted: what a dialogue step can play.
+## Subfolders (dev/) aren't listed.
 func dialogue_ids() -> Array[String]:
 	var ids: Array[String] = []
 	for file in DirAccess.get_files_at(DialogueData.DEFAULT_DIR):
@@ -2051,7 +2190,7 @@ func event_issue(event_id: String) -> String:
 			if not known.has(str(step["dialogue"])):
 				return "dialogue '%s' doesn't exist" % step["dialogue"]
 	if not has_dialogue and event_units(event_id).is_empty():
-		return "nothing happens: add enemies or a dialogue"
+		return "nothing happens: add units or a dialogue"
 	return ""
 
 
@@ -2205,7 +2344,7 @@ func _remove_from_event(unit_id: String) -> void:
 	_after_event_change()
 
 
-# Choose -> click enemies -> Confirm.
+# Choose -> click units -> Confirm.
 
 
 ## The event whose units are outlined in Events mode: the one being chosen for,
@@ -2222,20 +2361,20 @@ func _start_event_pick(event_id: String) -> void:
 	_event_pick = event_id
 	_focused_event = event_id
 	_event_pending.clear()
-	status.text = "Click enemies on the map to add them, then Confirm."
+	status.text = "Click units on the map to add them, then Confirm."
 	_refresh_events_panel()
 	overlay.queue_redraw()
 
 
-## A map click in Events mode: while choosing, toggles the enemy there.
+## A map click in Events mode: while choosing, toggles the unit there.
 func _events_click(cell: Vector2i) -> void:
 	if not is_picking_event():
-		status.text = "To add units, press Choose units on an event, then click enemies."
+		status.text = "To add units, press Choose units on an event, then click them."
 		return
 	var id := _unit_id_at(cell)
 	var ref: UnitReference = level.level_state.map_data.units.get(id)
-	if ref == null or ref.faction != UnitReference.Faction.ENEMY:
-		status.text = "Only enemies arrive later: click an enemy."
+	if ref == null:
+		status.text = "No unit there: click a unit."
 		return
 	if _event_pending.has(id):
 		_event_pending.erase(id)
@@ -2256,7 +2395,7 @@ func _confirm_event_pick() -> void:
 			level.level_state.map_data.units[id].event = event_id
 		_commit(before)
 	_after_event_change()
-	status.text = "%d enemy(s) added to %s." % [chosen.size(), event_title(event_id)]
+	status.text = "%d unit(s) added to %s." % [chosen.size(), event_title(event_id)]
 
 
 func _cancel_event_pick() -> void:
@@ -2273,8 +2412,8 @@ func _stop_event_pick() -> void:
 # Placing new units into an event.
 
 
-## New enemy placements join `event_id` until it's cleared ("" clears). Switches
-## to Units mode with Enemy picked.
+## New placements join `event_id` until it's cleared ("" clears). Switches to
+## Units mode with Enemy picked, the usual case; any faction can be placed.
 func _preselect_event(event_id: String) -> void:
 	preselected_event = event_id
 	if not event_id.is_empty():
@@ -2285,12 +2424,12 @@ func _preselect_event(event_id: String) -> void:
 		faction_option.selected = UnitReference.Faction.ENEMY
 		_select_unit("")
 	preselect_row.visible = not preselected_event.is_empty()
-	preselect_label.text = "New enemies arrive with: %s" % event_title(preselected_event)
+	preselect_label.text = "New units arrive with: %s" % event_title(preselected_event)
 
 
 func _on_arrives_picked(index: int) -> void:
-	var ref := _selected_enemy()
-	if ref == null:
+	var ref := _selected_ref()
+	if _syncing or ref == null:
 		return
 	var before := _snapshot()
 	ref.event = "" if index == 0 else String(level.level_state.events.keys()[index - 1])
@@ -2387,7 +2526,7 @@ func _build_event_row(event_id: String) -> void:
 				head.add_child(step_ctrl[&"option"])
 			else:
 				var arrive_label := Label.new()
-				arrive_label.text = "Enemies arrive"
+				arrive_label.text = "Units arrive"
 				arrive_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				head.add_child(arrive_label)
 				_add_units_step(event_id, step_box, controls)
@@ -2443,7 +2582,7 @@ func _dialogue_option(current: String, on_pick: Callable) -> OptionButton:
 	return option
 
 
-## The units step's body: the event's enemies as chips, and the ways to add some.
+## The units step's body: the event's units as chips, and the ways to add some.
 func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictionary) -> void:
 	var chips_line := HFlowContainer.new()
 	var chips := {}
@@ -2474,7 +2613,7 @@ func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictio
 	var actions := HFlowContainer.new()
 	if _event_pick == event_id:
 		var prompt := Label.new()
-		prompt.text = "Click enemies... (%d chosen)" % _event_pending.size()
+		prompt.text = "Click units... (%d chosen)" % _event_pending.size()
 		actions.add_child(prompt)
 		var confirm := Button.new()
 		confirm.text = "Confirm"
@@ -2490,13 +2629,13 @@ func _add_units_step(event_id: String, step_box: VBoxContainer, controls: Dictio
 	else:
 		var choose := Button.new()
 		choose.text = "+ Add units"
-		choose.tooltip_text = "Click enemies already on the map, then Confirm"
+		choose.tooltip_text = "Click units already on the map, then Confirm"
 		choose.pressed.connect(_start_event_pick.bind(event_id))
 		controls[&"choose"] = choose
 		actions.add_child(choose)
 		var place := Button.new()
 		place.text = "Place new units"
-		place.tooltip_text = "Go to Units mode: enemies you place join this event"
+		place.tooltip_text = "Go to Units mode: units you place join this event"
 		place.pressed.connect(_preselect_event.bind(event_id))
 		controls[&"place"] = place
 		actions.add_child(place)

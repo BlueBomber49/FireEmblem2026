@@ -1,0 +1,8 @@
+{
+	"id": "level_3_intro",
+	"background": "cutscene_background_1",
+	"music": "determined_cutscene",
+	"lines": [
+		{ "speaker": "adelard", "side": "back_right", "face_outside": true, "text":"Placeholder text" }
+	]
+}

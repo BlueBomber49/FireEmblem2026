@@ -1,0 +1,8 @@
+{
+	"id": "level_2_dialogue_2",
+	"lines": [
+		{ "speaker": "rowland", "side": "left", "text":"..." },
+		{ "speaker": "rowland", "side": "left", "text":"You're telling me the door wasn't even locked?" },
+		{ "speaker": "adelard", "side": "left", "text":"I guess they didn't have budget to put locks on their doors.  Come on, let's get you in the fight!" },
+	]
+}

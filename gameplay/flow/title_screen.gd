@@ -19,12 +19,7 @@ const OPTIONS: Array[StringName] = [&"new_game", &"credits", &"quit"]
 const BLINK_TIME := 0.6
 
 var stage := Stage.PRESS_START
-## Play the title music here. GameFlow turns this off and plays it itself, so
-## the song carries on between the title and the credits.
-var play_music := true
 var _blink: Tween
-
-const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg")
 
 @onready var _press_start: Label = %PressStart
 @onready var _menu: ActionMenu = %Menu
@@ -32,9 +27,6 @@ const MENU_MUSIC: AudioStream = preload("res://assets/audio/Music/main_menu.ogg"
 @onready var sound_effects: AudioStreamPlayer = $SFX
 
 func _ready() -> void:
-	music.stream = MENU_MUSIC
-	if play_music:
-		music.play()
 	_menu.option_selected.connect(_on_menu_option)
 	_menu.cancelled.connect(_show_press_start)
 	_show_press_start()

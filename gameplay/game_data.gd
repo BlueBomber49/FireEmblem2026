@@ -221,7 +221,7 @@ static func _build_class(r: _Reader) -> ClassData:
 
 static func _build_weapon(r: _Reader) -> WeaponData:
 	r.allow_keys(["id", "name", "type", "might", "hit", "crit", "weight", "min_range", "max_range",
-			"effective_against"])
+			"effective_against",  "heal_amount", "heal_radius"])
 	var w := WeaponData.new()
 	w.id = StringName(r.string("id"))
 	w.display_name = r.string("name")
@@ -237,6 +237,8 @@ static func _build_weapon(r: _Reader) -> WeaponData:
 	w.weight = r.integer("weight")
 	w.min_range = r.integer("min_range")
 	w.max_range = r.integer("max_range")
+	w.heal_amount = r.integer("heal_amount", false)
+	w.heal_radius = r.integer("heal_radius", false)
 	var effective: Array[StringName] = []
 	for tag in r.string_list("effective_against", false):
 		effective.append(StringName(tag))

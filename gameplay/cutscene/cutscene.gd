@@ -25,6 +25,7 @@ var _inward_flip: Dictionary = {}
 ## side -> the speaker standing there, so someone who moves leaves their old slot.
 var _occupants: Dictionary = {}
 
+@onready var music: AudioStreamPlayer = $Music
 @onready var _backdrop: TextureRect = %Backdrop
 ## side (one of DialogueData.SIDES) -> the portrait slot drawn there.
 @onready var _slots: Dictionary = {
@@ -96,6 +97,9 @@ func _start() -> void:
 		slot.texture = null
 	var backdrop_path := DialogueData.background_path(dialogue.background)
 	_backdrop.texture = load(backdrop_path) if ResourceLoader.exists(backdrop_path) else null
+	var music_path = DialogueData.music_path(dialogue.music)
+	music.stream = load(music_path) if ResourceLoader.exists(music_path) else null
+	music.play()
 	if dialogue.lines.is_empty():
 		_finish()
 	else:
