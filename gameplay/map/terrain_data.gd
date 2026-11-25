@@ -11,8 +11,8 @@ const IMPASSABLE := -1
 @export var display_name := ""
 @export var defense := 0
 @export var avoid := 0
-## Percent of max HP restored at the start of the owner's turn (forts). Stored
-## for later: there's no turn phase yet.
+## Percent of max HP restored at the start of the owner's phase (forts); see
+## TurnLoop.heal_on_terrain.
 @export var heal_percent := 0
 ## Enums.MovementType -> movement points to enter, or IMPASSABLE.
 @export var move_costs: Dictionary = {}

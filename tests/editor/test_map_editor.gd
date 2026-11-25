@@ -1228,6 +1228,40 @@ func test_a_cell_holds_a_wall_or_a_door() -> void:
 	assert_false(_map_data().doors.has(FREE_CELL))
 
 
+func test_painting_forts_with_their_look() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	assert_eq(editor.wall_piece_option.item_count, MapEditor.WallPiece.FORT + WallTiles.FORT_VARIANTS, "one entry per fort look")
+	editor.wall_piece_option.selected = MapEditor.WallPiece.FORT + 1
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_eq(_map_data().forts, {FREE_CELL: 1})
+	assert_eq(editor.level.walls_layer.get_used_cells(), [FREE_CELL] as Array[Vector2i])
+	editor.wall_piece_option.selected = MapEditor.WallPiece.FORT
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_eq(_map_data().forts, {FREE_CELL: 0}, "repainting changes the look")
+	_press_wall(FREE_CELL, MOUSE_BUTTON_RIGHT)
+	_release_wall(MOUSE_BUTTON_RIGHT)
+	assert_true(_map_data().forts.is_empty())
+
+
+func test_a_fort_replaces_a_door_and_a_wall_replaces_a_fort() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	editor.wall_piece_option.selected = MapEditor.WallPiece.DOOR
+	_press_wall(FREE_CELL)
+	_release_wall()
+	editor.wall_piece_option.selected = MapEditor.WallPiece.FORT
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_false(_map_data().doors.has(FREE_CELL))
+	assert_true(_map_data().forts.has(FREE_CELL))
+	editor.wall_piece_option.selected = MapEditor.WallPiece.WALL
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_true(_map_data().forts.is_empty())
+	assert_true(_map_data().walls.has(FREE_CELL))
+
+
 func test_a_wall_stroke_is_one_undo_step() -> void:
 	editor._set_mode(MapEditor.Mode.WALLS)
 	var steps := editor.undo_stack.size()

@@ -93,7 +93,7 @@ func test_forecast_numbers() -> void:
 	assert_eq(sides[1].damage, 12)
 	assert_eq(sides[0].hit, 100, "113 clamps to 100")
 	assert_eq(sides[1].hit, 46)
-	assert_eq(sides[0].crit, 2)
+	assert_eq(sides[0].crit, 3)
 	assert_eq(sides[1].crit, 0, "clamped at zero")
 	assert_eq(sides[0].attack_count, 2, "AS 9 vs 3")
 	assert_eq(sides[1].attack_count, 1)

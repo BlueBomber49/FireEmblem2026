@@ -103,7 +103,7 @@ func _spawn(event_id: String) -> void:
 	var state := level.level_state
 	var arrived: Array[String] = []
 	for id: String in state.pending_units.keys():
-		if state.map_data.units[id].event == event_id and level.arrive(id).x >= 0:
+		if state.map_data.units[id].event == event_id and level.arrive(id):
 			arrived.append(id)
 	if not arrived.is_empty():
 		pending_steps.append({"type": "spawn", "ids": arrived})
@@ -214,6 +214,7 @@ func _start_enemy_phase() -> void:
 	phase_changed.emit(phase)
 	# Before begin_turn, which gathers the phase's enemies: arrivals act this phase.
 	run_events(phase)
+	heal_on_terrain(UnitReference.Faction.ENEMY)
 	enemy_controller.begin_turn()
 	level.update_tints()
 	if battle != null:
@@ -263,11 +264,23 @@ func _begin_player_phase() -> void:
 	level.acting_faction = UnitReference.Faction.PLAYER
 	# Before phase_changed, so Battle's refresh for the new phase includes arrivals.
 	run_events(phase)
+	heal_on_terrain(UnitReference.Faction.PLAYER)
 	phase_changed.emit(phase)
 	level.update_tints()
 	if battle != null:
 		await battle.announce_phase(phase)
 	await _present_events()
+
+
+## Start of `faction`'s phase: each of its living units standing on terrain that
+## heals (TerrainData.heal_percent, e.g. a fort's 20) gets that percent of its
+## max HP back, as in FE7.
+func heal_on_terrain(faction: UnitReference.Faction) -> void:
+	for state: LevelUnitState in level.level_state.level_units.values():
+		if state.unit_ref.faction == faction and state.is_alive():
+			var td: TerrainData = level.pathfinding.terrain_at(state.cell)
+			if td != null and td.heal_percent > 0:
+				state.unit.heal((td.heal_percent * state.unit.max_hp())/100)
 
 
 ## Finishes the level if the objective says it's over. True when it did, or when

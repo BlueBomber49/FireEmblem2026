@@ -168,22 +168,45 @@ func _build_walls(z: int) -> void:
 	_paint_walls()
 
 
-## Redraws the walls and doors after they changed (used by the map editor).
+## Redraws the walls, doors and forts after they changed (the map editor, or a
+## door opened in play).
 func repaint_walls() -> void:
 	walls_layer.clear()
 	_paint_walls()
-	# A brush stroke changed which cells are walls.
+	# Which cells are walls, doors or forts (or which doors are open) changed.
 	level_state.map_data.invalidate_terrain_cache()
 
 
 func _paint_walls() -> void:
 	var map_data := level_state.map_data
-	var cell_tiles := WallTiles.cell_tiles(map_data.walls, map_data.doors)
+	_paint_sheet(WallTiles.cell_tiles(map_data.walls, map_data.doors),
+			WallTiles.TEXTURE_PATH, WallTiles.all_atlas_coords())
+	_paint_sheet(WallTiles.door_tiles(map_data.walls, map_data.doors, map_data.opened_doors),
+			WallTiles.DOOR_TEXTURE_PATH, WallTiles.all_door_atlas_coords())
+	var fort_tiles := {}
+	for cell: Vector2i in map_data.forts:
+		fort_tiles[cell] = WallTiles.fort_coords(map_data.forts[cell])
+	_paint_sheet(fort_tiles, WallTiles.FORT_TEXTURE_PATH, WallTiles.all_fort_atlas_coords())
+
+
+## Draws `cell_tiles` (cell -> atlas coords) from one sheet onto the walls layer.
+## A sheet nothing uses isn't loaded.
+func _paint_sheet(cell_tiles: Dictionary, texture_path: String, coords: Array[Vector2i]) -> void:
 	if cell_tiles.is_empty():
 		return
-	var source_id := tiles.add_tiles(WallTiles.TEXTURE_PATH, WallTiles.TILE_SIZE, WallTiles.all_atlas_coords())
-	for cell in cell_tiles:
+	var source_id := tiles.add_tiles(texture_path, WallTiles.TILE_SIZE, coords)
+	for cell: Vector2i in cell_tiles:
 		walls_layer.set_cell(cell, source_id, cell_tiles[cell])
+
+
+## Opens the closed door at `cell`: from now on it plays as the terrain under it.
+## False when there's no closed door there.
+func open_door(cell: Vector2i) -> bool:
+	if not level_state.map_data.is_closed_door(cell):
+		return false
+	level_state.map_data.opened_doors.append(cell)
+	repaint_walls()
+	return true
 
 
 ## Rebuilds just the unit nodes from `level_state` (used by the map editor).
@@ -257,16 +280,17 @@ func update_tints() -> void:
 
 
 ## Brings a pending reinforcement onto the map: on its start cell, or the nearest
-## free cell it can stand on when that one's taken. Returns the cell, or (-1, -1)
-## when there's none; then it keeps waiting.
-func arrive(id: String) -> Vector2i:
+## free cell it can stand on when that one's taken (its state.cell after). Returns
+## false when there's none; then it keeps waiting.
+func arrive(id: String) -> bool:
 	var state: LevelUnitState = level_state.pending_units.get(id)
 	if state == null:
-		return Vector2i(-1, -1)
-	var cell := _nearest_free_cell(state, state.cell)
-	if cell.x < 0:
+		return false
+	var found: Variant = _nearest_free_cell(state, state.cell)
+	if found == null:
 		push_warning("Level: no free cell for reinforcement '%s'; it waits." % id)
-		return cell
+		return false
+	var cell: Vector2i = found
 	level_state.pending_units.erase(id)
 	level_state.level_units[id] = state
 	state.cell = cell
@@ -275,7 +299,7 @@ func arrive(id: String) -> Vector2i:
 	unit.global_position = cell_center(cell)
 	unit.visible = not arrivals_hidden
 	unit_nodes[id] = unit
-	return cell
+	return true
 
 
 ## Where an arrival on `state.cell` runs in from: the next cell toward the
@@ -336,8 +360,9 @@ func run_in(ids: Array) -> void:
 
 
 ## Breadth-first from `start`: the first in-bounds cell `state` can stand on with
-## no living unit on it.
-func _nearest_free_cell(state: LevelUnitState, start: Vector2i) -> Vector2i:
+## no living unit on it, or null when there's none. (Not a sentinel cell: maps can
+## use negative coordinates, so any Vector2i might be a real cell.)
+func _nearest_free_cell(state: LevelUnitState, start: Vector2i) -> Variant:
 	var taken := {}
 	for other: LevelUnitState in level_state.level_units.values():
 		if other.is_alive():
@@ -354,7 +379,7 @@ func _nearest_free_cell(state: LevelUnitState, start: Vector2i) -> Vector2i:
 			if bounds.has_point(next) and not seen.has(next):
 				seen[next] = true
 				queue.append(next)
-	return Vector2i(-1, -1)
+	return null
 
 
 ## Puts `unit` on `cell` at once, with no walk (used to undo a move).

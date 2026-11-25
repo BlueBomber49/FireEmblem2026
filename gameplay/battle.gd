@@ -432,6 +432,8 @@ func _open_unit_menu() -> void:
 		options.push_front(&"trade")
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
+	if not adjacent_closed_doors().is_empty():
+		options.push_front(&"open")
 	if not targets.is_empty():
 		options.push_front(&"attack")
 	# Seize and Escape come first, as in FE: on that cell it's what the player came for.
@@ -469,6 +471,10 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 		&"status":
 			open_status(level.selected, false)
 		&"wait":
+			_finish_action()
+		&"open":
+			for cell in adjacent_closed_doors():
+				level.open_door(cell)
 			_finish_action()
 		&"escape":
 			# Ends like Seize: the completion check then sees the escape and wins.
@@ -582,6 +588,16 @@ func trade_partners() -> Array[LevelUnitState]:
 		var other := level.unit_at(me.cell + step)
 		if other != null and other.reference.faction == UnitReference.Faction.PLAYER:
 			found.append(other.state)
+	return found
+
+
+## Closed doors next to the selected unit (not diagonally). Open opens them all.
+func adjacent_closed_doors() -> Array[Vector2i]:
+	var found: Array[Vector2i] = []
+	var me := level.selected.state
+	for step: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		if level.level_state.map_data.is_closed_door(me.cell + step):
+			found.append(me.cell + step)
 	return found
 
 

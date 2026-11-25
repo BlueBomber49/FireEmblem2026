@@ -11,5 +11,7 @@
 		"flier": 1,
 		"mage": 2
 	},
-	"tiles": []
+	"tiles": [
+		"fort"
+	]
 }

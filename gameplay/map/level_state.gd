@@ -45,6 +45,8 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.turn = maxi(SaveUtil.read_int(d, "turn", 1), 1) if d.has("turn") else 1
 	state.seized = d.get("seized", false) == true
 	state.escaped = d.get("escaped", false) == true
+	# Only a save has opened doors; an authored level starts with every door shut.
+	state.map_data.opened_doors = JsonUtil.vec2i_array_from_json(d.get("opened_doors", []))
 	return state
 
 
@@ -134,6 +136,7 @@ func toJson(include_state := true) -> Dictionary:
 		d["turn"] = turn
 		d["seized"] = seized
 		d["escaped"] = escaped
+		d["opened_doors"] = JsonUtil.vec2i_array_to_json(map_data.opened_doors)
 	return d
 
 
