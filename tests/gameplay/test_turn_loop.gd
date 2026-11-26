@@ -21,6 +21,60 @@ func before_each() -> void:
 	_loop.enemy_controller.set_strategy(&"brigand", EnemyAI.Strategy.STATIONARY)
 
 
+# --- Forts -------------------------------------------------------------------
+
+
+func _on_fort(id: String) -> LevelUnitState:
+	var unit: LevelUnitState = _battle.level.level_state.level_units[id]
+	_battle.level.level_state.map_data.forts[unit.cell] = 0
+	_battle.level.repaint_walls()
+	return unit
+
+
+func test_a_fort_heals_its_faction_at_the_start_of_its_phase() -> void:
+	var lyn := _on_fort("lyn")
+	lyn.unit.current_hp = 1
+	var percent := GameData.get_terrain(&"fort").heal_percent
+	var exact := lyn.unit.max_hp() * percent / 100.0
+	_loop.heal_on_terrain(UnitReference.Faction.PLAYER)
+	assert_between(lyn.unit.current_hp, 1 + floori(exact), 1 + ceili(exact), "about %d%% of max HP" % percent)
+
+
+func test_a_fort_heals_no_one_in_the_other_phase() -> void:
+	var lyn := _on_fort("lyn")
+	lyn.unit.current_hp = 1
+	_loop.heal_on_terrain(UnitReference.Faction.ENEMY)
+	assert_eq(lyn.unit.current_hp, 1)
+
+
+func test_a_fort_never_heals_past_max_hp() -> void:
+	var lyn := _on_fort("lyn")
+	lyn.unit.current_hp = lyn.unit.max_hp() - 1
+	_loop.heal_on_terrain(UnitReference.Faction.PLAYER)
+	assert_eq(lyn.unit.current_hp, lyn.unit.max_hp())
+
+
+func test_units_off_forts_are_not_healed() -> void:
+	var wil: LevelUnitState = _battle.level.level_state.level_units["wil"]
+	wil.unit.current_hp = 1
+	_loop.heal_on_terrain(UnitReference.Faction.PLAYER)
+	assert_eq(wil.unit.current_hp, 1)
+
+
+func test_a_fallen_unit_on_a_fort_stays_down() -> void:
+	var lyn := _on_fort("lyn")
+	lyn.unit.current_hp = 0
+	_loop.heal_on_terrain(UnitReference.Faction.PLAYER)
+	assert_eq(lyn.unit.current_hp, 0)
+
+
+func test_the_player_phase_starts_with_fort_healing() -> void:
+	var lyn := _on_fort("lyn")
+	lyn.unit.current_hp = 1
+	await _loop.end_player_turn()
+	assert_gt(lyn.unit.current_hp, 1, "healed as the next player phase began")
+
+
 func test_setup_starts_on_the_player_phase() -> void:
 	assert_eq(_loop.phase, TurnLoop.Phase.PLAYER)
 	assert_true(_loop.is_player_turn())

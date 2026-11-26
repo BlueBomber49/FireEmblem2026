@@ -27,8 +27,6 @@ var turn := 1
 var seized := false
 ## Whether a unit has used the Escape command (Objective's escape condition).
 var escaped := false
-## Cells of the chests opened so far. Saved only with play state.
-var opened_chests: Array[Vector2i] = []
 ## Quotes already played this attempt ("unit_id/dialogue_id" -> true; see Quotes).
 ## Never saved: a retry starts the level fresh, quotes included.
 var played_quotes: Dictionary = {}
@@ -49,7 +47,9 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.turn = maxi(SaveUtil.read_int(d, "turn", 1), 1) if d.has("turn") else 1
 	state.seized = d.get("seized", false) == true
 	state.escaped = d.get("escaped", false) == true
-	state.opened_chests = JsonUtil.vec2i_array_from_json(d.get("opened_chests", []))
+	# Only a save has opened doors and chests; an authored level starts with all shut.
+	state.map_data.opened_doors = JsonUtil.vec2i_array_from_json(d.get("opened_doors", []))
+	state.map_data.opened_chests = JsonUtil.vec2i_array_from_json(d.get("opened_chests", []))
 	return state
 
 
@@ -114,13 +114,6 @@ func hold_back_reinforcements() -> void:
 		level_units.erase(id)
 
 
-## The item id in the unopened chest on `cell`, or "" when there's none.
-func chest_item_at(cell: Vector2i) -> String:
-	if cell in opened_chests:
-		return ""
-	return map_data.chests.get(cell, "")
-
-
 ## The id of the unit marked as the enemy commander, or "" when none is.
 func commander_id() -> String:
 	for ref: UnitReference in map_data.units.values():
@@ -146,7 +139,8 @@ func toJson(include_state := true) -> Dictionary:
 		d["turn"] = turn
 		d["seized"] = seized
 		d["escaped"] = escaped
-		d["opened_chests"] = JsonUtil.vec2i_array_to_json(opened_chests)
+		d["opened_doors"] = JsonUtil.vec2i_array_to_json(map_data.opened_doors)
+		d["opened_chests"] = JsonUtil.vec2i_array_to_json(map_data.opened_chests)
 	return d
 
 

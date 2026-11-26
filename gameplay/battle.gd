@@ -433,6 +433,8 @@ func _open_unit_menu() -> void:
 		options.push_front(&"trade")
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
+	if not adjacent_closed_doors().is_empty():
+		options.push_front(&"open")
 	if can_open_chest(level.selected.state):
 		options.push_front(&"chest")
 	if not targets.is_empty():
@@ -475,6 +477,10 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			_finish_action()
 		&"chest":
 			open_chest()
+		&"open":
+			for cell in adjacent_closed_doors():
+				level.open_door(cell)
+			_finish_action()
 		&"escape":
 			# Ends like Seize: the completion check then sees the escape and wins.
 			turn_loop.mark_escaped()
@@ -511,7 +517,7 @@ func _on_unit_menu_cancelled() -> void:
 
 ## Whether `unit` can open the chest on its cell, so the unit menu offers Chest.
 func can_open_chest(unit: LevelUnitState) -> bool:
-	if not unit.unit.inventory.is_full() and not level.level_state.chest_item_at(unit.cell).is_empty:
+	if not unit.unit.inventory.is_full() and not level.level_state.map_data.chest_item_at(unit.cell).is_empty:
 		return true
 	return false
 
@@ -520,9 +526,9 @@ func can_open_chest(unit: LevelUnitState) -> bool:
 ## shows open, and the unit's action ends, like Wait.
 func open_chest() -> void:
 	var me := level.selected.state
-	var item := GameData.get_item(StringName(level.level_state.chest_item_at(me.cell)))
+	var item := GameData.get_item(StringName(level.level_state.map_data.chest_item_at(me.cell)))
 	me.unit.inventory.add(item)
-	level.level_state.opened_chests.append(me.cell)
+	level.level_state.map_data.opened_chests.append(me.cell)
 	level.repaint_walls()
 	if show_banners:
 		state = State.SCENE  # the popup takes confirm; the map waits
@@ -611,6 +617,16 @@ func trade_partners() -> Array[LevelUnitState]:
 		var other := level.unit_at(me.cell + step)
 		if other != null and other.reference.faction == UnitReference.Faction.PLAYER:
 			found.append(other.state)
+	return found
+
+
+## Closed doors next to the selected unit (not diagonally). Open opens them all.
+func adjacent_closed_doors() -> Array[Vector2i]:
+	var found: Array[Vector2i] = []
+	var me := level.selected.state
+	for step: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		if level.level_state.map_data.is_closed_door(me.cell + step):
+			found.append(me.cell + step)
 	return found
 
 

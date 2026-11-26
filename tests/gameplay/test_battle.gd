@@ -1039,6 +1039,39 @@ func test_a_killed_marked_enemy_loses_its_zone() -> void:
 	assert_true(_overlay().marked_threat_cells.is_empty())
 
 
+# --- Doors ----------------------------------------------------------------------
+
+
+func _door_at(cell: Vector2i) -> void:
+	battle.level.level_state.map_data.doors.append(cell)
+	battle.level.repaint_walls()
+
+
+func test_open_is_offered_next_to_a_closed_door() -> void:
+	_door_at(LYN_CELL + Vector2i.UP)
+	_lyn_in_unit_menu()
+	assert_true(battle.unit_menu.options.has(&"open"))
+
+
+func test_open_is_not_offered_diagonally_or_for_an_open_door() -> void:
+	_door_at(LYN_CELL + Vector2i(1, 1))
+	_door_at(LYN_CELL + Vector2i.UP)
+	battle.level.open_door(LYN_CELL + Vector2i.UP)
+	_lyn_in_unit_menu()
+	assert_false(battle.unit_menu.options.has(&"open"))
+
+
+func test_choosing_open_opens_the_door_and_ends_the_action() -> void:
+	var door := LYN_CELL + Vector2i.UP
+	_door_at(door)
+	_lyn_in_unit_menu()
+	battle.unit_menu.option_selected.emit(&"open")
+	assert_false(battle.level.level_state.map_data.is_closed_door(door))
+	assert_ne(battle.level.pathfinding.terrain_at(door), GameData.get_terrain(&"door"))
+	assert_true(lyn.has_acted)
+	assert_eq(battle.state, Battle.State.FREE)
+
+
 # --- Chests -----------------------------------------------------------------------
 
 

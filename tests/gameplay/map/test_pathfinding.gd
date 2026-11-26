@@ -290,10 +290,21 @@ func test_wall_blocks_ground_units_but_not_fliers() -> void:
 	assert_true(finder.find_path(soldier, Vector2i(4, 2)).is_empty(), "the wall spans the map")
 
 
-func test_ground_units_walk_through_doors_with_gate_rules() -> void:
+func test_closed_door_blocks_ground_units_but_not_fliers() -> void:
 	var level_state := _walled_strip(true)
 	var soldier := _put(level_state, "knight", Vector2i(2, 2))
+	var pegasus := _put(level_state, "pegasus_knight", Vector2i(2, 1))
 	var finder := Pathfinding.new(level_state)
-	assert_eq(finder.terrain_at(DOOR).id, &"gate")
-	assert_eq(finder.move_cost(soldier, DOOR), 1)
+	assert_eq(finder.terrain_at(DOOR).id, &"door")
+	assert_eq(finder.move_cost(soldier, DOOR), TerrainData.IMPASSABLE)
+	assert_eq(finder.move_cost(pegasus, DOOR), 1)
+	assert_true(finder.find_path(soldier, Vector2i(4, 2)).is_empty(), "shut")
+
+
+func test_ground_units_walk_through_an_opened_door() -> void:
+	var level_state := _walled_strip(true)
+	var soldier := _put(level_state, "knight", Vector2i(2, 2))
+	level_state.map_data.opened_doors.append(DOOR)
+	var finder := Pathfinding.new(level_state)
+	assert_eq(finder.terrain_at(DOOR).id, &"forest", "the half-tree edge under it")
 	assert_eq(finder.find_path(soldier, Vector2i(4, 2)).size(), 3, "straight through the door")
