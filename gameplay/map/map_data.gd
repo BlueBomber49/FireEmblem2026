@@ -1,6 +1,6 @@
 class_name MapData
 extends RefCounted
-## Everything authored for a map: its terrain layers, walls, doors and forts, structures, and the units placed on it.
+## Everything authored for a map: its terrain layers, walls, doors, forts and chests, structures, and the units placed on it.
 
 ## Tile ids walls, closed doors and forts go by in the terrain rules (TerrainData.tiles).
 const WALL_TILE := "wall"
@@ -18,6 +18,13 @@ var doors: Array[Vector2i] = []
 var opened_doors: Array[Vector2i] = []
 ## Cells with a fort -> which fort art it draws (WallTiles.FORT_VARIANTS).
 var forts: Dictionary = {}
+## cell -> id of the item inside. A chest stands on terrain, so unlike walls,
+## doors and forts it doesn't change the rules terrain. The editor keeps chests
+## off wall, door and fort cells.
+var chests: Dictionary = {}
+## Chests opened in play. Play state like opened_doors: LevelState saves it only
+## with unit state.
+var opened_chests: Array[Vector2i] = []
 ## Unimplemented for now; carried through JSON untouched.
 var structures: Dictionary = {}
 ## id -> UnitReference
@@ -181,6 +188,11 @@ static func fromJson(d: Dictionary) -> MapData:
 		for raw: Variant in raw_forts:
 			if raw is Dictionary:
 				data.forts[JsonUtil.vec2i_from_json(raw.get("cell"))] = JsonUtil.to_int(raw.get("variant"))
+	var raw_chests: Variant = d.get("chests", [])
+	if raw_chests is Array:
+		for raw: Variant in raw_chests:
+			if raw is Dictionary:
+				data.chests[JsonUtil.vec2i_from_json(raw.get("cell"))] = str(raw.get("item", ""))
 	data.structures = d.get("structures", {}).duplicate(true)
 	var raw_units: Dictionary = d.get("units", {})
 	for id in raw_units:
@@ -203,9 +215,39 @@ func toJson() -> Dictionary:
 		"walls": JsonUtil.vec2i_array_to_json(walls),
 		"doors": JsonUtil.vec2i_array_to_json(doors),
 		"forts": raw_forts,
+		"chests": _chests_to_json(),
 		"structures": structures.duplicate(true),
 		"units": raw_units,
 	}
+
+
+## The item id in the unopened chest on `cell`, or "" when there's none.
+func chest_item_at(cell: Vector2i) -> String:
+	if cell in opened_chests:
+		return ""
+	return chests.get(cell, "")
+
+
+## Why each chest can't be opened in play (an item id that doesn't exist).
+func chest_problems() -> PackedStringArray:
+	var problems := PackedStringArray()
+	for cell: Vector2i in chests:
+		if GameData.get_item(StringName(chests[cell])) == null:
+			problems.append("the chest at %s holds unknown item '%s'" % [cell, chests[cell]])
+	return problems
+
+
+## A list, not a dictionary keyed by cell: JSON keys can only be strings. Sorted
+## by row, then column, so saving the same chests always writes the same file.
+func _chests_to_json() -> Array:
+	var cells: Array[Vector2i] = []
+	cells.assign(chests.keys())
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.y < b.y if a.y != b.y else a.x < b.x)
+	var out := []
+	for cell in cells:
+		out.append({"cell": JsonUtil.vec2i_to_json(cell), "item": chests[cell]})
+	return out
 
 
 static func _vert_set(layer: MapLayer) -> Dictionary:

@@ -1,6 +1,6 @@
 class_name MapEditor
 extends Node2D
-## Paints terrain vertices onto a Level's layers, paints walls, doors and forts, places
+## Paints terrain vertices onto a Level's layers, paints walls, doors, chests and forts, places
 ## units, and saves the result as a level JSON. Run this scene directly (not the main scene).
 ##
 ## Terrain mode: left mouse paints, right mouse erases.
@@ -8,7 +8,8 @@ extends Node2D
 ## Objective mode: edit the win and loss conditions row by row; seize cells and
 ## the commander are set with Choose, a map click, then Confirm. Problems block
 ## saving.
-## Walls mode: left mouse paints the picked piece (wall, door or a fort look), right mouse erases.
+## Walls mode: left mouse paints the picked piece (wall, door, a chest holding the
+## picked item, or a fort look), right mouse erases.
 ## All: middle-drag / arrows / two-finger drag pan, wheel / pinch zooms, Ctrl+Z / Ctrl+Shift+Z undo / redo.
 
 enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS, WALLS }
@@ -16,8 +17,9 @@ enum Mode { TERRAIN, UNITS, OBJECTIVE, EVENTS, WALLS }
 const STRATEGIES := UnitReference.STRATEGIES
 enum Brush { PAINT, ERASE }
 ## What Walls mode paints, in the order WallPieceOption lists them. FORT is the
-## first fort look; WallPieceOption lists one entry per look from there on.
-enum WallPiece { WALL, DOOR, FORT }
+## first fort look; WallPieceOption lists one entry per look from there on, so it
+## stays last.
+enum WallPiece { WALL, DOOR, CHEST, FORT }
 
 const PAN_SPEED := 400.0
 ## Screen pixels a two-finger drag pans per unit of PanGesture.delta.
@@ -54,6 +56,8 @@ const DEV_LEVELS_DIR := LEVELS_DIR + "/dev"
 @onready var units_box: VBoxContainer = %UnitsBox
 @onready var walls_box: VBoxContainer = %WallsBox
 @onready var wall_piece_option: OptionButton = %WallPieceOption
+@onready var chest_item_row: HBoxContainer = %ChestItemRow
+@onready var chest_item_option: OptionButton = %ChestItemOption
 @onready var objective_box: VBoxContainer = %ObjectiveBox
 @onready var events_box: VBoxContainer = %EventsBox
 @onready var arrives_option: OptionButton = %ArrivesOption
@@ -182,6 +186,7 @@ func _ready() -> void:
 	for variant in WallTiles.FORT_VARIANTS:
 		wall_piece_option.add_item("Fort %d" % (variant + 1))
 	_fill_unit_options()
+	_fill_chest_item_options()
 	_build_stats_grid()
 	_build_objective_panel()
 	_build_events_panel()
@@ -195,6 +200,7 @@ func _ready() -> void:
 	%RemoveLayerButton.pressed.connect(_remove_layer)
 	layer_list.item_selected.connect(func(_i: int) -> void: overlay.queue_redraw())
 	brush_option.item_selected.connect(func(i: int) -> void: brush = i)
+	wall_piece_option.item_selected.connect(func(i: int) -> void: chest_item_row.visible = i == WallPiece.CHEST)
 	size_spin.value_changed.connect(func(v: float) -> void: brush_size = int(v))
 
 	class_option.item_selected.connect(func(_i: int) -> void: _apply_inspector(true))
@@ -491,19 +497,24 @@ func _wall_click(click: InputEventMouseButton) -> void:
 		_end_stroke()
 
 
-## A cell holds one piece: painting a wall, door or fort replaces whatever was there.
+## A cell holds one piece: painting a wall, door, chest or fort replaces whatever
+## was there. Painting a chest over a chest changes what it holds.
 func _apply_wall_brush(brush_mode: int) -> void:
 	var map_data := level.level_state.map_data
 	var want := wall_piece_option.selected if brush_mode == Brush.PAINT else -1
-	if want == _wall_piece_at(hover_cell):
+	var want_item := picked_chest_item() if want == WallPiece.CHEST else ""
+	if want == _wall_piece_at(hover_cell) and want_item == map_data.chests.get(hover_cell, ""):
 		return
 	map_data.walls.erase(hover_cell)
 	map_data.doors.erase(hover_cell)
 	map_data.forts.erase(hover_cell)
+	map_data.chests.erase(hover_cell)
 	if want == WallPiece.WALL:
 		map_data.walls.append(hover_cell)
 	elif want == WallPiece.DOOR:
 		map_data.doors.append(hover_cell)
+	elif want == WallPiece.CHEST:
+		map_data.chests[hover_cell] = want_item
 	elif want >= WallPiece.FORT:
 		map_data.forts[hover_cell] = want - WallPiece.FORT
 	level.repaint_walls()
@@ -518,9 +529,23 @@ func _wall_piece_at(cell: Vector2i) -> int:
 		return WallPiece.WALL
 	if map_data.doors.has(cell):
 		return WallPiece.DOOR
+	if map_data.chests.has(cell):
+		return WallPiece.CHEST
 	if map_data.forts.has(cell):
 		return WallPiece.FORT + map_data.forts[cell]
 	return -1
+
+
+## The item id the Contents picker shows, for new chests.
+func picked_chest_item() -> String:
+	return chest_item_option.get_item_metadata(chest_item_option.selected)
+
+
+func _fill_chest_item_options() -> void:
+	chest_item_option.clear()
+	for id in GameData.all_item_ids():
+		chest_item_option.add_item(GameData.get_item(id).display_name)
+		chest_item_option.set_item_metadata(chest_item_option.item_count - 1, String(id))
 
 
 # --- Units ------------------------------------------------------------------
@@ -1269,7 +1294,10 @@ func _update_status() -> void:
 		return
 	if mode == Mode.WALLS:
 		var map_data := level.level_state.map_data
-		status.text = "cell %s   |   %d walls, %d doors, %d forts" % [hover_cell, map_data.walls.size(), map_data.doors.size(), map_data.forts.size()]
+		status.text = "cell %s   |   %d walls, %d doors, %d chests, %d forts" % [hover_cell, map_data.walls.size(), map_data.doors.size(), map_data.chests.size(), map_data.forts.size()]
+		if map_data.chests.has(hover_cell):
+			var item := GameData.get_item(StringName(map_data.chests[hover_cell]))
+			status.text += "   |   chest: " + (item.display_name if item != null else "UNKNOWN '%s'" % map_data.chests[hover_cell])
 		return
 	var layer := selected_layer()
 	var layer_text := "no layer selected" if layer == null else "%s: %d verts" % [layer.name, layer.verts.size()]

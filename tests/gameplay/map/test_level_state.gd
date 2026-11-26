@@ -143,6 +143,30 @@ func test_escaped_is_saved_only_with_state() -> void:
 	assert_true(LevelState.fromJson(state.toJson()).escaped)
 
 
+func test_opened_chests_are_saved_only_with_state() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	state.map_data.chests[Vector2i(1, 1)] = "vulnerary"
+	state.map_data.opened_chests.append(Vector2i(1, 1))
+	assert_false(state.toJson(false).has("opened_chests"), "an authored level starts with every chest shut")
+	assert_false(state.toJson(false)["map_data"].has("opened_chests"))
+	var again := LevelState.fromJson(JSON.parse_string(JSON.stringify(state.toJson())))
+	assert_eq(again.map_data.opened_chests, [Vector2i(1, 1)] as Array[Vector2i])
+
+
+func test_chest_item_at_is_empty_once_opened() -> void:
+	var state := LevelState.fromJson(SAMPLE)
+	state.map_data.chests[Vector2i(1, 1)] = "vulnerary"
+	assert_eq(state.map_data.chest_item_at(Vector2i(1, 1)), "vulnerary")
+	assert_eq(state.map_data.chest_item_at(Vector2i(2, 1)), "", "no chest there")
+	state.map_data.opened_chests.append(Vector2i(1, 1))
+	assert_eq(state.map_data.chest_item_at(Vector2i(1, 1)), "")
+
+
+func test_unknown_chest_items_warn_on_load() -> void:
+	LevelState.fromJson({"map_data": {"chests": [{"cell": [1, 1], "item": "nope"}]}})
+	assert_push_warning("unknown item 'nope'")
+
+
 func test_commander_id_finds_the_marked_unit() -> void:
 	var state := LevelState.fromJson(SAMPLE)
 	assert_eq(state.commander_id(), "")

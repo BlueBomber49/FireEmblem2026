@@ -1300,6 +1300,73 @@ func test_walls_and_doors_survive_save_and_load() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
 
 
+## Picks the Chest piece holding `item_id` in the Contents picker.
+func _pick_chest(item_id: String) -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	editor.wall_piece_option.select(MapEditor.WallPiece.CHEST)
+	editor.wall_piece_option.item_selected.emit(MapEditor.WallPiece.CHEST)
+	for i in editor.chest_item_option.item_count:
+		if editor.chest_item_option.get_item_metadata(i) == item_id:
+			editor.chest_item_option.select(i)
+	assert_eq(editor.picked_chest_item(), item_id)
+
+
+func test_contents_show_only_for_chests() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	assert_false(editor.chest_item_row.visible)
+	_pick_chest("vulnerary")
+	assert_true(editor.chest_item_row.visible)
+
+
+func test_painting_a_chest_holds_the_picked_item() -> void:
+	_pick_chest("vulnerary")
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_eq(_map_data().chests, {FREE_CELL: "vulnerary"})
+	assert_eq(editor.level.walls_layer.get_cell_atlas_coords(FREE_CELL), ChestTiles.CLOSED_COORDS)
+	_pick_chest("iron_sword")
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_eq(_map_data().chests, {FREE_CELL: "iron_sword"}, "painting over a chest changes what it holds")
+	_press_wall(FREE_CELL, MOUSE_BUTTON_RIGHT)
+	_release_wall(MOUSE_BUTTON_RIGHT)
+	assert_true(_map_data().chests.is_empty())
+	assert_true(editor.level.walls_layer.get_used_cells().is_empty())
+
+
+func test_a_chest_replaces_a_wall_and_back() -> void:
+	editor._set_mode(MapEditor.Mode.WALLS)
+	_press_wall(FREE_CELL)
+	_release_wall()
+	_pick_chest("vulnerary")
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_false(_map_data().walls.has(FREE_CELL), "the chest replaced the wall")
+	assert_true(_map_data().chests.has(FREE_CELL))
+	editor.wall_piece_option.select(MapEditor.WallPiece.WALL)
+	_press_wall(FREE_CELL)
+	_release_wall()
+	assert_true(_map_data().walls.has(FREE_CELL), "the wall replaced the chest")
+	assert_false(_map_data().chests.has(FREE_CELL))
+
+
+func test_chests_undo_and_survive_save_and_load() -> void:
+	const PATH := "user://test_map_editor_chests.json"
+	_pick_chest("vulnerary")
+	_press_wall(FREE_CELL)
+	_release_wall()
+	editor.undo()
+	assert_true(_map_data().chests.is_empty())
+	editor.redo()
+	editor.level_path = PATH
+	editor._save()
+	editor.new_level("test_editor_chests")
+	assert_true(_map_data().chests.is_empty())
+	editor._open(PATH)
+	assert_eq(_map_data().chests, {FREE_CELL: "vulnerary"})
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+
+
 # --- Events mode: steps -------------------------------------------------------------
 
 

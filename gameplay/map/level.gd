@@ -1,7 +1,7 @@
 class_name Level
 extends Node2D
 ## A playable map. Shows a LevelState (an authored level or a save) as stacked
-## TileMapLayers, a walls layer above them, and LevelUnits on top, built by
+## TileMapLayers, a walls layer (walls, doors and chests) above them, and LevelUnits on top, built by
 ## rebuild(). Units stand on tile cells; the vertex data in MapData only decides
 ## which tiles get drawn.
 
@@ -168,8 +168,8 @@ func _build_walls(z: int) -> void:
 	_paint_walls()
 
 
-## Redraws the walls, doors and forts after they changed (the map editor, or a
-## door opened in play).
+## Redraws the walls, doors, forts and chests after they changed (the map editor,
+## or a door or chest opened in play).
 func repaint_walls() -> void:
 	walls_layer.clear()
 	_paint_walls()
@@ -187,6 +187,9 @@ func _paint_walls() -> void:
 	for cell: Vector2i in map_data.forts:
 		fort_tiles[cell] = WallTiles.fort_coords(map_data.forts[cell])
 	_paint_sheet(fort_tiles, WallTiles.FORT_TEXTURE_PATH, WallTiles.all_fort_atlas_coords())
+	# Chests share the walls layer: a cell holds one piece, and they draw at the same height.
+	_paint_sheet(ChestTiles.cell_tiles(map_data.chests, map_data.opened_chests),
+			ChestTiles.TEXTURE_PATH, ChestTiles.all_atlas_coords())
 
 
 ## Draws `cell_tiles` (cell -> atlas coords) from one sheet onto the walls layer.

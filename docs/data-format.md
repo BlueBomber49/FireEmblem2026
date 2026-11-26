@@ -124,7 +124,20 @@ Under `map_data`, `walls` and `doors` are lists of cells and `forts` is a list o
 - Wall tiles are picked automatically from `assets/tilesets/wall_tileset.png` by the neighbouring cells: a wall with wall below it draws its flat top, otherwise its brick front face, and the walls to its left and right pick the end or middle piece. Doors count as wall for their neighbours, open or closed.
 - Door tiles come from `assets/tilesets/door_tilesest.png`. A door with wall (or door) above or below it and none beside it is vertical; anything else is horizontal. An open horizontal door draws its open tile; an open vertical door draws nothing.
 - Fort tiles come from `assets/tilesets/fort_tileset.png`; `variant` picks the look (0 or 1).
-- A cell holds one of a wall, a door or a fort. If a hand-edited file lists a cell in more than one, it plays as the fort, else the door.
+- A cell holds one of a wall, a door, a fort or a chest (chests are below). If a hand-edited file lists a cell in more than one of wall, door and fort, it plays as the fort, else the door.
+
+### Chests
+
+Under `map_data`, `chests` is an optional list of chests, each a cell and the id of the weapon or consumable inside:
+
+```json
+"chests": [{"cell": [6, 3], "item": "vulnerary"}]
+```
+
+- A chest stands on the terrain painted under it and doesn't change its rules, so put it on walkable ground.
+- Any player unit standing on a closed chest can choose **Chest** in its unit menu, as long as its inventory isn't full. The item goes into its inventory with full uses, the chest shows open (`assets/tilesets/chest_tileset.png`: closed, then open), and the unit's action ends.
+- An unknown item id is reported as a warning when the level loads.
+- In the map editor's Walls mode, pick **Chest** and its **Contents**, then left-click to place (painting over a chest changes what it holds) and right-click to erase. Hover a chest to see its contents in the status line. A cell holds one wall, door, chest or fort.
 
 ### Objective
 
@@ -158,7 +171,7 @@ Optional `objective` at the top level of the level file: how the level is won or
 - An unknown type, a condition in the wrong list (e.g. `seize` under `lose`), or missing settings are warned about ("Objective:") and dropped. Problems that need the level's units (no commander marked for `defeat_commander`, a `seize` with no cells, a `units_fall` id that isn't in the level, more than one commander, a commander that isn't an enemy) are warned about when the level loads, and **the map editor won't save** until they're fixed. A missing commander or unit never counts as defeated.
 - **Adding a condition type** (code): a `Condition` subclass in `gameplay/map/objective.gd` plus one `CONDITION_TYPES` entry (its class, editor title, allowed lists and settings). The map editor builds its fields from the settings.
 
-The map editor edits all of it in **Objective** mode: add or remove conditions in each list, set turns, pick units, name a seize point, and choose seize or escape cells on the map (click any number, then Confirm) (seize cells show in green and escape cells in gold, as in play). Mark the enemy commander with the **Enemy commander** checkbox in Units mode, and set an enemy's **AI** (strategy and team) there too. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell. In Walls mode, pick Wall, Door or a Fort look, then left-drag to paint and right-drag to erase.
+The map editor edits all of it in **Objective** mode: add or remove conditions in each list, set turns, pick units, name a seize point, and choose seize or escape cells on the map (click any number, then Confirm) (seize cells show in green and escape cells in gold, as in play). Mark the enemy commander with the **Enemy commander** checkbox in Units mode, and set an enemy's **AI** (strategy and team) there too. In Units mode, pick a character (or None plus a class, level, items and optionally "Override class stats") and click a cell. In Walls mode, pick Wall, Door, Chest (and its contents) or a Fort look, then left-drag to paint and right-drag to erase.
 
 ### Events
 

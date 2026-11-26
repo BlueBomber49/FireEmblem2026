@@ -42,11 +42,14 @@ static func fromJson(d: Dictionary) -> LevelState:
 	state.objective = Objective.fromJson(objective_json if objective_json is Dictionary else {})
 	for problem in state.objective.validate(state):
 		push_warning("Objective: %s" % problem)
+	for problem in state.map_data.chest_problems():
+		push_warning("Chests: %s" % problem)
 	state.turn = maxi(SaveUtil.read_int(d, "turn", 1), 1) if d.has("turn") else 1
 	state.seized = d.get("seized", false) == true
 	state.escaped = d.get("escaped", false) == true
-	# Only a save has opened doors; an authored level starts with every door shut.
+	# Only a save has opened doors and chests; an authored level starts with all shut.
 	state.map_data.opened_doors = JsonUtil.vec2i_array_from_json(d.get("opened_doors", []))
+	state.map_data.opened_chests = JsonUtil.vec2i_array_from_json(d.get("opened_chests", []))
 	return state
 
 
@@ -137,6 +140,7 @@ func toJson(include_state := true) -> Dictionary:
 		d["seized"] = seized
 		d["escaped"] = escaped
 		d["opened_doors"] = JsonUtil.vec2i_array_to_json(map_data.opened_doors)
+		d["opened_chests"] = JsonUtil.vec2i_array_to_json(map_data.opened_chests)
 	return d
 
 
