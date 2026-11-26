@@ -1039,6 +1039,50 @@ func test_a_killed_marked_enemy_loses_its_zone() -> void:
 	assert_true(_overlay().marked_threat_cells.is_empty())
 
 
+# --- Chests -----------------------------------------------------------------------
+
+
+func _chest_under_lyn(item_id := "vulnerary") -> void:
+	battle.level.level_state.map_data.chests[LYN_CELL] = item_id
+	battle.level.repaint_walls()
+
+
+func test_chest_is_offered_on_a_closed_chest() -> void:
+	_chest_under_lyn()
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_true(battle.unit_menu.options.has(&"chest"))
+
+
+func test_chest_is_not_offered_off_a_chest() -> void:
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.unit_menu.options.has(&"chest"))
+
+
+func test_chest_is_not_offered_with_a_full_inventory() -> void:
+	_chest_under_lyn()
+	while not lyn.unit.inventory.is_full():
+		lyn.unit.inventory.add(GameData.get_item(&"vulnerary"))
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	assert_false(battle.unit_menu.options.has(&"chest"))
+
+
+func test_opening_a_chest_gives_the_item_and_ends_the_action() -> void:
+	_chest_under_lyn("elixir")
+	var before := lyn.unit.inventory.size()
+	battle.cursor.set_cell(LYN_CELL)
+	battle.act_in_place()
+	battle.unit_menu.option_selected.emit(&"chest")
+	assert_eq(lyn.unit.inventory.size(), before + 1)
+	assert_eq(lyn.unit.inventory.get_item(before).data.id, &"elixir")
+	assert_true(lyn.has_acted)
+	assert_eq(battle.state, Battle.State.FREE)
+	assert_eq(battle.level.walls_layer.get_cell_atlas_coords(LYN_CELL), ChestTiles.OPEN_COORDS)
+	assert_false(battle.can_open_chest(lyn), "an open chest is empty")
+
+
 # --- Seize and the end of the level ----------------------------------------------
 
 

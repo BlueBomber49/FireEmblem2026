@@ -75,6 +75,7 @@ const CutsceneScene: PackedScene = preload("res://gameplay/cutscene/cutscene.tsc
 @onready var phase_banner: PhaseBanner = %PhaseBanner
 @onready var end_screen: EndScreen = %EndScreen
 @onready var exp_popup: ExpPopup = %ExpPopup
+@onready var item_popup: ItemPopup = %ItemPopup
 @onready var turn_loop: TurnLoop = $TurnLoop
 @onready var music: AudioStreamPlayer = $Music
 @onready var sound_effects: AudioStreamPlayer = $SoundEffects
@@ -432,6 +433,8 @@ func _open_unit_menu() -> void:
 		options.push_front(&"trade")
 	if level.selected.state.unit.inventory.size() > 0:
 		options.push_front(&"item")
+	if can_open_chest(level.selected.state):
+		options.push_front(&"chest")
 	if not targets.is_empty():
 		options.push_front(&"attack")
 	# Seize and Escape come first, as in FE: on that cell it's what the player came for.
@@ -470,6 +473,8 @@ func _on_unit_menu_option(option_id: StringName) -> void:
 			open_status(level.selected, false)
 		&"wait":
 			_finish_action()
+		&"chest":
+			open_chest()
 		&"escape":
 			# Ends like Seize: the completion check then sees the escape and wins.
 			turn_loop.mark_escaped()
@@ -499,6 +504,30 @@ func _on_unit_menu_cancelled() -> void:
 	# Back where it started: the preview goes away.
 	_refresh_danger_zone()
 	_update_panels()
+
+
+# --- Chests --------------------------------------------------------------------
+
+
+## Whether `unit` can open the chest on its cell, so the unit menu offers Chest.
+func can_open_chest(unit: LevelUnitState) -> bool:
+	if not unit.unit.inventory.is_full() and not level.level_state.chest_item_at(unit.cell).is_empty:
+		return true
+	return false
+
+
+## The selected unit takes the item from the chest it stands on, the chest
+## shows open, and the unit's action ends, like Wait.
+func open_chest() -> void:
+	var me := level.selected.state
+	var item := GameData.get_item(StringName(level.level_state.chest_item_at(me.cell)))
+	me.unit.inventory.add(item)
+	level.level_state.opened_chests.append(me.cell)
+	level.repaint_walls()
+	if show_banners:
+		state = State.SCENE  # the popup takes confirm; the map waits
+		await item_popup.play(item.display_name)
+	_finish_action()
 
 
 # --- Item menu -----------------------------------------------------------------

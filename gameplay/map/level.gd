@@ -1,7 +1,7 @@
 class_name Level
 extends Node2D
 ## A playable map. Shows a LevelState (an authored level or a save) as stacked
-## TileMapLayers, a walls layer above them, and LevelUnits on top, built by
+## TileMapLayers, a walls layer (walls, doors and chests) above them, and LevelUnits on top, built by
 ## rebuild(). Units stand on tile cells; the vertex data in MapData only decides
 ## which tiles get drawn.
 
@@ -168,7 +168,8 @@ func _build_walls(z: int) -> void:
 	_paint_walls()
 
 
-## Redraws the walls and doors after they changed (used by the map editor).
+## Redraws the walls, doors and chests after they changed (the map editor, or a
+## chest opening in play).
 func repaint_walls() -> void:
 	walls_layer.clear()
 	_paint_walls()
@@ -179,11 +180,16 @@ func repaint_walls() -> void:
 func _paint_walls() -> void:
 	var map_data := level_state.map_data
 	var cell_tiles := WallTiles.cell_tiles(map_data.walls, map_data.doors)
-	if cell_tiles.is_empty():
-		return
-	var source_id := tiles.add_tiles(WallTiles.TEXTURE_PATH, WallTiles.TILE_SIZE, WallTiles.all_atlas_coords())
-	for cell in cell_tiles:
-		walls_layer.set_cell(cell, source_id, cell_tiles[cell])
+	if not cell_tiles.is_empty():
+		var source_id := tiles.add_tiles(WallTiles.TEXTURE_PATH, WallTiles.TILE_SIZE, WallTiles.all_atlas_coords())
+		for cell in cell_tiles:
+			walls_layer.set_cell(cell, source_id, cell_tiles[cell])
+	# Chests share the walls layer: a cell never holds both, and they draw at the same height.
+	var chest_tiles := ChestTiles.cell_tiles(map_data.chests, level_state.opened_chests)
+	if not chest_tiles.is_empty():
+		var source_id := tiles.add_tiles(ChestTiles.TEXTURE_PATH, ChestTiles.TILE_SIZE, ChestTiles.all_atlas_coords())
+		for cell in chest_tiles:
+			walls_layer.set_cell(cell, source_id, chest_tiles[cell])
 
 
 ## Rebuilds just the unit nodes from `level_state` (used by the map editor).

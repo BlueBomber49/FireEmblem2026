@@ -255,3 +255,39 @@ func test_walls_count_on_cells_with_no_terrain() -> void:
 	assert_true(data.is_drawn(Vector2i(7, 7)))
 	assert_true(data.is_drawn(Vector2i(8, 7)))
 	assert_eq(data.bounds(), Rect2i(7, 7, 2, 1), "bounds cover walls and doors")
+
+
+# --- Chests -------------------------------------------------------------------
+
+
+func test_chests_round_trip_sorted_by_row_then_column() -> void:
+	var data := MapData.new()
+	data.chests = {Vector2i(4, 2): "vulnerary", Vector2i(1, 2): "iron_sword", Vector2i(9, 0): "elixir"}
+	var raw: Array = data.toJson()["chests"]
+	assert_eq(raw, [
+		{"cell": [9, 0], "item": "elixir"},
+		{"cell": [1, 2], "item": "iron_sword"},
+		{"cell": [4, 2], "item": "vulnerary"},
+	])
+	var again := MapData.fromJson(JSON.parse_string(JSON.stringify(data.toJson())))
+	assert_eq(again.chests, data.chests, "cells come back as Vector2i through real JSON")
+
+
+func test_map_without_chests_loads_with_none() -> void:
+	assert_true(MapData.fromJson(SAMPLE).chests.is_empty())
+
+
+func test_chests_leave_the_terrain_under_them_alone() -> void:
+	var data := _walled_map()
+	data.chests[Vector2i(0, 0)] = "vulnerary"
+	assert_eq(data.rules_terrain_at(Vector2i(0, 0)), "grass")
+	data.chests[Vector2i(7, 7)] = "vulnerary"
+	assert_false(data.is_drawn(Vector2i(7, 7)), "a chest alone doesn't make ground")
+
+
+func test_chest_problems_name_unknown_items() -> void:
+	var data := MapData.new()
+	data.chests = {Vector2i(1, 1): "vulnerary", Vector2i(2, 1): "vulnerery"}
+	var problems := data.chest_problems()
+	assert_eq(problems.size(), 1)
+	assert_string_contains(problems[0], "vulnerery")

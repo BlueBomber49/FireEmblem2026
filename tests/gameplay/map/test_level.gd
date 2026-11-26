@@ -282,6 +282,16 @@ func test_repainting_walls_refreshes_tiles_and_rules_terrain() -> void:
 	assert_true(level.walls_layer.get_used_cells().is_empty())
 
 
+func test_chests_draw_closed_then_open() -> void:
+	var level := _loaded_level()
+	level.level_state.map_data.chests[INNER_GRASS] = "vulnerary"
+	level.rebuild()
+	assert_eq(level.walls_layer.get_cell_atlas_coords(INNER_GRASS), ChestTiles.CLOSED_COORDS)
+	level.level_state.opened_chests.append(INNER_GRASS)
+	level.repaint_walls()
+	assert_eq(level.walls_layer.get_cell_atlas_coords(INNER_GRASS), ChestTiles.OPEN_COORDS)
+
+
 # --- Arrivals running in ----------------------------------------------------------------
 
 

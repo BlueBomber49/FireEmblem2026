@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://gameplay/ui/end_screen.tscn" id="17_end_screen"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/exp_popup.tscn" id="18_exp_popup"]
 [ext_resource type="PackedScene" path="res://gameplay/ui/trade_menu.tscn" id="19_trade_menu"]
+[ext_resource type="PackedScene" path="res://gameplay/ui/item_popup.tscn" id="20_item_popup"]
 
 [node name="Battle" type="Node2D" unique_id=1245554179]
 script = ExtResource("1_battle")
@@ -98,6 +99,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="ExpPopup" parent="UI" unique_id=256821876 instance=ExtResource("18_exp_popup")]
+unique_name_in_owner = true
+
+[node name="ItemPopup" parent="UI" unique_id=1940261577 instance=ExtResource("20_item_popup")]
 unique_name_in_owner = true
 
 [node name="EndScreen" parent="UI" unique_id=653238110 instance=ExtResource("17_end_screen")]

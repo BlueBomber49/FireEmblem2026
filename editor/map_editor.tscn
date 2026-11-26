@@ -415,11 +415,27 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
-item_count = 2
+item_count = 3
 popup/item_0/text = "Wall"
 popup/item_0/id = 0
 popup/item_1/text = "Door"
 popup/item_1/id = 1
+popup/item_2/text = "Chest"
+popup/item_2/id = 2
+
+[node name="ChestItemRow" type="HBoxContainer" parent="UI/Panel/Margin/Scroll/VBox/WallsBox" unique_id=1873350262]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="ChestItemLabel" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/ChestItemRow" unique_id=624019735]
+layout_mode = 2
+text = "Contents"
+
+[node name="ChestItemOption" type="OptionButton" parent="UI/Panel/Margin/Scroll/VBox/WallsBox/ChestItemRow" unique_id=1302958814]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="WallsHelp" type="Label" parent="UI/Panel/Margin/Scroll/VBox/WallsBox" unique_id=1063666478]
 layout_mode = 2
