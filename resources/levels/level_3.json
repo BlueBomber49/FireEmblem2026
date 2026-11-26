@@ -9,7 +9,7 @@
 			"name": "Fortuna's arrival",
 			"trigger": {
 				"phase": "player",
-				"turn": 3,
+				"turn": 3.0,
 				"type": "turn_start"
 			}
 		},
@@ -41,7 +41,31 @@
 		}
 	},
 	"map_data": {
+		"chests": [],
 		"doors": [],
+		"forts": [
+			{
+				"cell": [
+					7,
+					2
+				],
+				"variant": 1
+			},
+			{
+				"cell": [
+					14,
+					5
+				],
+				"variant": 1
+			},
+			{
+				"cell": [
+					19,
+					2
+				],
+				"variant": 1
+			}
+		],
 		"layers": {
 			"dirt": {
 				"terrain": "dirt",

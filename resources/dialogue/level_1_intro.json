@@ -1,7 +1,7 @@
 {
 	"id": "level_1_intro",
 	"background": "cutscene_background_1",
-	"music": "intense_cutscene",
+	"music": "tense_cutscene",
 	"lines": [
 		{ "speaker": "adelard", "side": "left", "text": "Ow... Where am I?" },
 		{ "speaker": "leora", "side": "right", "text": "Adelard!  Are you ok?" },

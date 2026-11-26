@@ -517,7 +517,7 @@ func _on_unit_menu_cancelled() -> void:
 
 ## Whether `unit` can open the chest on its cell, so the unit menu offers Chest.
 func can_open_chest(unit: LevelUnitState) -> bool:
-	if not unit.unit.inventory.is_full() and not level.level_state.map_data.chest_item_at(unit.cell).is_empty:
+	if not unit.unit.inventory.is_full() and not level.level_state.map_data.chest_item_at(unit.cell).is_empty():
 		return true
 	return false
 
